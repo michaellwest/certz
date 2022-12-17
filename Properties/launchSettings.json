@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "certinstaller": {
+      "commandName": "Project",
+      "commandLineArgs": "install --file \"\""
+    }
+  }
+}
