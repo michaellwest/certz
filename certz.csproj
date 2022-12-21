@@ -12,16 +12,12 @@
     <PublishTrimmed>true</PublishTrimmed>
     <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
     <DockerfileContext>.</DockerfileContext>
-    <DockerfileRunArguments>-v "C:\Projects\github\michaellwest\certz\data:C:\app\data" -v "C:\Projects\github\michaellwest\certz\docker:C:\app\docker"</DockerfileRunArguments>
+    <DockerfileRunArguments>-v "C:\Projects\github\michaellwest\certz\docker:C:\app\docker"</DockerfileRunArguments>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.17.0" />
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="data\" />
   </ItemGroup>
 
 </Project>

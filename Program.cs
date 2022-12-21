@@ -42,7 +42,7 @@ class Program
     internal static Command GetInstallCommand()
     {
         var fileOption = new Option<FileInfo?>(
-            name: "--file",
+            aliases: new[] { "--file", "--f" },
             description: "Specifies the certificate to install.",
             parseArgument: result =>
             {
@@ -59,7 +59,12 @@ class Program
             })
         { IsRequired = true };
 
-        var passwordOption = new Option<string>(new[] { "--password" }, "Password for the certificate.");
+        var passwordOption = new Option<string>(
+            aliases: new[] { "--password", "--pass", "--p" },
+            description: "Password for the certificate."
+            )
+        { IsRequired = true };
+
         var storeNameOption = new Option<StoreName>(new[] { "--storename", "--sn" }, () => StoreName.My, "Specifies the store name.");
         var storeLocationOption = new Option<StoreLocation>(new[] { "--storelocation", "--sl" }, () => StoreLocation.LocalMachine, "Specifies the store location.");
 
@@ -82,7 +87,7 @@ class Program
     internal static Command GetCreateCommand()
     {
         var fileOption = new Option<FileInfo?>(
-            name: "--file",
+            aliases: new[] { "--file", "--f" },
             description: "Specifies the certificate to create.",
             parseArgument: result =>
             {
@@ -99,18 +104,25 @@ class Program
             })
         { IsRequired = true };
 
-        var passwordOption = new Option<string>(new[] { "--password" }, "Password for the certificate.");
+        var passwordOption = new Option<string>(
+            aliases: new[] { "--password", "--pass", "--p" },
+            description: "Password for the certificate."
+            )
+        { IsRequired = true };
+
+        var dnsOption = new Option<string[]>(new[] { "--dns" }, () => new[] { "*.dev.local" }, "DNS name for the certificate.");
 
         var createCommand = new Command("create", "Creates a certificate.")
         {
             fileOption,
-            passwordOption
+            passwordOption,
+            dnsOption
         };
 
-        createCommand.SetHandler(async (file, password) =>
+        createCommand.SetHandler(async (file, password, dnsNames) =>
         {
-            await CreateCertificate(file!, password);
-        }, fileOption, passwordOption);
+            await CreateCertificate(file!, password, dnsNames);
+        }, fileOption, passwordOption, dnsOption);
 
         return createCommand;
     }
@@ -118,7 +130,7 @@ class Program
     internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation)
     {
         using var store = new X509Store(storeName, storeLocation);
-        using var certificate = new X509Certificate2(file.FullName, password);
+        using var certificate = new X509Certificate2(file.FullName, password, X509KeyStorageFlags.Exportable);
 
         store.Open(OpenFlags.ReadWrite);
         store.Add(certificate);
@@ -127,9 +139,9 @@ class Program
         await Task.Delay(10);
     }
 
-    internal static async Task CreateCertificate(FileInfo file, string password)
+    internal static async Task CreateCertificate(FileInfo file, string password, string[] dnsNames)
     {
-        var certificate = CreateCertificate(new[] { "*.dev.local" }, DateTime.Today, DateTime.Today.AddYears(5));
+        var certificate = CreateCertificate(dnsNames, DateTime.Today, DateTime.Today.AddYears(5));
         var certData = certificate.Export(X509ContentType.Pfx, password);
         await File.WriteAllBytesAsync(file.FullName, certData);
 
