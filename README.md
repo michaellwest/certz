@@ -24,6 +24,14 @@ Commands:
 
 `certz.exe list --storename root --storelocation localmachine`
 
-**Example:** The following installs a root certificate.
+**Example:** The following creates a new certificate.
 
-`.\certz.exe install --file C:\certs\myrootcert.crt --storename trustedpublisher --storelocation localmachine`
+```
+certz.exe create --f devcert.pfx --p Password12345 --dns *.devx.local
+```
+
+**Example:** The following installs a certificate with the provided password.
+
+```
+certz.exe install --f C:\certs\devcert.pfx --p Password12345 --sn root --sl localmachine
+```
