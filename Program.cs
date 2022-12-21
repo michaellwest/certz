@@ -62,8 +62,7 @@ class Program
         var passwordOption = new Option<string>(
             aliases: new[] { "--password", "--pass", "--p" },
             description: "Password for the certificate."
-            )
-        { IsRequired = true };
+            );
 
         var storeNameOption = new Option<StoreName>(new[] { "--storename", "--sn" }, () => StoreName.My, "Specifies the store name.");
         var storeLocationOption = new Option<StoreLocation>(new[] { "--storelocation", "--sl" }, () => StoreLocation.LocalMachine, "Specifies the store location.");
