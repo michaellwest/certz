@@ -17,6 +17,7 @@ Options:
 Commands:
   list     Lists all certificates.
   install  Installs a certificate.
+  create   Creates a certificate.
 ```
 
 **Example:** The following lists all the installed certificates from the specified locations.
