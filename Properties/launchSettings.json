@@ -3,6 +3,10 @@
     "certinstaller": {
       "commandName": "Project",
       "commandLineArgs": "install --file \"\""
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "commandLineArgs": "create --file docker\\traefik\\certs\\devcert.pfx --password Password12345"
     }
   }
 }
