@@ -16,6 +16,7 @@ class Program
         rootCommand.AddCommand(GetListCommand());
         rootCommand.AddCommand(GetInstallCommand());
         rootCommand.AddCommand(GetCreateCommand());
+        rootCommand.AddCommand(GetRemoveCommand());
 
         return await rootCommand.InvokeAsync(args);
     }
@@ -126,12 +127,32 @@ class Program
         return createCommand;
     }
 
+    internal static Command GetRemoveCommand()
+    {
+        var thumbprintOption = new Option<string>(new[] { "--thumbprint", "--thumb" }, "The unique thumbprint for the certificate.");
+        var storeNameOption = new Option<StoreName>(new[] { "--storename", "--sn" }, () => StoreName.My, "Specifies the store name.");
+        var storeLocationOption = new Option<StoreLocation>(new[] { "--storelocation", "--sl" }, () => StoreLocation.LocalMachine, "Specifies the store location.");
+
+        var removeCommand = new Command("remove", "Removes the specified certificates.")
+        {
+            thumbprintOption,
+            storeNameOption,
+            storeLocationOption
+        };
+
+        removeCommand.SetHandler(async (thumbprint, storename, storelocation) =>
+        {
+            await RemoveCertificate(thumbprint, storename, storelocation);
+        }, thumbprintOption, storeNameOption, storeLocationOption);
+
+        return removeCommand;
+    }
+
     internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation)
     {
-        using var store = new X509Store(storeName, storeLocation);
+        using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
         using var certificate = new X509Certificate2(file.FullName, password, X509KeyStorageFlags.Exportable);
 
-        store.Open(OpenFlags.ReadWrite);
         store.Add(certificate);
         store.Close();
 
@@ -165,6 +186,19 @@ class Program
         foreach (var certificate in store.Certificates.OrderBy(c => c.SubjectName.Format(false)))
         {
             WriteRow(certificate);
+        }
+        store.Close();
+
+        await Task.Delay(10);
+    }
+
+    internal static async Task RemoveCertificate(string thumbprint, StoreName storeName, StoreLocation storeLocation)
+    {
+        using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
+        foreach (var certificate in store.Certificates.Where(c => c.Thumbprint.Equals(thumbprint, StringComparison.InvariantCultureIgnoreCase)))
+        {
+            WriteRow(certificate);
+            store.Remove(certificate);
         }
         store.Close();
 
@@ -206,6 +240,7 @@ class Program
             request.CertificateExtensions.Add(extension);
         }
         var result = request.CreateSelfSigned(notBefore, notAfter);
+        result.FriendlyName = "certz";
         return result;
 
         static RSA CreateKeyMaterial(int minimumKeySize)

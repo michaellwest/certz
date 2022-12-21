@@ -35,3 +35,9 @@ certz.exe create --f devcert.pfx --p Password12345 --dns *.devx.local
 ```
 certz.exe install --f C:\certs\devcert.pfx --p Password12345 --sn root --sl localmachine
 ```
+
+**Example:** The following removes a certificate matching the provided thumbprint.
+
+```
+certz.exe remove --thumb 94163681942B9B440A22535B3E6BFEA64DE9A3E7 --sn root
+```
