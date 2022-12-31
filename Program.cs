@@ -10,7 +10,7 @@ class Program
     private const int RSAMinimumKeySizeInBits = 2048;
     private const string ServerAuthenticationEnhancedKeyUsageOid = "1.3.6.1.5.5.7.3.1";
     private const string ServerAuthenticationEnhancedKeyUsageOidFriendlyName = "Server Authentication";
-    
+
     internal enum CertificateFileType
     {
         Pfx,
@@ -64,21 +64,21 @@ class Program
 
     internal static Option<StoreName> GetStoreNameOption()
     {
-        var storeNameOption = new Option<StoreName>(new[] { "--storename", "--sn" }, 
+        var storeNameOption = new Option<StoreName>(new[] { "--storename", "--sn" },
             () => StoreName.My, "Specifies the store name.");
         return storeNameOption;
     }
 
     internal static Option<StoreLocation> GetStoreLocationOption()
     {
-        var storeLocationOption = new Option<StoreLocation>(new[] { "--storelocation", "--sl" }, 
+        var storeLocationOption = new Option<StoreLocation>(new[] { "--storelocation", "--sl" },
             () => StoreLocation.LocalMachine, "Specifies the store location.");
         return storeLocationOption;
     }
 
     internal static Option<string> GetThumbprintOption(bool isRequired)
     {
-        var thumbprintOption = new Option<string>(new[] { "--thumbprint", "--thumb" }, 
+        var thumbprintOption = new Option<string>(new[] { "--thumbprint", "--thumb" },
             "The unique thumbprint for the certificate.")
         { IsRequired = isRequired };
         return thumbprintOption;
@@ -133,7 +133,7 @@ class Program
         var certOption = GetFileOption(false, new[] { "--cert", "--c" });
         var keyOption = GetFileOption(false, new[] { "--key", "--k" });
         var passwordOption = GetPasswordOption();
-        var dnsOption = new Option<string[]>(new[] { "--dns", "--san" }, 
+        var dnsOption = new Option<string[]>(new[] { "--dns", "--san" },
             () => new[] { "*.dev.local", "*.localhost", "*.test" }, "SAN for the certificate.")
         { AllowMultipleArgumentsPerToken = true };
         var daysOption = GetDaysOption(false);
@@ -237,7 +237,7 @@ class Program
         {
             var certificatePem = PemEncoding.Write("CERTIFICATE", certificate.RawData);
             await File.WriteAllTextAsync(path, new string(certificatePem));
-            Console.WriteLine(" - certificate public key '{0}'", Path.GetFileName(path));
+            Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
         }
         else if (certificateFileType == CertificateFileType.PemKey)
         {
@@ -249,26 +249,26 @@ class Program
 
     internal static async Task CreateCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string[] dnsNames, int days)
     {
-        if(key != null && cert == null)
-        {
-            throw new ArgumentException("The key path was provide but the cert path was missing.")
-        }
-
-        if(pfx == null && cert == null)
+        if (pfx == null && cert == null)
         {
             pfx = new FileInfo("devcert.pfx");
             cert = new FileInfo("devcert.cer");
             key = new FileInfo("devcert.key");
         }
 
-        if(string.IsNullOrEmpty(password))
+        if (cert == null | key == null)
+        {
+            throw new ArgumentException("Both the cert and key parameters should be provided.");
+        }
+
+        if (string.IsNullOrEmpty(password))
         {
             password = "changeit";
         }
 
         var validFrom = DateTime.Today;
         var validTo = DateTime.Today.AddDays(days).AddSeconds(-1);
-        if(validTo.DayOfWeek == DayOfWeek.Saturday)
+        if (validTo.DayOfWeek == DayOfWeek.Saturday)
         {
             validTo = validTo.AddDays(2);
         }
@@ -277,7 +277,7 @@ class Program
             validTo = validTo.AddDays(1);
         }
         var certificate = GenerateCertificate(dnsNames, validFrom, validTo);
-        if(certificate == null)
+        if (certificate == null)
         {
             throw new CertificateException("There was a problem creating the certificate.");
         }
@@ -285,16 +285,20 @@ class Program
         Console.WriteLine("Generated a new certificate valid from {0} to {1}.", certificate.GetEffectiveDateString(), certificate.GetExpirationDateString());
         Console.WriteLine("");
         Console.WriteLine("Subject Alternative Names:");
-        foreach(var dnsName in dnsNames)
+        foreach (var dnsName in dnsNames)
         {
             Console.WriteLine(" - {0}", dnsName);
         }
 
         Console.WriteLine("");
         Console.WriteLine("Saved the following certificate files:");
-        await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx);
+        if (pfx != null)
+        {
+            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx);
+        }
 
-        if (cert != null) {
+        if (cert != null)
+        {
             await WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
 
             if (key != null)
@@ -343,7 +347,7 @@ class Program
             {
                 await WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
             }
-            if(key != null)
+            if (key != null)
             {
                 await WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
             }
