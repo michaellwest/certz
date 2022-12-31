@@ -40,14 +40,12 @@ class Program
         return fileOption;
     }
 
-    internal static Option<string> GetPasswordOption(bool isRequired)
+    internal static Option<string> GetPasswordOption()
     {
         var passwordOption = new Option<string>(
             aliases: new[] { "--password", "--pass", "--p" },
-            description: "Password for the certificate.",
-            getDefaultValue: () => "changeit"
-            )
-        { IsRequired = isRequired };
+            description: "Password for the certificate."
+            );
 
         return passwordOption;
     }
@@ -109,7 +107,7 @@ class Program
     {
         var fileOption = GetFileOption(true, new[] { "--file", "--f", "--pkcs12", "--cert", "--c" });
 
-        var passwordOption = GetPasswordOption(false);
+        var passwordOption = GetPasswordOption();
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
 
@@ -131,12 +129,12 @@ class Program
 
     internal static Command GetCreateCommand()
     {
-        var pfxOption = GetFileOption(true, new[] { "--file", "--f", "--pkcs12" });
+        var pfxOption = GetFileOption(false, new[] { "--file", "--f", "--pkcs12" });
         var certOption = GetFileOption(false, new[] { "--cert", "--c" });
         var keyOption = GetFileOption(false, new[] { "--key", "--k" });
-        var passwordOption = GetPasswordOption(true);
+        var passwordOption = GetPasswordOption();
         var dnsOption = new Option<string[]>(new[] { "--dns", "--san" }, 
-            () => new[] { "*.dev.local" }, "DNS name for the certificate.")
+            () => new[] { "*.dev.local", "*.localhost", "*.test" }, "SAN for the certificate.")
         { AllowMultipleArgumentsPerToken = true };
         var daysOption = GetDaysOption(false);
 
@@ -185,7 +183,7 @@ class Program
         var certOption = GetFileOption(false, new[] { "--cert", "--c" });
         var keyOption = GetFileOption(false, new[] { "--key", "--k" });
 
-        var passwordOption = GetPasswordOption(false);
+        var passwordOption = GetPasswordOption();
         var thumbprintOption = GetThumbprintOption(true);
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
@@ -251,9 +249,21 @@ class Program
 
     internal static async Task CreateCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string[] dnsNames, int days)
     {
+        if(key != null && cert == null)
+        {
+            throw new ArgumentException("The key path was provide but the cert path was missing.")
+        }
+
         if(pfx == null && cert == null)
         {
-            throw new ArgumentNullException("No certificate file path provided.");
+            pfx = new FileInfo("devcert.pfx");
+            cert = new FileInfo("devcert.cer");
+            key = new FileInfo("devcert.key");
+        }
+
+        if(string.IsNullOrEmpty(password))
+        {
+            password = "changeit";
         }
 
         var validFrom = DateTime.Today;
