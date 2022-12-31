@@ -1,5 +1,6 @@
 ﻿using certz.Exceptions;
 using System.CommandLine;
+using System.Linq.Expressions;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -34,7 +35,7 @@ class Program
     {
         var fileOption = new Option<FileInfo?>(
             aliases: aliases ?? new[] { "--file", "--f" },
-            description: "Specifies the certificate to create.")
+            description: "Specifies the certificate.")
         { IsRequired = isRequired };
 
         return fileOption;
@@ -76,11 +77,10 @@ class Program
         return storeLocationOption;
     }
 
-    internal static Option<string> GetThumbprintOption(bool isRequired)
+    internal static Option<string> GetThumbprintOption()
     {
         var thumbprintOption = new Option<string>(new[] { "--thumbprint", "--thumb" },
-            "The unique thumbprint for the certificate.")
-        { IsRequired = isRequired };
+            "The unique thumbprint for the certificate.");
         return thumbprintOption;
     }
 
@@ -158,21 +158,24 @@ class Program
 
     internal static Command GetRemoveCommand()
     {
-        var thumbprintOption = GetThumbprintOption(true);
+        var subjectOption = new Option<string>(new[] { "--subject" },
+            "The subject for the certificate. Multiple certificates may match.");
+        var thumbprintOption = GetThumbprintOption();
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
 
         var removeCommand = new Command("remove", "Removes the specified certificate.")
         {
+            subjectOption,
             thumbprintOption,
             storeNameOption,
             storeLocationOption
         };
 
-        removeCommand.SetHandler(async (thumbprint, storename, storelocation) =>
+        removeCommand.SetHandler(async (subject, thumbprint, storename, storelocation) =>
         {
-            await RemoveCertificate(thumbprint, storename, storelocation);
-        }, thumbprintOption, storeNameOption, storeLocationOption);
+            await RemoveCertificate(subject, thumbprint, storename, storelocation);
+        }, subjectOption, thumbprintOption, storeNameOption, storeLocationOption);
 
         return removeCommand;
     }
@@ -184,7 +187,7 @@ class Program
         var keyOption = GetFileOption(false, new[] { "--key", "--k" });
 
         var passwordOption = GetPasswordOption();
-        var thumbprintOption = GetThumbprintOption(true);
+        var thumbprintOption = GetThumbprintOption();
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
 
@@ -210,8 +213,8 @@ class Program
     internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation)
     {
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
-        using var certificate = new X509Certificate2(file.FullName, password, X509KeyStorageFlags.Exportable);
-
+        using var certificate = new X509Certificate2(file.FullName, password, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
+        Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
         store.Add(certificate);
         store.Close();
 
@@ -220,6 +223,7 @@ class Program
 
     internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType)
     {
+        //TODO: File extension validation
         if (certificateFileType == CertificateFileType.Pfx)
         {
             var certData = certificate.Export(X509ContentType.Pfx, password);
@@ -320,10 +324,18 @@ class Program
         await Task.Delay(10);
     }
 
-    internal static async Task RemoveCertificate(string thumbprint, StoreName storeName, StoreLocation storeLocation)
+    internal static async Task RemoveCertificate(string subject, string thumbprint, StoreName storeName, StoreLocation storeLocation)
     {
+        if(!string.IsNullOrEmpty(subject) && !subject.StartsWith("CN="))
+        {
+            subject = $"CN={subject}";
+        }
+        bool predicate(X509Certificate2 c) =>
+            (!string.IsNullOrEmpty(thumbprint) && c.Thumbprint.Equals(thumbprint, StringComparison.InvariantCultureIgnoreCase)) ||
+            (!string.IsNullOrEmpty(subject) && c.Subject.Equals(subject, StringComparison.InvariantCultureIgnoreCase));
+        
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
-        foreach (var certificate in store.Certificates.Where(c => c.Thumbprint.Equals(thumbprint, StringComparison.InvariantCultureIgnoreCase)))
+        foreach (var certificate in store.Certificates.Where(predicate))
         {
             WriteRow(certificate);
             store.Remove(certificate);

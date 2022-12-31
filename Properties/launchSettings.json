@@ -1,12 +1,12 @@
 {
   "profiles": {
-    "certinstaller": {
+    "certz": {
       "commandName": "Project",
-      "commandLineArgs": "install --file \"\""
+      "commandLineArgs": "export --f devcert-bak.cer --sl localmachine --sn my --thumb 1e823c7075043c90ffdbf9c752b93bf6d96e5063"
     },
     "Docker": {
       "commandName": "Docker",
-      "commandLineArgs": "create --pkcs12 docker\\traefik\\certs\\devcert.pfx --p changeit --dns *.devx.local"
+      "commandLineArgs": "export --f devcert-bak.cer --sl localmachine --sn my"
     }
   }
 }
