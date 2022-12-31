@@ -12,12 +12,13 @@ COPY ["certz.csproj", "."]
 RUN dotnet restore "./certz.csproj"
 COPY . .
 WORKDIR "/src/."
-RUN dotnet build "certz.csproj" -c Release -o /app/build
+RUN dotnet build "certz.csproj" -c Debug -o /app/build
 
 FROM build AS publish
-RUN dotnet publish "certz.csproj" -c Release -o /app/publish -r win-x64 --self-contained true --no-restore
+RUN dotnet publish "certz.csproj" -c Debug -o /app/publish
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+RUN dir
 ENTRYPOINT ["dotnet", "certz.dll"]

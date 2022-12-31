@@ -30,6 +30,12 @@ Commands:
 certz.exe create --f devcert.pfx --p Password12345 --dns *.devx.local
 ```
 
+**Example:** The following creates PFX and CER certificate files with an expiration of years. The password defaults to **changeit**.
+
+```
+certz.exe create --f devcert.pfx --c devcert.cer --k devcert.key --days 1825
+```
+
 **Example:** The following installs a certificate with the provided password.
 
 ```

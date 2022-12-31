@@ -6,7 +6,7 @@
     },
     "Docker": {
       "commandName": "Docker",
-      "commandLineArgs": "create --f docker\\traefik\\certs\\devcert.pfx --p Password12345 --dns *.devx.local"
+      "commandLineArgs": "create --pkcs12 docker\\traefik\\certs\\devcert.pfx --p changeit --dns *.devx.local"
     }
   }
 }
