@@ -1,7 +1,6 @@
-# certz
+# certz 🔐
 
-A simple certificate utility built on .net 7 and compiled to a self-contained exe.
-
+A simple certificate utility built on .net 7 and compiled to a self-contained exe for use with Windows.
 
 ```
 Description:
@@ -18,6 +17,7 @@ Commands:
   list     Lists all certificates.
   install  Installs a certificate.
   create   Creates a certificate.
+  export   Exports a certificate.
 ```
 
 **Example:** The following lists all the installed certificates from the specified locations.
@@ -46,4 +46,10 @@ certz.exe install --f C:\certs\devcert.pfx --p Password12345 --sn root --sl loca
 
 ```
 certz.exe remove --thumb 94163681942B9B440A22535B3E6BFEA64DE9A3E7 --sn root
+```
+
+**Example:** The following downloads a certificate from the provided url.
+
+```
+certz.exe export --f devcert-bak.pfx --c devcert-bak.pem --url https://www.github.com
 ```

@@ -2,6 +2,8 @@
 using System.CommandLine;
 using System.Linq.Expressions;
 using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -35,6 +37,16 @@ class Program
     {
         var fileOption = new Option<FileInfo?>(
             aliases: aliases ?? new[] { "--file", "--f" },
+            description: "Specifies the certificate.")
+        { IsRequired = isRequired };
+
+        return fileOption;
+    }
+
+    internal static Option<Uri?> GetUrlOption(bool isRequired, string[] aliases)
+    {
+        var fileOption = new Option<Uri?>(
+            aliases: aliases ?? new[] { "--url", "--u" },
             description: "Specifies the certificate.")
         { IsRequired = isRequired };
 
@@ -185,6 +197,7 @@ class Program
         var pfxOption = GetFileOption(false, new[] { "--file", "--f", "--pkcs12" });
         var certOption = GetFileOption(false, new[] { "--cert", "--c" });
         var keyOption = GetFileOption(false, new[] { "--key", "--k" });
+        var urlOption = GetUrlOption(false, new[] { "--url", "--u" });
 
         var passwordOption = GetPasswordOption();
         var thumbprintOption = GetThumbprintOption();
@@ -197,15 +210,23 @@ class Program
             passwordOption,
             certOption,
             keyOption,
+            urlOption,
             thumbprintOption,
             storeNameOption,
             storeLocationOption
         };
 
-        exportCommand.SetHandler(async (file, password, cert, key, thumbprint, storename, storelocation) =>
+        exportCommand.SetHandler(async (file, password, cert, key, uri, thumbprint, storename, storelocation) =>
         {
-            await ExportCertificate(file!, password, cert!, key!, thumbprint, storename, storelocation);
-        }, pfxOption, passwordOption, certOption, keyOption, thumbprintOption, storeNameOption, storeLocationOption);
+            if (uri != null)
+            {
+                await ExportCertificate(file!, password, cert!, key!, uri!);
+            }
+            else
+            {
+                await ExportCertificate(file!, password, cert!, key!, thumbprint, storename, storelocation);
+            }
+        }, pfxOption, passwordOption, certOption, keyOption, urlOption, thumbprintOption, storeNameOption, storeLocationOption);
 
         return exportCommand;
     }
@@ -343,6 +364,35 @@ class Program
         store.Close();
 
         await Task.Delay(10);
+    }
+
+    internal static async Task ExportCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, Uri uri)
+    {
+        RemoteCertificateValidationCallback certCallback = (_, _, _, _) => true;
+        using var client = new TcpClient(uri.Host, 443);
+        using var sslStream = new SslStream(client.GetStream(), true, certCallback);
+        await sslStream.AuthenticateAsClientAsync(uri.Host);
+        var serverCertificate = sslStream.RemoteCertificate;
+        var certificate = new X509Certificate2(serverCertificate);
+
+        if (string.IsNullOrEmpty(password))
+        {
+            password = "changeit";
+        }
+
+        WriteRow(certificate);
+        if (pfx != null)
+        {
+            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx);
+        }
+        if (cert != null)
+        {
+            await WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
+        }
+        if (key != null)
+        {
+            await WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
+        }
     }
 
     internal static async Task ExportCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string thumbprint, StoreName storeName, StoreLocation storeLocation)

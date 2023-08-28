@@ -2,11 +2,11 @@
   "profiles": {
     "certz": {
       "commandName": "Project",
-      "commandLineArgs": "export --f devcert-bak.cer --sl localmachine --sn my --thumb 1e823c7075043c90ffdbf9c752b93bf6d96e5063"
+      "commandLineArgs": "export --f devcert-bak.pfx --c devcert-bak.pem --url https://www.github.com"
     },
     "Docker": {
       "commandName": "Docker",
-      "commandLineArgs": "export --f devcert-bak.cer --sl localmachine --sn my"
+      "commandLineArgs": "export --f devcert-bak.pfx --sl localmachine --sn my"
     }
   }
 }
