@@ -18,6 +18,7 @@ Commands:
   install  Installs a certificate.
   create   Creates a certificate.
   export   Exports a certificate.
+  convert  Converts a CER/CRT and KEY file to a PFX file.
 ```
 
 **Example:** The following lists all the installed certificates from the specified locations.
@@ -52,4 +53,10 @@ certz.exe remove --thumb 94163681942B9B440A22535B3E6BFEA64DE9A3E7 --sn root
 
 ```
 certz.exe export --f devcert-bak.pfx --c devcert-bak.pem --url https://www.github.com
+```
+
+**Example:** The following converts a CER/CRT and KEY file to a PFX file.
+
+```
+certz.exe convert --c certificate.crt --k private.key --f output.pfx --p Password12345
 ```

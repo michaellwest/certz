@@ -29,6 +29,7 @@ class Program
         rootCommand.AddCommand(GetCreateCommand());
         rootCommand.AddCommand(GetRemoveCommand());
         rootCommand.AddCommand(GetExportCommand());
+        rootCommand.AddCommand(GetConvertCommand());
 
         return await rootCommand.InvokeAsync(args);
     }
@@ -231,10 +232,33 @@ class Program
         return exportCommand;
     }
 
+    internal static Command GetConvertCommand()
+    {
+        var certOption = GetFileOption(true, new[] { "--cert", "--c" });
+        var keyOption = GetFileOption(true, new[] { "--key", "--k" });
+        var pfxOption = GetFileOption(true, new[] { "--file", "--f", "--pfx" });
+        var passwordOption = GetPasswordOption();
+
+        var convertCommand = new Command("convert", "Converts a CER/CRT and KEY file to a PFX file.")
+        {
+            certOption,
+            keyOption,
+            pfxOption,
+            passwordOption
+        };
+
+        convertCommand.SetHandler(async (cert, key, pfx, password) =>
+        {
+            await ConvertToPfx(cert!, key!, pfx!, password);
+        }, certOption, keyOption, pfxOption, passwordOption);
+
+        return convertCommand;
+    }
+
     internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation)
     {
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
-        using var certificate = new X509Certificate2(file.FullName, password, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
+        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
         Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
         store.Add(certificate);
         store.Close();
@@ -417,6 +441,51 @@ class Program
         store.Close();
 
         await Task.Delay(10);
+    }
+
+    internal static async Task ConvertToPfx(FileInfo certFile, FileInfo keyFile, FileInfo pfxFile, string password)
+    {
+        if (!certFile.Exists)
+        {
+            throw new FileNotFoundException($"Certificate file not found: {certFile.FullName}");
+        }
+
+        if (!keyFile.Exists)
+        {
+            throw new FileNotFoundException($"Key file not found: {keyFile.FullName}");
+        }
+
+        if (string.IsNullOrEmpty(password))
+        {
+            password = "changeit";
+        }
+
+        // Load the certificate
+        var certificateText = await File.ReadAllTextAsync(certFile.FullName);
+        var certificate = X509Certificate2.CreateFromPem(certificateText);
+
+        // Load the private key
+        var privateKeyText = await File.ReadAllTextAsync(keyFile.FullName);
+        using var rsa = RSA.Create();
+        rsa.ImportFromPem(privateKeyText);
+
+        // Combine certificate with private key
+        var certificateWithKey = certificate.CopyWithPrivateKey(rsa);
+
+        // Export as PFX
+        var pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
+        await File.WriteAllBytesAsync(pfxFile.FullName, pfxData);
+
+        var name = Path.GetFileNameWithoutExtension(pfxFile.FullName);
+        var directory = Path.GetDirectoryName(pfxFile.FullName);
+        var passwordFile = Path.Combine(directory, $"{name}.password.txt");
+        await File.WriteAllTextAsync(passwordFile, password);
+
+        Console.WriteLine("Successfully converted certificate and key to PFX format:");
+        Console.WriteLine(" - Input certificate: '{0}'", certFile.Name);
+        Console.WriteLine(" - Input key: '{0}'", keyFile.Name);
+        Console.WriteLine(" - Output PFX: '{0}'", pfxFile.Name);
+        Console.WriteLine(" - Password file: '{0}'", Path.GetFileName(passwordFile));
     }
 
     private static void WriteRow(X509Certificate2 certificate)
