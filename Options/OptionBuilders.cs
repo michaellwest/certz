@@ -36,6 +36,16 @@ internal static class OptionBuilders
         return passwordOption;
     }
 
+    internal static Option<FileInfo?> CreatePasswordFileOption()
+    {
+        var passwordFileOption = new Option<FileInfo?>("--password-file", "--pf")
+        {
+            Description = "File to write the generated password to. Only used when password is auto-generated.",
+            Required = false
+        };
+        return passwordFileOption;
+    }
+
     internal static Option<int> CreateDaysOption(bool isRequired)
     {
         var daysOption = new Option<int>("--days")

@@ -17,6 +17,7 @@ internal static class CreateCommand
         var certOption = OptionBuilders.CreateFileOption(false, new[] { "--cert", "--c" });
         var keyOption = OptionBuilders.CreateFileOption(false, new[] { "--key", "--k" });
         var passwordOption = OptionBuilders.CreatePasswordOption();
+        var passwordFileOption = OptionBuilders.CreatePasswordFileOption();
         var dnsOption = new Option<string[]>("--dns", "--san")
         {
             Description = "SAN for the certificate.",
@@ -41,6 +42,7 @@ internal static class CreateCommand
         var createCommand = new Command("create", "Creates a certificate.");
         createCommand.Options.Add(pfxOption);
         createCommand.Options.Add(passwordOption);
+        createCommand.Options.Add(passwordFileOption);
         createCommand.Options.Add(certOption);
         createCommand.Options.Add(keyOption);
         createCommand.Options.Add(dnsOption);
@@ -63,6 +65,7 @@ internal static class CreateCommand
         {
             var pfx = parseResult.GetValue(pfxOption);
             var password = parseResult.GetValue(passwordOption);
+            var passwordFile = parseResult.GetValue(passwordFileOption);
             var cert = parseResult.GetValue(certOption);
             var key = parseResult.GetValue(keyOption);
             var dnsNames = parseResult.GetValue(dnsOption);
@@ -85,7 +88,8 @@ internal static class CreateCommand
                 pfx!, password, cert!, key!, dnsNames!, days,
                 keySize, hashAlgorithm!, keyType!,
                 isCA, pathLength, crlUrl, ocspUrl, caIssuersUrl,
-                subjectO, subjectOU, subjectC, subjectST, subjectL);
+                subjectO, subjectOU, subjectC, subjectST, subjectL,
+                passwordFile);
         });
 
         return createCommand;

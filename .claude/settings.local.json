@@ -16,7 +16,8 @@
       "Bash(powershell -ExecutionPolicy Bypass -File test-all.ps1)",
       "Bash(powershell -Command:*)",
       "Bash(powershell -NoProfile -Command:*)",
-      "Bash(.certz.exe create:*)"
+      "Bash(.certz.exe create:*)",
+      "Bash(dotnet test:*)"
     ]
   }
 }

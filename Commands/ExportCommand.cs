@@ -18,6 +18,7 @@ internal static class ExportCommand
         var keyOption = OptionBuilders.CreateFileOption(false, new[] { "--key", "--k" });
         var urlOption = OptionBuilders.CreateUrlOption(false, new[] { "--url", "--u" });
         var passwordOption = OptionBuilders.CreatePasswordOption();
+        var passwordFileOption = OptionBuilders.CreatePasswordFileOption();
         var thumbprintOption = OptionBuilders.CreateThumbprintOption();
         var storeNameOption = OptionBuilders.CreateStoreNameOption();
         var storeLocationOption = OptionBuilders.CreateStoreLocationOption();
@@ -25,6 +26,7 @@ internal static class ExportCommand
         var exportCommand = new Command("export", "Exports the specified certificate.");
         exportCommand.Options.Add(pfxOption);
         exportCommand.Options.Add(passwordOption);
+        exportCommand.Options.Add(passwordFileOption);
         exportCommand.Options.Add(certOption);
         exportCommand.Options.Add(keyOption);
         exportCommand.Options.Add(urlOption);
@@ -36,6 +38,7 @@ internal static class ExportCommand
         {
             var file = parseResult.GetValue(pfxOption);
             var password = parseResult.GetValue(passwordOption);
+            var passwordFile = parseResult.GetValue(passwordFileOption);
             var cert = parseResult.GetValue(certOption);
             var key = parseResult.GetValue(keyOption);
             var urlString = parseResult.GetValue(urlOption);
@@ -49,11 +52,11 @@ internal static class ExportCommand
                 {
                     throw new ArgumentException($"Invalid URL format: {urlString}");
                 }
-                await CertificateOperations.ExportCertificate(file!, password, cert!, key!, uri);
+                await CertificateOperations.ExportCertificate(file!, password, cert!, key!, uri, passwordFile);
             }
             else
             {
-                await CertificateOperations.ExportCertificate(file!, password, cert!, key!, thumbprint, storename, storelocation);
+                await CertificateOperations.ExportCertificate(file!, password, cert!, key!, thumbprint, storename, storelocation, passwordFile);
             }
         });
 

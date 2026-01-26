@@ -18,8 +18,19 @@ internal static class CertificateOperations
         return new string(result);
     }
 
-    private static void DisplayPasswordWarning(string password, string purpose)
+    private static void DisplayPasswordWarning(string password, string purpose, FileInfo? passwordFile = null)
     {
+        if (passwordFile != null)
+        {
+            File.WriteAllText(passwordFile.FullName, password);
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"Password for {purpose} written to: {passwordFile.FullName}");
+            Console.ResetColor();
+            Console.WriteLine();
+            return;
+        }
+
         Console.WriteLine();
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.WriteLine("=".PadRight(80, '='));
@@ -52,7 +63,7 @@ internal static class CertificateOperations
         await Task.Delay(10);
     }
 
-    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false)
+    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false, FileInfo? passwordFile = null)
     {
         //TODO: File extension validation
         if (certificateFileType == CertificateFileType.Pfx)
@@ -65,7 +76,7 @@ internal static class CertificateOperations
 
             if (displayPassword)
             {
-                DisplayPasswordWarning(password, Path.GetFileName(path));
+                DisplayPasswordWarning(password, Path.GetFileName(path), passwordFile);
             }
         }
         else if (certificateFileType == CertificateFileType.PemCer)
@@ -103,7 +114,8 @@ internal static class CertificateOperations
         FileInfo pfx, string? password, FileInfo cert, FileInfo key, string[] dnsNames, int days,
         int keySize = 2048, string hashAlgorithm = "auto", string keyType = "RSA",
         bool isCA = false, int pathLength = -1, string? crlUrl = null, string? ocspUrl = null, string? caIssuersUrl = null,
-        string? subjectO = null, string? subjectOU = null, string? subjectC = null, string? subjectST = null, string? subjectL = null)
+        string? subjectO = null, string? subjectOU = null, string? subjectC = null, string? subjectST = null, string? subjectL = null,
+        FileInfo? passwordFile = null)
     {
         // Set default for PFX if no files are specified
         if (pfx == null && cert == null && key == null)
@@ -150,7 +162,7 @@ internal static class CertificateOperations
         Console.WriteLine("Saved the following certificate files:");
         if (pfx != null)
         {
-            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated);
+            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
         }
 
         if (cert != null)
@@ -197,7 +209,7 @@ internal static class CertificateOperations
         await Task.Delay(10);
     }
 
-    internal static async Task ExportCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, Uri uri)
+    internal static async Task ExportCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, Uri uri, FileInfo? passwordFile = null)
     {
         RemoteCertificateValidationCallback certCallback = (_, _, _, _) => true;
         using var client = new TcpClient(uri.Host, 443);
@@ -216,7 +228,7 @@ internal static class CertificateOperations
         CertificateDisplay.WriteRow(certificate);
         if (pfx != null)
         {
-            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated);
+            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
         }
         if (cert != null)
         {
@@ -228,7 +240,7 @@ internal static class CertificateOperations
         }
     }
 
-    internal static async Task ExportCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string thumbprint, StoreName storeName, StoreLocation storeLocation)
+    internal static async Task ExportCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string thumbprint, StoreName storeName, StoreLocation storeLocation, FileInfo? passwordFile = null)
     {
         bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password) && pfx != null)
@@ -243,7 +255,7 @@ internal static class CertificateOperations
             CertificateDisplay.WriteRow(certificate);
             if (pfx != null)
             {
-                await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated);
+                await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
             }
             if (cert != null)
             {
@@ -259,7 +271,7 @@ internal static class CertificateOperations
         await Task.Delay(10);
     }
 
-    internal static async Task ConvertToPfx(FileInfo certFile, FileInfo keyFile, FileInfo pfxFile, string password)
+    internal static async Task ConvertToPfx(FileInfo certFile, FileInfo keyFile, FileInfo pfxFile, string password, FileInfo? passwordFile = null)
     {
         if (!certFile.Exists)
         {
@@ -320,7 +332,7 @@ internal static class CertificateOperations
 
         if (passwordWasGenerated)
         {
-            DisplayPasswordWarning(password, pfxFile.Name);
+            DisplayPasswordWarning(password, pfxFile.Name, passwordFile);
         }
     }
 

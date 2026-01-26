@@ -17,6 +17,7 @@ internal static class ConvertCommand
         var keyOption = OptionBuilders.CreateFileOption(false, new[] { "--key", "--k" });
         var pfxOption = OptionBuilders.CreateFileOption(false, new[] { "--file", "--f", "--pfx" });
         var passwordOption = OptionBuilders.CreatePasswordOption();
+        var passwordFileOption = OptionBuilders.CreatePasswordFileOption();
         var outputCertOption = OptionBuilders.CreateOutputCertOption();
         var outputKeyOption = OptionBuilders.CreateOutputKeyOption();
 
@@ -25,6 +26,7 @@ internal static class ConvertCommand
         convertCommand.Options.Add(keyOption);
         convertCommand.Options.Add(pfxOption);
         convertCommand.Options.Add(passwordOption);
+        convertCommand.Options.Add(passwordFileOption);
         convertCommand.Options.Add(outputCertOption);
         convertCommand.Options.Add(outputKeyOption);
 
@@ -34,6 +36,7 @@ internal static class ConvertCommand
             var key = parseResult.GetValue(keyOption);
             var pfx = parseResult.GetValue(pfxOption);
             var password = parseResult.GetValue(passwordOption);
+            var passwordFile = parseResult.GetValue(passwordFileOption);
             var outCert = parseResult.GetValue(outputCertOption);
             var outKey = parseResult.GetValue(outputKeyOption);
 
@@ -41,7 +44,7 @@ internal static class ConvertCommand
             if (cert != null && key != null && pfx != null)
             {
                 // PEM to PFX (original functionality)
-                await CertificateOperations.ConvertToPfx(cert, key, pfx, password);
+                await CertificateOperations.ConvertToPfx(cert, key, pfx, password, passwordFile);
             }
             else if (pfx != null && (outCert != null || outKey != null))
             {

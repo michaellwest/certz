@@ -385,11 +385,64 @@ try {
 }
 
 # ============================================================================
+# PASSWORD FILE TESTS
+# ============================================================================
+Write-TestHeader "Testing Password File Option"
+
+# Test 1.8: Create with password file (password written to file)
+Remove-TestFiles "pwfile-create"
+try {
+    $output = .\certz.exe create --f pwfile-create.pfx --password-file pwfile-create.password.txt 2>&1 | Out-String
+    $pfxExists = Test-FileExists "pwfile-create.pfx"
+    $pwFileExists = Test-FileExists "pwfile-create.password.txt"
+    $pwFileContent = if ($pwFileExists) { Get-Content "pwfile-create.password.txt" -Raw } else { "" }
+    # Password file should contain just the password (no newlines, no formatting)
+    $hasValidPassword = $pwFileContent.Length -ge 20 -and $pwFileContent -notmatch "IMPORTANT|WARNING|="
+    # Output should confirm password was written to file
+    $outputConfirms = $output -match "Password.*written to"
+    $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
+    Write-TestResult "Create with password file" $success "Password saved to file"
+} catch {
+    Write-TestResult "Create with password file" $false $_.Exception.Message
+}
+
+# Test 1.9: Verify password file content can be used to install certificate
+try {
+    $password = Get-Content "pwfile-create.password.txt" -Raw
+    .\certz.exe install --f pwfile-create.pfx --p $password --sn My --sl CurrentUser | Out-Null
+    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
+            Where-Object { $_.Subject -like "*dev.local*" } |
+            Select-Object -First 1
+    $success = $null -ne $cert
+
+    # Cleanup
+    if ($cert) {
+        .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
+    }
+    Write-TestResult "Use password from file to install" $success "Password file content is valid"
+} catch {
+    Write-TestResult "Use password from file to install" $false $_.Exception.Message
+}
+
+# Test 1.10: Password file not created when password is provided
+Remove-TestFiles "pwfile-provided"
+try {
+    .\certz.exe create --f pwfile-provided.pfx --p ProvidedPass --password-file pwfile-provided.password.txt 2>&1 | Out-Null
+    $pfxExists = Test-FileExists "pwfile-provided.pfx"
+    # Password file should NOT be created when password is explicitly provided
+    $pwFileNotCreated = -not (Test-FileExists "pwfile-provided.password.txt")
+    $success = $pfxExists -and $pwFileNotCreated
+    Write-TestResult "Password file ignored when password provided" $success "No file created with explicit password"
+} catch {
+    Write-TestResult "Password file ignored when password provided" $false $_.Exception.Message
+}
+
+# ============================================================================
 # KEY SIZE TESTS
 # ============================================================================
 Write-TestHeader "Testing Key Size Options"
 
-# Test 1.8: Create with 2048-bit RSA key (default)
+# Test 1.11: Create with 2048-bit RSA key (default)
 Remove-TestFiles "keysize-2048"
 try {
     $output = .\certz.exe create --f keysize-2048.pfx --p KeySize2048Pass --key-size 2048 2>&1 | Out-String
@@ -399,7 +452,7 @@ try {
     Write-TestResult "Create with 2048-bit RSA key" $false $_.Exception.Message
 }
 
-# Test 1.9: Create with 3072-bit RSA key (NIST recommended)
+# Test 1.12: Create with 3072-bit RSA key (NIST recommended)
 Remove-TestFiles "keysize-3072"
 try {
     .\certz.exe create --f keysize-3072.pfx --p KeySize3072Pass --key-size 3072 | Out-Null
@@ -409,7 +462,7 @@ try {
     Write-TestResult "Create with 3072-bit RSA key" $false $_.Exception.Message
 }
 
-# Test 1.10: Create with 4096-bit RSA key
+# Test 1.13: Create with 4096-bit RSA key
 Remove-TestFiles "keysize-4096"
 try {
     .\certz.exe create --f keysize-4096.pfx --p KeySize4096Pass --key-size 4096 | Out-Null
@@ -419,7 +472,7 @@ try {
     Write-TestResult "Create with 4096-bit RSA key" $false $_.Exception.Message
 }
 
-# Test 1.11: Invalid key size should fail
+# Test 1.14: Invalid key size should fail
 Remove-TestFiles "keysize-invalid"
 try {
     $output = .\certz.exe create --f keysize-invalid.pfx --p InvalidPass --key-size 1024 2>&1
@@ -434,7 +487,7 @@ try {
 # ============================================================================
 Write-TestHeader "Testing Hash Algorithm Options"
 
-# Test 1.12: Create with SHA256
+# Test 1.15: Create with SHA256
 Remove-TestFiles "hash-sha256"
 try {
     .\certz.exe create --f hash-sha256.pfx --p HashSha256Pass --hash-algorithm SHA256 | Out-Null
@@ -444,7 +497,7 @@ try {
     Write-TestResult "Create with SHA256 hash" $false $_.Exception.Message
 }
 
-# Test 1.13: Create with SHA384
+# Test 1.16: Create with SHA384
 Remove-TestFiles "hash-sha384"
 try {
     .\certz.exe create --f hash-sha384.pfx --p HashSha384Pass --hash-algorithm SHA384 | Out-Null
@@ -454,7 +507,7 @@ try {
     Write-TestResult "Create with SHA384 hash" $false $_.Exception.Message
 }
 
-# Test 1.14: Create with SHA512
+# Test 1.17: Create with SHA512
 Remove-TestFiles "hash-sha512"
 try {
     .\certz.exe create --f hash-sha512.pfx --p HashSha512Pass --hash-algorithm SHA512 | Out-Null
@@ -464,7 +517,7 @@ try {
     Write-TestResult "Create with SHA512 hash" $false $_.Exception.Message
 }
 
-# Test 1.15: Create with auto hash selection (3072-bit key should use SHA384)
+# Test 1.18: Create with auto hash selection (3072-bit key should use SHA384)
 Remove-TestFiles "hash-auto"
 try {
     .\certz.exe create --f hash-auto.pfx --p HashAutoPass --key-size 3072 --hash-algorithm auto | Out-Null
@@ -479,7 +532,7 @@ try {
 # ============================================================================
 Write-TestHeader "Testing Key Type Options"
 
-# Test 1.16: Create with RSA key type (explicit)
+# Test 1.19: Create with RSA key type (explicit)
 Remove-TestFiles "keytype-rsa"
 try {
     .\certz.exe create --f keytype-rsa.pfx --p KeyTypeRsaPass --key-type RSA | Out-Null
@@ -489,7 +542,7 @@ try {
     Write-TestResult "Create with RSA key type" $false $_.Exception.Message
 }
 
-# Test 1.17: Create with ECDSA P-256 key
+# Test 1.20: Create with ECDSA P-256 key
 Remove-TestFiles "keytype-ecdsa256"
 try {
     .\certz.exe create --f keytype-ecdsa256.pfx --c keytype-ecdsa256.cer --k keytype-ecdsa256.key --p EcdsaP256Pass --key-type ECDSA-P256 | Out-Null
@@ -499,7 +552,7 @@ try {
     Write-TestResult "Create with ECDSA P-256 key" $false $_.Exception.Message
 }
 
-# Test 1.18: Create with ECDSA P-384 key
+# Test 1.21: Create with ECDSA P-384 key
 Remove-TestFiles "keytype-ecdsa384"
 try {
     .\certz.exe create --f keytype-ecdsa384.pfx --p EcdsaP384Pass --key-type ECDSA-P384 | Out-Null
@@ -509,7 +562,7 @@ try {
     Write-TestResult "Create with ECDSA P-384 key" $false $_.Exception.Message
 }
 
-# Test 1.19: Create with ECDSA P-521 key
+# Test 1.22: Create with ECDSA P-521 key
 Remove-TestFiles "keytype-ecdsa521"
 try {
     .\certz.exe create --f keytype-ecdsa521.pfx --p EcdsaP521Pass --key-type ECDSA-P521 | Out-Null
@@ -519,7 +572,7 @@ try {
     Write-TestResult "Create with ECDSA P-521 key" $false $_.Exception.Message
 }
 
-# Test 1.20: ECDSA certificate can be converted to PEM and back
+# Test 1.23: ECDSA certificate can be converted to PEM and back
 Remove-TestFiles "ecdsa-convert"
 try {
     # Create ECDSA certificate
@@ -539,7 +592,7 @@ try {
 # ============================================================================
 Write-TestHeader "Testing CA Certificate Options"
 
-# Test 1.21: Create CA certificate
+# Test 1.24: Create CA certificate
 Remove-TestFiles "ca-cert"
 try {
     .\certz.exe create --f ca-cert.pfx --p CaCertPass --san "My Test CA" --is-ca | Out-Null
@@ -549,7 +602,7 @@ try {
     Write-TestResult "Create CA certificate" $false $_.Exception.Message
 }
 
-# Test 1.22: Create CA certificate with path length constraint
+# Test 1.25: Create CA certificate with path length constraint
 Remove-TestFiles "ca-path"
 try {
     .\certz.exe create --f ca-path.pfx --p CaPathPass --san "My Intermediate CA" --is-ca --path-length 1 | Out-Null
@@ -559,7 +612,7 @@ try {
     Write-TestResult "Create CA with path length" $false $_.Exception.Message
 }
 
-# Test 1.23: Create CA certificate with CRL and OCSP URLs
+# Test 1.26: Create CA certificate with CRL and OCSP URLs
 Remove-TestFiles "ca-full"
 try {
     .\certz.exe create --f ca-full.pfx --p CaFullPass --san "My Full CA" --is-ca --crl-url http://crl.example.com/ca.crl --ocsp-url http://ocsp.example.com | Out-Null
@@ -574,7 +627,7 @@ try {
 # ============================================================================
 Write-TestHeader "Testing Subject Distinguished Name Fields"
 
-# Test 1.24: Create with Organization field
+# Test 1.27: Create with Organization field
 Remove-TestFiles "dn-org"
 try {
     .\certz.exe create --f dn-org.pfx --p DnOrgPass --san *.example.com --subject-o "Acme Corporation" | Out-Null
@@ -584,7 +637,7 @@ try {
     Write-TestResult "Create with Organization (O)" $false $_.Exception.Message
 }
 
-# Test 1.25: Create with full Distinguished Name
+# Test 1.28: Create with full Distinguished Name
 Remove-TestFiles "dn-full"
 try {
     .\certz.exe create --f dn-full.pfx --p DnFullPass --san *.example.com --subject-o "Acme Corporation" --subject-ou "Engineering" --subject-c US --subject-st "California" --subject-l "San Francisco" | Out-Null
@@ -843,6 +896,51 @@ try {
     Write-TestResult "Export PEM only (no PFX)" $false $_.Exception.Message
 }
 
+# Test 5.5: Export with password file from URL
+Remove-TestFiles "export-pwfile"
+try {
+    $output = .\certz.exe export --url https://www.github.com --f export-pwfile.pfx --password-file export-pwfile.password.txt 2>&1 | Out-String
+    $pfxExists = Test-FileExists "export-pwfile.pfx"
+    $pwFileExists = Test-FileExists "export-pwfile.password.txt"
+    $pwFileContent = if ($pwFileExists) { Get-Content "export-pwfile.password.txt" -Raw } else { "" }
+    $hasValidPassword = $pwFileContent.Length -ge 20
+    $outputConfirms = $output -match "Password.*written to"
+    $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
+    Write-TestResult "Export with password file (URL)" $success "Password saved to file"
+} catch {
+    Write-TestResult "Export with password file (URL)" $false $_.Exception.Message
+}
+
+# Test 5.6: Export with password file from store
+Remove-TestFiles "export-store-pwfile"
+try {
+    # First create and install a certificate
+    .\certz.exe create --f export-store-pwfile-src.pfx --p TempPass | Out-Null
+    .\certz.exe install --f export-store-pwfile-src.pfx --p TempPass --sn My --sl LocalMachine | Out-Null
+
+    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
+            Where-Object { $_.Subject -like "*dev.local*" } |
+            Select-Object -First 1
+
+    if ($cert) {
+        $output = .\certz.exe export --thumb $cert.Thumbprint --f export-store-pwfile.pfx --password-file export-store-pwfile.password.txt 2>&1 | Out-String
+        $pfxExists = Test-FileExists "export-store-pwfile.pfx"
+        $pwFileExists = Test-FileExists "export-store-pwfile.password.txt"
+        $pwFileContent = if ($pwFileExists) { Get-Content "export-store-pwfile.password.txt" -Raw } else { "" }
+        $hasValidPassword = $pwFileContent.Length -ge 20
+        $outputConfirms = $output -match "Password.*written to"
+        $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
+
+        # Cleanup
+        .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
+    } else {
+        $success = $false
+    }
+    Write-TestResult "Export with password file (store)" $success "Password saved to file"
+} catch {
+    Write-TestResult "Export with password file (store)" $false $_.Exception.Message
+}
+
 # ============================================================================
 # CONVERT COMMAND TESTS
 # ============================================================================
@@ -868,7 +966,40 @@ try {
     Write-TestResult "Convert with generated password" $false $_.Exception.Message
 }
 
-# Test 6.3: Verify converted certificate can be installed
+# Test 6.3: Convert with password file
+Remove-TestFiles "converted-pwfile"
+try {
+    $output = .\certz.exe convert --c pemonly.cer --k pemonly.key --f converted-pwfile.pfx --password-file converted-pwfile.password.txt 2>&1 | Out-String
+    $pfxExists = Test-FileExists "converted-pwfile.pfx"
+    $pwFileExists = Test-FileExists "converted-pwfile.password.txt"
+    $pwFileContent = if ($pwFileExists) { Get-Content "converted-pwfile.password.txt" -Raw } else { "" }
+    $hasValidPassword = $pwFileContent.Length -ge 20 -and $pwFileContent -notmatch "IMPORTANT|WARNING|="
+    $outputConfirms = $output -match "Password.*written to"
+    $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
+    Write-TestResult "Convert with password file" $success "Password saved to file during conversion"
+} catch {
+    Write-TestResult "Convert with password file" $false $_.Exception.Message
+}
+
+# Test 6.4: Verify converted certificate with password file can be installed
+try {
+    $password = Get-Content "converted-pwfile.password.txt" -Raw
+    .\certz.exe install --f converted-pwfile.pfx --p $password --sn My --sl CurrentUser | Out-Null
+    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
+            Where-Object { $_.Subject -like "*dev.local*" } |
+            Select-Object -First 1
+    $success = $null -ne $cert
+
+    # Cleanup
+    if ($cert) {
+        .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
+    }
+    Write-TestResult "Install converted cert using password file" $success "Converted cert password is valid"
+} catch {
+    Write-TestResult "Install converted cert using password file" $false $_.Exception.Message
+}
+
+# Test 6.5: Verify converted certificate can be installed
 try {
     .\certz.exe install --f converted.pfx --p ConvertPass123 --sl CurrentUser --sn My | Out-Null
     $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
