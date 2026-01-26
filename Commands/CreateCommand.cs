@@ -24,6 +24,19 @@ internal static class CreateCommand
             AllowMultipleArgumentsPerToken = true
         };
         var daysOption = OptionBuilders.CreateDaysOption(false);
+        var keySizeOption = OptionBuilders.CreateKeySizeOption();
+        var hashAlgorithmOption = OptionBuilders.CreateHashAlgorithmOption();
+        var keyTypeOption = OptionBuilders.CreateKeyTypeOption();
+        var isCAOption = OptionBuilders.CreateIsCAOption();
+        var pathLengthOption = OptionBuilders.CreatePathLengthOption();
+        var crlUrlOption = OptionBuilders.CreateCrlUrlOption();
+        var ocspUrlOption = OptionBuilders.CreateOcspUrlOption();
+        var caIssuersUrlOption = OptionBuilders.CreateCAIssuersUrlOption();
+        var subjectOOption = OptionBuilders.CreateSubjectOOption();
+        var subjectOUOption = OptionBuilders.CreateSubjectOUOption();
+        var subjectCOption = OptionBuilders.CreateSubjectCOption();
+        var subjectSTOption = OptionBuilders.CreateSubjectSTOption();
+        var subjectLOption = OptionBuilders.CreateSubjectLOption();
 
         var createCommand = new Command("create", "Creates a certificate.");
         createCommand.Options.Add(pfxOption);
@@ -32,6 +45,19 @@ internal static class CreateCommand
         createCommand.Options.Add(keyOption);
         createCommand.Options.Add(dnsOption);
         createCommand.Options.Add(daysOption);
+        createCommand.Options.Add(keySizeOption);
+        createCommand.Options.Add(hashAlgorithmOption);
+        createCommand.Options.Add(keyTypeOption);
+        createCommand.Options.Add(isCAOption);
+        createCommand.Options.Add(pathLengthOption);
+        createCommand.Options.Add(crlUrlOption);
+        createCommand.Options.Add(ocspUrlOption);
+        createCommand.Options.Add(caIssuersUrlOption);
+        createCommand.Options.Add(subjectOOption);
+        createCommand.Options.Add(subjectOUOption);
+        createCommand.Options.Add(subjectCOption);
+        createCommand.Options.Add(subjectSTOption);
+        createCommand.Options.Add(subjectLOption);
 
         createCommand.SetAction(async (parseResult) =>
         {
@@ -41,7 +67,25 @@ internal static class CreateCommand
             var key = parseResult.GetValue(keyOption);
             var dnsNames = parseResult.GetValue(dnsOption);
             var days = parseResult.GetValue(daysOption);
-            await CertificateOperations.CreateCertificate(pfx!, password, cert!, key!, dnsNames, days);
+            var keySize = parseResult.GetValue(keySizeOption);
+            var hashAlgorithm = parseResult.GetValue(hashAlgorithmOption);
+            var keyType = parseResult.GetValue(keyTypeOption);
+            var isCA = parseResult.GetValue(isCAOption);
+            var pathLength = parseResult.GetValue(pathLengthOption);
+            var crlUrl = parseResult.GetValue(crlUrlOption);
+            var ocspUrl = parseResult.GetValue(ocspUrlOption);
+            var caIssuersUrl = parseResult.GetValue(caIssuersUrlOption);
+            var subjectO = parseResult.GetValue(subjectOOption);
+            var subjectOU = parseResult.GetValue(subjectOUOption);
+            var subjectC = parseResult.GetValue(subjectCOption);
+            var subjectST = parseResult.GetValue(subjectSTOption);
+            var subjectL = parseResult.GetValue(subjectLOption);
+
+            await CertificateOperations.CreateCertificate(
+                pfx!, password, cert!, key!, dnsNames!, days,
+                keySize, hashAlgorithm!, keyType!,
+                isCA, pathLength, crlUrl, ocspUrl, caIssuersUrl,
+                subjectO, subjectOU, subjectC, subjectST, subjectL);
         });
 
         return createCommand;

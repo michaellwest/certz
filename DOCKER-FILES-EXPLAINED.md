@@ -191,7 +191,7 @@ code test-all.ps1
 
 **Dockerfile.test:**
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:7.0-nanoserver-ltsc2022
+FROM mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 WORKDIR /app
 USER ContainerAdministrator
 

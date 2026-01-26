@@ -12,7 +12,11 @@
       "Bash(ls:*)",
       "Bash(pwsh:*)",
       "Bash(./certz.exe create:*)",
-      "Bash(./certz.exe info:*)"
+      "Bash(./certz.exe info:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File test-all.ps1)",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -NoProfile -Command:*)",
+      "Bash(.certz.exe create:*)"
     ]
   }
 }

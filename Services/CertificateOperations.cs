@@ -2,6 +2,45 @@ namespace certz.Services;
 
 internal static class CertificateOperations
 {
+    private static string GenerateSecurePassword(int length = 24)
+    {
+        const string validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_+-=[]{}|;:,.<>?";
+        var random = new byte[length];
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(random);
+        }
+        var result = new char[length];
+        for (int i = 0; i < length; i++)
+        {
+            result[i] = validChars[random[i] % validChars.Length];
+        }
+        return new string(result);
+    }
+
+    private static void DisplayPasswordWarning(string password, string purpose)
+    {
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("=".PadRight(80, '='));
+        Console.WriteLine("IMPORTANT: Certificate Password");
+        Console.WriteLine("=".PadRight(80, '='));
+        Console.ResetColor();
+        Console.WriteLine();
+        Console.WriteLine($"Password for {purpose}:");
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"  {password}");
+        Console.ResetColor();
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine("WARNING: Store this password securely!");
+        Console.WriteLine("This is your only chance to see it. Without this password,");
+        Console.WriteLine("you will NOT be able to use the certificate.");
+        Console.WriteLine("=".PadRight(80, '='));
+        Console.ResetColor();
+        Console.WriteLine();
+    }
+
     internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation)
     {
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
@@ -13,7 +52,7 @@ internal static class CertificateOperations
         await Task.Delay(10);
     }
 
-    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType)
+    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false)
     {
         //TODO: File extension validation
         if (certificateFileType == CertificateFileType.Pfx)
@@ -22,12 +61,12 @@ internal static class CertificateOperations
 
             await File.WriteAllBytesAsync(path, certData);
 
-            var directory = Path.GetDirectoryName(path);
-            var fileName = Path.GetFileName(path);
-            var passwordFile = Path.Combine(directory, $"{fileName}.password.txt");
-            await File.WriteAllTextAsync(passwordFile, password);
+            Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
 
-            Console.WriteLine(" - certificate '{0}' and password '{1}'", Path.GetFileName(path), Path.GetFileName(passwordFile));
+            if (displayPassword)
+            {
+                DisplayPasswordWarning(password, Path.GetFileName(path));
+            }
         }
         else if (certificateFileType == CertificateFileType.PemCer)
         {
@@ -37,13 +76,34 @@ internal static class CertificateOperations
         }
         else if (certificateFileType == CertificateFileType.PemKey)
         {
-            var privateKeyPem = certificate.GetRSAPrivateKey().ExportPkcs8PrivateKeyPem();
+            string privateKeyPem;
+            var rsaKey = certificate.GetRSAPrivateKey();
+            if (rsaKey != null)
+            {
+                privateKeyPem = rsaKey.ExportPkcs8PrivateKeyPem();
+            }
+            else
+            {
+                var ecdsaKey = certificate.GetECDsaPrivateKey();
+                if (ecdsaKey != null)
+                {
+                    privateKeyPem = ecdsaKey.ExportPkcs8PrivateKeyPem();
+                }
+                else
+                {
+                    throw new CertificateException("Unable to extract private key (unsupported key type - only RSA and ECDSA are supported)");
+                }
+            }
             await File.WriteAllTextAsync(path, privateKeyPem);
             Console.WriteLine(" - certificate private key '{0}'", Path.GetFileName(path));
         }
     }
 
-    internal static async Task CreateCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string[] dnsNames, int days)
+    internal static async Task CreateCertificate(
+        FileInfo pfx, string? password, FileInfo cert, FileInfo key, string[] dnsNames, int days,
+        int keySize = 2048, string hashAlgorithm = "auto", string keyType = "RSA",
+        bool isCA = false, int pathLength = -1, string? crlUrl = null, string? ocspUrl = null, string? caIssuersUrl = null,
+        string? subjectO = null, string? subjectOU = null, string? subjectC = null, string? subjectST = null, string? subjectL = null)
     {
         // Set default for PFX if no files are specified
         if (pfx == null && cert == null && key == null)
@@ -57,22 +117,22 @@ internal static class CertificateOperations
             throw new ArgumentException("Both the cert and key parameters should be provided.");
         }
 
+        bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password))
         {
-            password = "changeit";
+            password = GenerateSecurePassword();
+            passwordWasGenerated = true;
         }
 
         var validFrom = DateTime.Today;
         var validTo = DateTime.Today.AddDays(days).AddSeconds(-1);
-        if (validTo.DayOfWeek == DayOfWeek.Saturday)
-        {
-            validTo = validTo.AddDays(2);
-        }
-        else if (validTo.DayOfWeek == DayOfWeek.Sunday)
-        {
-            validTo = validTo.AddDays(1);
-        }
-        var certificate = CertificateGeneration.GenerateCertificate(dnsNames, validFrom, validTo);
+
+        // Weekend adjustment removed to prevent exceeding CA/B Forum validity limits
+        // Certificates should expire on the exact day specified by the user
+        var certificate = CertificateGeneration.GenerateCertificate(
+            dnsNames, validFrom, validTo, keySize, hashAlgorithm, keyType,
+            isCA, pathLength, crlUrl, ocspUrl, caIssuersUrl,
+            subjectO, subjectOU, subjectC, subjectST, subjectL);
         if (certificate == null)
         {
             throw new CertificateException("There was a problem creating the certificate.");
@@ -90,7 +150,7 @@ internal static class CertificateOperations
         Console.WriteLine("Saved the following certificate files:");
         if (pfx != null)
         {
-            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx);
+            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated);
         }
 
         if (cert != null)
@@ -146,15 +206,17 @@ internal static class CertificateOperations
         var serverCertificate = sslStream.RemoteCertificate;
         var certificate = new X509Certificate2(serverCertificate);
 
+        bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password))
         {
-            password = "changeit";
+            password = GenerateSecurePassword();
+            passwordWasGenerated = true;
         }
 
         CertificateDisplay.WriteRow(certificate);
         if (pfx != null)
         {
-            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx);
+            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated);
         }
         if (cert != null)
         {
@@ -168,13 +230,20 @@ internal static class CertificateOperations
 
     internal static async Task ExportCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string thumbprint, StoreName storeName, StoreLocation storeLocation)
     {
+        bool passwordWasGenerated = false;
+        if (string.IsNullOrEmpty(password) && pfx != null)
+        {
+            password = GenerateSecurePassword();
+            passwordWasGenerated = true;
+        }
+
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadOnly);
         foreach (var certificate in store.Certificates.Where(c => c.Thumbprint.Equals(thumbprint, StringComparison.InvariantCultureIgnoreCase)))
         {
             CertificateDisplay.WriteRow(certificate);
             if (pfx != null)
             {
-                await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx);
+                await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated);
             }
             if (cert != null)
             {
@@ -202,39 +271,57 @@ internal static class CertificateOperations
             throw new FileNotFoundException($"Key file not found: {keyFile.FullName}");
         }
 
+        bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password))
         {
-            password = "changeit";
+            password = GenerateSecurePassword();
+            passwordWasGenerated = true;
         }
 
         // Load the certificate
         var certificateText = await File.ReadAllTextAsync(certFile.FullName);
         var certificate = X509Certificate2.CreateFromPem(certificateText);
 
-        // Load the private key
+        // Load the private key - try RSA first, then ECDSA
         var privateKeyText = await File.ReadAllTextAsync(keyFile.FullName);
-        using var rsa = RSA.Create();
-        rsa.ImportFromPem(privateKeyText);
+        X509Certificate2 certificateWithKey;
 
-        // Combine certificate with private key
-        var certificateWithKey = certificate.CopyWithPrivateKey(rsa);
+        try
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(privateKeyText);
+            certificateWithKey = certificate.CopyWithPrivateKey(rsa);
+        }
+        catch
+        {
+            // Try ECDSA
+            try
+            {
+                using var ecdsa = ECDsa.Create();
+                ecdsa.ImportFromPem(privateKeyText);
+                certificateWithKey = certificate.CopyWithPrivateKey(ecdsa);
+            }
+            catch
+            {
+                throw new CertificateException("Unable to import private key. Only RSA and ECDSA keys are supported.");
+            }
+        }
 
         // Export as PFX
         var pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
         await File.WriteAllBytesAsync(pfxFile.FullName, pfxData);
 
-        var directory = Path.GetDirectoryName(pfxFile.FullName);
-        var fileName = Path.GetFileName(pfxFile.FullName);
-        var passwordFile = Path.Combine(directory, $"{fileName}.password.txt");
-        await File.WriteAllTextAsync(passwordFile, password);
-
         Console.WriteLine("Successfully converted certificate and key to PFX format:");
         Console.WriteLine(" - Input certificate: '{0}'", certFile.Name);
         Console.WriteLine(" - Input key: '{0}'", keyFile.Name);
         Console.WriteLine(" - Output PFX: '{0}'", pfxFile.Name);
-        Console.WriteLine(" - Password file: '{0}'", Path.GetFileName(passwordFile));
         Console.WriteLine();
         Console.WriteLine("Conversion completed successfully!");
+
+        if (passwordWasGenerated)
+        {
+            DisplayPasswordWarning(password, pfxFile.Name);
+        }
     }
 
     internal static async Task ConvertFromPfx(FileInfo pfxFile, string password, FileInfo? outputCert, FileInfo? outputKey)
@@ -251,7 +338,7 @@ internal static class CertificateOperations
 
         if (string.IsNullOrEmpty(password))
         {
-            password = "changeit";
+            throw new ArgumentException("Password is required to load PFX file. Use --password to specify the password.");
         }
 
         // Load PFX file
@@ -283,13 +370,25 @@ internal static class CertificateOperations
                 throw new CertificateException("PFX file does not contain a private key");
             }
 
-            var privateKey = certificate.GetRSAPrivateKey();
-            if (privateKey == null)
+            string privateKeyPem;
+            var rsaKey = certificate.GetRSAPrivateKey();
+            if (rsaKey != null)
             {
-                throw new CertificateException("Unable to extract private key (unsupported key type - only RSA is supported)");
+                privateKeyPem = rsaKey.ExportPkcs8PrivateKeyPem();
+            }
+            else
+            {
+                var ecdsaKey = certificate.GetECDsaPrivateKey();
+                if (ecdsaKey != null)
+                {
+                    privateKeyPem = ecdsaKey.ExportPkcs8PrivateKeyPem();
+                }
+                else
+                {
+                    throw new CertificateException("Unable to extract private key (unsupported key type - only RSA and ECDSA are supported)");
+                }
             }
 
-            var privateKeyPem = privateKey.ExportPkcs8PrivateKeyPem();
             await File.WriteAllTextAsync(outputKey.FullName, privateKeyPem);
             Console.WriteLine(" - Output private key: '{0}'", outputKey.Name);
         }
@@ -309,7 +408,7 @@ internal static class CertificateOperations
         {
             if (string.IsNullOrEmpty(password))
             {
-                password = "changeit";
+                throw new ArgumentException("Password is required to load PFX file. Use --password to specify the password.");
             }
             certificate = X509CertificateLoader.LoadPkcs12FromFile(
                 file.FullName,
@@ -365,7 +464,7 @@ internal static class CertificateOperations
         {
             if (string.IsNullOrEmpty(password))
             {
-                password = "changeit";
+                throw new ArgumentException("Password is required to load PFX file. Use --password to specify the password.");
             }
             certificate = X509CertificateLoader.LoadPkcs12FromFile(
                 file.FullName,
