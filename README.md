@@ -17,8 +17,11 @@ Commands:
   list     Lists all certificates.
   install  Installs a certificate.
   create   Creates a certificate.
-  export   Exports a certificate.
-  convert  Converts a CER/CRT and KEY file to a PFX file.
+  remove   Removes the specified certificate.
+  export   Exports the specified certificate.
+  convert  Converts between PFX and PEM certificate formats.
+  info     Displays detailed information about a certificate.
+  verify   Validates a certificate and checks its trust chain.
 ```
 
 **Example:** The following lists all the installed certificates from the specified locations.
@@ -59,6 +62,48 @@ certz.exe export --f devcert-bak.pfx --c devcert-bak.pem --url https://www.githu
 
 ```
 certz.exe convert --c certificate.crt --k private.key --f output.pfx --p Password12345
+```
+
+**Example:** The following converts a PFX file to separate CER and KEY files.
+
+```
+certz.exe convert --pfx devcert.pfx --p changeit --out-cert certificate.cer --out-key private.key
+```
+
+**Example:** The following displays detailed information about a certificate from a file.
+
+```
+certz.exe info --file devcert.pfx --password changeit
+```
+
+**Example:** The following displays certificate information from a remote URL.
+
+```
+certz.exe info --url https://www.github.com
+```
+
+**Example:** The following displays certificate information from the Windows certificate store.
+
+```
+certz.exe info --thumbprint 94163681942B9B440A22535B3E6BFEA64DE9A3E7 --sn My --sl LocalMachine
+```
+
+**Example:** The following validates a certificate and checks its expiration and trust chain.
+
+```
+certz.exe verify --file devcert.pfx --password changeit
+```
+
+**Example:** The following verifies a certificate with a custom expiration warning threshold and revocation check.
+
+```
+certz.exe verify --file devcert.pfx --password changeit --warning-days 60 --check-revocation
+```
+
+**Example:** The following verifies a certificate from the Windows certificate store.
+
+```
+certz.exe verify --thumbprint 94163681942B9B440A22535B3E6BFEA64DE9A3E7 --sn My --sl LocalMachine
 ```
 
 ## Testing

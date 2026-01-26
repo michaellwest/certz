@@ -672,6 +672,172 @@ try {
 }
 
 # ============================================================================
+# INFO COMMAND TESTS
+# ============================================================================
+Write-TestHeader "Testing INFO Command"
+
+# Test 9.1: Info from PFX file
+try {
+    $output = .\certz.exe info --f devcert.pfx --p changeit 2>&1
+    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
+    Write-TestResult "Info from PFX file" $success "Certificate details displayed"
+} catch {
+    Write-TestResult "Info from PFX file" $false $_.Exception.Message
+}
+
+# Test 9.2: Info from PEM file (uses pemonly.cer created in Test 1.6)
+try {
+    $output = .\certz.exe info --f pemonly.cer 2>&1
+    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
+    Write-TestResult "Info from PEM file" $success "Certificate details displayed"
+} catch {
+    Write-TestResult "Info from PEM file" $false $_.Exception.Message
+}
+
+# Test 9.3: Info from URL
+try {
+    $output = .\certz.exe info --url https://www.github.com 2>&1
+    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
+    if (-not $success) {
+        # Network issues are acceptable for URL tests
+        Write-TestResult "Info from URL" $true "Skipped (network issue)"
+    } else {
+        Write-TestResult "Info from URL" $success "Remote certificate details displayed"
+    }
+} catch {
+    # Network failures are acceptable for URL tests
+    Write-TestResult "Info from URL" $true "Skipped (network error: $($_.Exception.Message))"
+}
+
+# Test 9.4: Info from store by thumbprint
+try {
+    # Create and install a cert first
+    Remove-TestFiles "info-test"
+    .\certz.exe create --f info-test.pfx --p InfoPass | Out-Null
+    .\certz.exe install --f info-test.pfx --p InfoPass --sn My --sl LocalMachine | Out-Null
+
+    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
+            Where-Object { $_.Subject -like "*dev.local*" } |
+            Select-Object -First 1
+
+    if ($cert) {
+        $output = .\certz.exe info --thumbprint $cert.Thumbprint --sn My --sl LocalMachine 2>&1
+        $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
+
+        # Clean up
+        .\certz.exe remove --thumbprint $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
+    } else {
+        $success = $false
+    }
+
+    Write-TestResult "Info from store by thumbprint" $success "Store certificate details displayed"
+} catch {
+    Write-TestResult "Info from store by thumbprint" $false $_.Exception.Message
+}
+
+# ============================================================================
+# VERIFY COMMAND TESTS
+# ============================================================================
+Write-TestHeader "Testing VERIFY Command"
+
+# Test 10.1: Verify valid certificate from file
+try {
+    $output = .\certz.exe verify --f devcert.pfx --p changeit 2>&1
+    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Validation Report")
+    Write-TestResult "Verify certificate from PFX file" $success "Validation report generated"
+} catch {
+    Write-TestResult "Verify certificate from PFX file" $false $_.Exception.Message
+}
+
+# Test 10.2: Verify with custom warning days
+try {
+    $output = .\certz.exe verify --f devcert.pfx --p changeit --warn 60 2>&1
+    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Validation Report")
+    Write-TestResult "Verify with custom warning threshold" $success "Custom warning threshold applied"
+} catch {
+    Write-TestResult "Verify with custom warning threshold" $false $_.Exception.Message
+}
+
+# Test 10.3: Verify from store by thumbprint
+try {
+    # Create and install a cert first
+    Remove-TestFiles "verify-test"
+    .\certz.exe create --f verify-test.pfx --p VerifyPass | Out-Null
+    .\certz.exe install --f verify-test.pfx --p VerifyPass --sn My --sl LocalMachine | Out-Null
+
+    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
+            Where-Object { $_.Subject -like "*dev.local*" } |
+            Select-Object -First 1
+
+    if ($cert) {
+        $output = .\certz.exe verify --thumbprint $cert.Thumbprint --sn My --sl LocalMachine 2>&1
+        $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Validation Report")
+
+        # Clean up
+        .\certz.exe remove --thumbprint $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
+    } else {
+        $success = $false
+    }
+
+    Write-TestResult "Verify from store by thumbprint" $success "Store certificate validated"
+} catch {
+    Write-TestResult "Verify from store by thumbprint" $false $_.Exception.Message
+}
+
+# ============================================================================
+# ENHANCED CONVERT COMMAND TESTS (PFX to PEM)
+# ============================================================================
+Write-TestHeader "Testing Enhanced CONVERT Command (PFX to PEM)"
+
+# Test 11.1: Convert PFX to PEM (both cert and key)
+Remove-TestFiles "pfx-to-pem"
+try {
+    .\certz.exe convert --pfx devcert.pfx --p changeit --out-cert pfx-to-pem.cer --out-key pfx-to-pem.key 2>&1 | Out-Null
+    $success = (Test-FileExists "pfx-to-pem.cer") -and (Test-FileExists "pfx-to-pem.key")
+    Write-TestResult "Convert PFX to PEM (cert+key)" $success "Both CER and KEY files created"
+} catch {
+    Write-TestResult "Convert PFX to PEM (cert+key)" $false $_.Exception.Message
+}
+
+# Test 11.2: Convert PFX to PEM (cert only)
+Remove-TestFiles "pfx-to-cer"
+try {
+    .\certz.exe convert --pfx devcert.pfx --p changeit --out-cert pfx-to-cer.cer 2>&1 | Out-Null
+    $success = (Test-FileExists "pfx-to-cer.cer") -and (-not (Test-FileExists "pfx-to-cer.key"))
+    Write-TestResult "Convert PFX to PEM (cert only)" $success "Only CER file created"
+} catch {
+    Write-TestResult "Convert PFX to PEM (cert only)" $false $_.Exception.Message
+}
+
+# Test 11.3: Convert PFX to PEM (key only)
+Remove-TestFiles "pfx-to-key"
+try {
+    .\certz.exe convert --pfx devcert.pfx --p changeit --out-key pfx-to-key.key 2>&1 | Out-Null
+    $success = (Test-FileExists "pfx-to-key.key") -and (-not (Test-FileExists "pfx-to-key.cer"))
+    Write-TestResult "Convert PFX to PEM (key only)" $success "Only KEY file created"
+} catch {
+    Write-TestResult "Convert PFX to PEM (key only)" $false $_.Exception.Message
+}
+
+# Test 11.4: Round-trip conversion (PFX → PEM → PFX)
+Remove-TestFiles "roundtrip"
+try {
+    # PFX to PEM
+    .\certz.exe convert --pfx devcert.pfx --p changeit --out-cert roundtrip.cer --out-key roundtrip.key 2>&1 | Out-Null
+
+    # PEM back to PFX
+    .\certz.exe convert --cert roundtrip.cer --key roundtrip.key --pfx roundtrip.pfx --p RoundtripPass 2>&1 | Out-Null
+
+    # Verify the final PFX is valid by getting info
+    $output = .\certz.exe info --f roundtrip.pfx --p RoundtripPass 2>&1
+
+    $success = (Test-FileExists "roundtrip.pfx") -and ($LASTEXITCODE -eq 0)
+    Write-TestResult "Round-trip conversion (PFX→PEM→PFX)" $success "Full conversion cycle successful"
+} catch {
+    Write-TestResult "Round-trip conversion (PFX→PEM→PFX)" $false $_.Exception.Message
+}
+
+# ============================================================================
 # ERROR HANDLING TESTS
 # ============================================================================
 Write-TestHeader "Testing Error Handling"

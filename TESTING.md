@@ -503,6 +503,281 @@ Copy-Item convert-source.cer convert-source.crt
 
 ---
 
+## Testing INFO Command
+
+### Test 1: Display Certificate Info from PFX File
+
+**Purpose:** View detailed information about a certificate stored in a PFX file
+
+```powershell
+.\certz.exe info --file devcert.pfx --password changeit
+```
+
+**Expected Results:**
+- Displays certificate subject and issuer
+- Shows thumbprint and serial number
+- Shows validity period and days remaining
+- Displays public key algorithm and size
+- Lists Subject Alternative Names (SANs)
+- Shows Enhanced Key Usage
+- Shows Key Usage flags
+- Shows Basic Constraints
+- Indicates if private key is present
+
+---
+
+### Test 2: Display Certificate Info from PEM File
+
+**Purpose:** View information about a PEM certificate
+
+```powershell
+.\certz.exe info --file devcert.cer
+```
+
+**Expected Results:**
+- Same detailed information as PFX
+- Works with .cer, .crt, and .pem extensions
+
+---
+
+### Test 3: Display Certificate Info from URL
+
+**Purpose:** Retrieve and display information about a remote server's certificate
+
+```powershell
+.\certz.exe info --url https://www.github.com
+```
+
+**Expected Results:**
+- Connects to remote server via HTTPS
+- Displays certificate information
+- Shows certificate chain details
+- Works with any valid HTTPS URL
+
+---
+
+### Test 4: Display Certificate Info from Windows Store
+
+**Purpose:** View information about a certificate in the Windows certificate store
+
+```powershell
+# First, get a thumbprint from installed certificates
+.\certz.exe list --sn My --sl LocalMachine
+
+# Use the thumbprint to get detailed info
+.\certz.exe info --thumbprint ABC123... --sn My --sl LocalMachine
+```
+
+**Expected Results:**
+- Retrieves certificate from specified store
+- Displays full certificate details
+- Works with any store location and name
+
+---
+
+## Testing VERIFY Command
+
+### Test 1: Verify Certificate from PFX File
+
+**Purpose:** Validate a certificate's expiration, chain, and trust status
+
+```powershell
+.\certz.exe verify --file devcert.pfx --password changeit
+```
+
+**Expected Results:**
+- Shows validation report header
+- Check 1: Expiration status ([PASS]/[WARN]/[FAIL])
+- Check 2: Certificate chain validation
+- Check 3: Trust status
+- Summary: Overall PASS or FAIL
+
+---
+
+### Test 2: Verify with Custom Warning Days
+
+**Purpose:** Set custom threshold for expiration warnings
+
+```powershell
+.\certz.exe verify --file devcert.pfx --password changeit --warning-days 60
+```
+
+**Expected Results:**
+- Uses 60-day threshold instead of default 30 days
+- Shows [WARN] if certificate expires within 60 days
+- Otherwise same as Test 1
+
+---
+
+### Test 3: Verify with Revocation Check
+
+**Purpose:** Check if certificate has been revoked (requires network access)
+
+```powershell
+.\certz.exe verify --file devcert.pfx --password changeit --check-revocation
+```
+
+**Expected Results:**
+- Performs all standard validation checks
+- Additional Check 4: Revocation status
+- May show [WARN] if revocation server is offline
+- Shows [FAIL] if certificate is revoked
+
+---
+
+### Test 4: Verify Certificate from Windows Store
+
+**Purpose:** Validate a certificate installed in the certificate store
+
+```powershell
+# Get thumbprint from list
+.\certz.exe list --sn My --sl LocalMachine
+
+# Verify the certificate
+.\certz.exe verify --thumbprint ABC123... --sn My --sl LocalMachine
+```
+
+**Expected Results:**
+- Retrieves certificate from store
+- Performs validation checks
+- Displays validation report
+
+---
+
+### Test 5: Verify Expired Certificate
+
+**Purpose:** Test validation behavior with an expired certificate
+
+```powershell
+# Create a certificate that expired yesterday
+.\certz.exe create --file expired.pfx --days -1
+
+# Verify it
+.\certz.exe verify --file expired.pfx
+```
+
+**Expected Results:**
+- Check 1 shows [FAIL] for expiration
+- Shows "Expired X days ago"
+- Overall summary shows [FAIL]
+
+---
+
+## Testing Enhanced CONVERT Command (PFX to PEM)
+
+### Test 1: Convert PFX to Both Certificate and Key
+
+**Purpose:** Extract both certificate and private key from PFX
+
+```powershell
+.\certz.exe convert --pfx devcert.pfx --password changeit --out-cert output.cer --out-key output.key
+```
+
+**Expected Results:**
+- Creates output.cer (PEM certificate)
+- Creates output.key (PEM private key in PKCS#8 format)
+- Shows success message with file names
+- Both files are in PEM text format
+
+---
+
+### Test 2: Convert PFX to Certificate Only
+
+**Purpose:** Extract only the certificate without the private key
+
+```powershell
+.\certz.exe convert --pfx devcert.pfx --password changeit --out-cert output.cer
+```
+
+**Expected Results:**
+- Creates output.cer
+- Does NOT create .key file
+- Shows success message
+
+---
+
+### Test 3: Convert PFX to Private Key Only
+
+**Purpose:** Extract only the private key
+
+```powershell
+.\certz.exe convert --pfx devcert.pfx --password changeit --out-key output.key
+```
+
+**Expected Results:**
+- Creates output.key
+- Does NOT create .cer file
+- Shows success message
+
+---
+
+### Test 4: Round-Trip Conversion (PFX → PEM → PFX)
+
+**Purpose:** Verify bidirectional conversion works correctly
+
+```powershell
+# Step 1: PFX to PEM
+.\certz.exe convert --pfx original.pfx --password OrigPass --out-cert intermediate.cer --out-key intermediate.key
+
+# Step 2: PEM back to PFX
+.\certz.exe convert --cert intermediate.cer --key intermediate.key --pfx final.pfx --password FinalPass
+
+# Step 3: Verify the final PFX
+.\certz.exe info --file final.pfx --password FinalPass
+```
+
+**Expected Results:**
+- Both conversions succeed
+- Final PFX is valid
+- INFO command shows expected certificate details
+- Certificate properties match original
+
+---
+
+### Test 5: Error Handling - PFX Without Private Key
+
+**Purpose:** Test conversion when PFX has no private key
+
+```powershell
+# Export a certificate without private key (from URL)
+.\certz.exe export --url https://www.github.com --file noprivatekey.pfx
+
+# Try to extract private key (should fail)
+.\certz.exe convert --pfx noprivatekey.pfx --out-key test.key
+```
+
+**Expected Results:**
+- Shows error message: "PFX file does not contain a private key"
+- Exit code indicates failure
+- No .key file is created
+
+---
+
+### Test 6: Verify Conversion Parameter Combinations
+
+**Purpose:** Test various valid and invalid parameter combinations
+
+```powershell
+# Valid: PEM to PFX (original functionality)
+.\certz.exe convert --cert test.cer --key test.key --pfx output.pfx
+
+# Valid: PFX to PEM (new functionality)
+.\certz.exe convert --pfx test.pfx --out-cert output.cer --out-key output.key
+
+# Invalid: Missing output parameters
+.\certz.exe convert --pfx test.pfx  # Should show error with usage hint
+
+# Invalid: Mixing conversion modes
+.\certz.exe convert --cert test.cer --pfx output.pfx --out-cert other.cer  # Should fail
+```
+
+**Expected Results:**
+- Valid combinations succeed
+- Invalid combinations show helpful error messages
+- Error messages explain correct usage for each conversion direction
+
+---
+
 ## Error Condition Testing
 
 ### Test Invalid Inputs
@@ -709,7 +984,9 @@ Get-ChildItem -Path . -File | Where-Object {
 | LIST    | 4 test scenarios | 100% |
 | REMOVE  | 4 test scenarios | 100% |
 | EXPORT  | 5 test scenarios | 100% with network access |
-| CONVERT | 3 test scenarios | 100% |
+| CONVERT | 9 test scenarios | 100% |
+| INFO    | 4 test scenarios | 100% |
+| VERIFY  | 5 test scenarios | 100% |
 
 ---
 

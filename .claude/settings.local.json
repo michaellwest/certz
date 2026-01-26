@@ -10,7 +10,9 @@
       "Bash(echo:*)",
       "Bash(dotnet publish:*)",
       "Bash(ls:*)",
-      "Bash(pwsh:*)"
+      "Bash(pwsh:*)",
+      "Bash(./certz.exe create:*)",
+      "Bash(./certz.exe info:*)"
     ]
   }
 }
