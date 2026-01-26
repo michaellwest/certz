@@ -1,0 +1,12 @@
+global using System;
+global using System.CommandLine;
+global using System.IO;
+global using System.Linq;
+global using System.Net;
+global using System.Net.Security;
+global using System.Net.Sockets;
+global using System.Security.Cryptography;
+global using System.Security.Cryptography.X509Certificates;
+global using System.Threading.Tasks;
+global using certz.Exceptions;
+global using certz.Models;
