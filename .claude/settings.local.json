@@ -3,7 +3,9 @@
     "allow": [
       "Bash(dotnet build:*)",
       "Bash(git stash:*)",
-      "Bash(dotnet run:*)"
+      "Bash(dotnet run:*)",
+      "Bash(dotnet restore:*)",
+      "WebFetch(domain:www.nuget.org)"
     ]
   }
 }

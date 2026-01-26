@@ -24,76 +24,88 @@ class Program
     static async Task<int> Main(string[] args)
     {
         var rootCommand = new RootCommand("Certz: A Simple Certificate Utility");
-        rootCommand.AddCommand(GetListCommand());
-        rootCommand.AddCommand(GetInstallCommand());
-        rootCommand.AddCommand(GetCreateCommand());
-        rootCommand.AddCommand(GetRemoveCommand());
-        rootCommand.AddCommand(GetExportCommand());
-        rootCommand.AddCommand(GetConvertCommand());
+        rootCommand.Subcommands.Add(GetListCommand());
+        rootCommand.Subcommands.Add(GetInstallCommand());
+        rootCommand.Subcommands.Add(GetCreateCommand());
+        rootCommand.Subcommands.Add(GetRemoveCommand());
+        rootCommand.Subcommands.Add(GetExportCommand());
+        rootCommand.Subcommands.Add(GetConvertCommand());
 
-        return await rootCommand.InvokeAsync(args);
+        return await rootCommand.Parse(args).InvokeAsync();
     }
 
     internal static Option<FileInfo?> GetFileOption(bool isRequired, string[] aliases)
     {
-        var fileOption = new Option<FileInfo?>(
-            aliases: aliases ?? new[] { "--file", "--f" },
-            description: "Specifies the certificate.")
-        { IsRequired = isRequired };
+        var allAliases = aliases ?? new[] { "--file", "--f" };
+        var fileOption = new Option<FileInfo?>(allAliases[0], allAliases.Skip(1).ToArray())
+        {
+            Description = "Specifies the certificate.",
+            Required = isRequired
+        };
 
         return fileOption;
     }
 
     internal static Option<Uri?> GetUrlOption(bool isRequired, string[] aliases)
     {
-        var fileOption = new Option<Uri?>(
-            aliases: aliases ?? new[] { "--url", "--u" },
-            description: "Specifies the certificate.")
-        { IsRequired = isRequired };
+        var allAliases = aliases ?? new[] { "--url", "--u" };
+        var fileOption = new Option<Uri?>(allAliases[0], allAliases.Skip(1).ToArray())
+        {
+            Description = "Specifies the certificate.",
+            Required = isRequired
+        };
 
         return fileOption;
     }
 
     internal static Option<string> GetPasswordOption()
     {
-        var passwordOption = new Option<string>(
-            aliases: new[] { "--password", "--pass", "--p" },
-            description: "Password for the certificate."
-            );
+        var passwordOption = new Option<string>("--password", "--pass", "--p")
+        {
+            Description = "Password for the certificate."
+        };
 
         return passwordOption;
     }
 
     internal static Option<int> GetDaysOption(bool isRequired)
     {
-        var daysOption = new Option<int>(
-            aliases: new[] { "--days" },
-            description: "Lifetime for the certificate.",
-            getDefaultValue: () => 365
-            )
-        { IsRequired = isRequired };
+        var daysOption = new Option<int>("--days")
+        {
+            Description = "Lifetime for the certificate.",
+            DefaultValueFactory = _ => 365,
+            Required = isRequired
+        };
 
         return daysOption;
     }
 
     internal static Option<StoreName> GetStoreNameOption()
     {
-        var storeNameOption = new Option<StoreName>(new[] { "--storename", "--sn" },
-            () => StoreName.My, "Specifies the store name.");
+        var storeNameOption = new Option<StoreName>("--storename", "--sn")
+        {
+            Description = "Specifies the store name.",
+            DefaultValueFactory = _ => StoreName.My
+        };
         return storeNameOption;
     }
 
     internal static Option<StoreLocation> GetStoreLocationOption()
     {
-        var storeLocationOption = new Option<StoreLocation>(new[] { "--storelocation", "--sl" },
-            () => StoreLocation.LocalMachine, "Specifies the store location.");
+        var storeLocationOption = new Option<StoreLocation>("--storelocation", "--sl")
+        {
+            Description = "Specifies the store location.",
+            DefaultValueFactory = _ => StoreLocation.LocalMachine
+        };
         return storeLocationOption;
     }
 
     internal static Option<string> GetThumbprintOption()
     {
-        var thumbprintOption = new Option<string>(new[] { "--thumbprint", "--thumb" },
-            "The unique thumbprint for the certificate.");
+        var thumbprintOption = new Option<string>("--thumbprint", "--thumb")
+        {
+            Description = "The unique thumbprint for the certificate."
+        };
         return thumbprintOption;
     }
 
@@ -102,16 +114,16 @@ class Program
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
 
-        var listCommand = new Command("list", "Lists all certificates.")
-        {
-            storeNameOption,
-            storeLocationOption
-        };
+        var listCommand = new Command("list", "Lists all certificates.");
+        listCommand.Options.Add(storeNameOption);
+        listCommand.Options.Add(storeLocationOption);
 
-        listCommand.SetHandler(async (storename, storelocation) =>
+        listCommand.SetAction(async (parseResult) =>
         {
+            var storename = parseResult.GetValue(storeNameOption);
+            var storelocation = parseResult.GetValue(storeLocationOption);
             await ListCertificates(storename, storelocation);
-        }, storeNameOption, storeLocationOption);
+        });
 
         return listCommand;
     }
@@ -119,23 +131,24 @@ class Program
     internal static Command GetInstallCommand()
     {
         var fileOption = GetFileOption(true, new[] { "--file", "--f", "--pkcs12", "--cert", "--c" });
-
         var passwordOption = GetPasswordOption();
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
 
-        var installCommand = new Command("install", "Installs a certificate.")
-        {
-            fileOption,
-            passwordOption,
-            storeNameOption,
-            storeLocationOption
-        };
+        var installCommand = new Command("install", "Installs a certificate.");
+        installCommand.Options.Add(fileOption);
+        installCommand.Options.Add(passwordOption);
+        installCommand.Options.Add(storeNameOption);
+        installCommand.Options.Add(storeLocationOption);
 
-        installCommand.SetHandler(async (file, password, storename, storelocation) =>
+        installCommand.SetAction(async (parseResult) =>
         {
+            var file = parseResult.GetValue(fileOption);
+            var password = parseResult.GetValue(passwordOption);
+            var storename = parseResult.GetValue(storeNameOption);
+            var storelocation = parseResult.GetValue(storeLocationOption);
             await InstallCertificate(file!, password, storename, storelocation);
-        }, fileOption, passwordOption, storeNameOption, storeLocationOption);
+        });
 
         return installCommand;
     }
@@ -146,49 +159,60 @@ class Program
         var certOption = GetFileOption(false, new[] { "--cert", "--c" });
         var keyOption = GetFileOption(false, new[] { "--key", "--k" });
         var passwordOption = GetPasswordOption();
-        var dnsOption = new Option<string[]>(new[] { "--dns", "--san" },
-            () => new[] { "*.dev.local", "*.localhost", "*.test" }, "SAN for the certificate.")
-        { AllowMultipleArgumentsPerToken = true };
+        var dnsOption = new Option<string[]>("--dns", "--san")
+        {
+            Description = "SAN for the certificate.",
+            DefaultValueFactory = _ => new[] { "*.dev.local", "*.localhost", "*.test" },
+            AllowMultipleArgumentsPerToken = true
+        };
         var daysOption = GetDaysOption(false);
 
-        var createCommand = new Command("create", "Creates a certificate.")
-        {
-            pfxOption,
-            passwordOption,
-            certOption,
-            keyOption,
-            dnsOption,
-            daysOption
-        };
+        var createCommand = new Command("create", "Creates a certificate.");
+        createCommand.Options.Add(pfxOption);
+        createCommand.Options.Add(passwordOption);
+        createCommand.Options.Add(certOption);
+        createCommand.Options.Add(keyOption);
+        createCommand.Options.Add(dnsOption);
+        createCommand.Options.Add(daysOption);
 
-        createCommand.SetHandler(async (pfx, password, cert, key, dnsNames, days) =>
+        createCommand.SetAction(async (parseResult) =>
         {
+            var pfx = parseResult.GetValue(pfxOption);
+            var password = parseResult.GetValue(passwordOption);
+            var cert = parseResult.GetValue(certOption);
+            var key = parseResult.GetValue(keyOption);
+            var dnsNames = parseResult.GetValue(dnsOption);
+            var days = parseResult.GetValue(daysOption);
             await CreateCertificate(pfx!, password, cert!, key!, dnsNames, days);
-        }, pfxOption, passwordOption, certOption, keyOption, dnsOption, daysOption);
+        });
 
         return createCommand;
     }
 
     internal static Command GetRemoveCommand()
     {
-        var subjectOption = new Option<string>(new[] { "--subject" },
-            "The subject for the certificate. Multiple certificates may match.");
+        var subjectOption = new Option<string>("--subject")
+        {
+            Description = "The subject for the certificate. Multiple certificates may match."
+        };
         var thumbprintOption = GetThumbprintOption();
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
 
-        var removeCommand = new Command("remove", "Removes the specified certificate.")
-        {
-            subjectOption,
-            thumbprintOption,
-            storeNameOption,
-            storeLocationOption
-        };
+        var removeCommand = new Command("remove", "Removes the specified certificate.");
+        removeCommand.Options.Add(subjectOption);
+        removeCommand.Options.Add(thumbprintOption);
+        removeCommand.Options.Add(storeNameOption);
+        removeCommand.Options.Add(storeLocationOption);
 
-        removeCommand.SetHandler(async (subject, thumbprint, storename, storelocation) =>
+        removeCommand.SetAction(async (parseResult) =>
         {
+            var subject = parseResult.GetValue(subjectOption);
+            var thumbprint = parseResult.GetValue(thumbprintOption);
+            var storename = parseResult.GetValue(storeNameOption);
+            var storelocation = parseResult.GetValue(storeLocationOption);
             await RemoveCertificate(subject, thumbprint, storename, storelocation);
-        }, subjectOption, thumbprintOption, storeNameOption, storeLocationOption);
+        });
 
         return removeCommand;
     }
@@ -199,26 +223,32 @@ class Program
         var certOption = GetFileOption(false, new[] { "--cert", "--c" });
         var keyOption = GetFileOption(false, new[] { "--key", "--k" });
         var urlOption = GetUrlOption(false, new[] { "--url", "--u" });
-
         var passwordOption = GetPasswordOption();
         var thumbprintOption = GetThumbprintOption();
         var storeNameOption = GetStoreNameOption();
         var storeLocationOption = GetStoreLocationOption();
 
-        var exportCommand = new Command("export", "Exports the specified certificate.")
-        {
-            pfxOption,
-            passwordOption,
-            certOption,
-            keyOption,
-            urlOption,
-            thumbprintOption,
-            storeNameOption,
-            storeLocationOption
-        };
+        var exportCommand = new Command("export", "Exports the specified certificate.");
+        exportCommand.Options.Add(pfxOption);
+        exportCommand.Options.Add(passwordOption);
+        exportCommand.Options.Add(certOption);
+        exportCommand.Options.Add(keyOption);
+        exportCommand.Options.Add(urlOption);
+        exportCommand.Options.Add(thumbprintOption);
+        exportCommand.Options.Add(storeNameOption);
+        exportCommand.Options.Add(storeLocationOption);
 
-        exportCommand.SetHandler(async (file, password, cert, key, uri, thumbprint, storename, storelocation) =>
+        exportCommand.SetAction(async (parseResult) =>
         {
+            var file = parseResult.GetValue(pfxOption);
+            var password = parseResult.GetValue(passwordOption);
+            var cert = parseResult.GetValue(certOption);
+            var key = parseResult.GetValue(keyOption);
+            var uri = parseResult.GetValue(urlOption);
+            var thumbprint = parseResult.GetValue(thumbprintOption);
+            var storename = parseResult.GetValue(storeNameOption);
+            var storelocation = parseResult.GetValue(storeLocationOption);
+
             if (uri != null)
             {
                 await ExportCertificate(file!, password, cert!, key!, uri!);
@@ -227,7 +257,7 @@ class Program
             {
                 await ExportCertificate(file!, password, cert!, key!, thumbprint, storename, storelocation);
             }
-        }, pfxOption, passwordOption, certOption, keyOption, urlOption, thumbprintOption, storeNameOption, storeLocationOption);
+        });
 
         return exportCommand;
     }
@@ -239,18 +269,20 @@ class Program
         var pfxOption = GetFileOption(true, new[] { "--file", "--f", "--pfx" });
         var passwordOption = GetPasswordOption();
 
-        var convertCommand = new Command("convert", "Converts a CER/CRT and KEY file to a PFX file.")
-        {
-            certOption,
-            keyOption,
-            pfxOption,
-            passwordOption
-        };
+        var convertCommand = new Command("convert", "Converts a CER/CRT and KEY file to a PFX file.");
+        convertCommand.Options.Add(certOption);
+        convertCommand.Options.Add(keyOption);
+        convertCommand.Options.Add(pfxOption);
+        convertCommand.Options.Add(passwordOption);
 
-        convertCommand.SetHandler(async (cert, key, pfx, password) =>
+        convertCommand.SetAction(async (parseResult) =>
         {
+            var cert = parseResult.GetValue(certOption);
+            var key = parseResult.GetValue(keyOption);
+            var pfx = parseResult.GetValue(pfxOption);
+            var password = parseResult.GetValue(passwordOption);
             await ConvertToPfx(cert!, key!, pfx!, password);
-        }, certOption, keyOption, pfxOption, passwordOption);
+        });
 
         return convertCommand;
     }
