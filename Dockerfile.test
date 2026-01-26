@@ -1,7 +1,7 @@
 # Dockerfile for running certz tests in a Windows container
 # Requires Windows containers to be enabled in Docker Desktop
 
-FROM mcr.microsoft.com/dotnet/sdk:7.0-nanoserver-ltsc2022 AS base
+FROM mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022 AS base
 WORKDIR /app
 
 # Switch to Administrator for certificate operations
@@ -14,9 +14,6 @@ ENV DOTNET_ENVIRONMENT=Test
 COPY docker/tools/certz.exe ./
 COPY docker/tools/certz.pdb ./
 COPY test-all.ps1 ./
-
-# Set up PowerShell execution policy
-RUN pwsh -Command Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force
 
 # Default command runs the test suite
 ENTRYPOINT ["pwsh", "-File", "./test-all.ps1"]

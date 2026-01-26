@@ -1,0 +1,51 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+
+# IDE files
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+
+# Docker files
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# CI/CD
+.github/
+azure-pipelines.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# Temporary files
+*.tmp
+*.temp
+*.log

@@ -46,16 +46,16 @@ class Program
         return fileOption;
     }
 
-    internal static Option<Uri?> GetUrlOption(bool isRequired, string[] aliases)
+    internal static Option<string?> GetUrlOption(bool isRequired, string[] aliases)
     {
         var allAliases = aliases ?? new[] { "--url", "--u" };
-        var fileOption = new Option<Uri?>(allAliases[0], allAliases.Skip(1).ToArray())
+        var urlOption = new Option<string?>(allAliases[0], allAliases.Skip(1).ToArray())
         {
-            Description = "Specifies the certificate.",
+            Description = "Specifies the remote URL to retrieve the certificate from.",
             Required = isRequired
         };
 
-        return fileOption;
+        return urlOption;
     }
 
     internal static Option<string> GetPasswordOption()
@@ -244,14 +244,18 @@ class Program
             var password = parseResult.GetValue(passwordOption);
             var cert = parseResult.GetValue(certOption);
             var key = parseResult.GetValue(keyOption);
-            var uri = parseResult.GetValue(urlOption);
+            var urlString = parseResult.GetValue(urlOption);
             var thumbprint = parseResult.GetValue(thumbprintOption);
             var storename = parseResult.GetValue(storeNameOption);
             var storelocation = parseResult.GetValue(storeLocationOption);
 
-            if (uri != null)
+            if (urlString != null)
             {
-                await ExportCertificate(file!, password, cert!, key!, uri!);
+                if (!Uri.TryCreate(urlString, UriKind.Absolute, out var uri))
+                {
+                    throw new ArgumentException($"Invalid URL format: {urlString}");
+                }
+                await ExportCertificate(file!, password, cert!, key!, uri);
             }
             else
             {

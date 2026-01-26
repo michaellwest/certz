@@ -5,7 +5,12 @@
       "Bash(git stash:*)",
       "Bash(dotnet run:*)",
       "Bash(dotnet restore:*)",
-      "WebFetch(domain:www.nuget.org)"
+      "WebFetch(domain:www.nuget.org)",
+      "Bash(./certz.exe export:*)",
+      "Bash(echo:*)",
+      "Bash(dotnet publish:*)",
+      "Bash(ls:*)",
+      "Bash(pwsh:*)"
     ]
   }
 }
