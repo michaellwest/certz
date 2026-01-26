@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Standard test runner with baked-in files (rebuild required for changes)
+  certz-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: certz-test:latest
+    container_name: certz-test-runner
+    environment:
+      - DOTNET_ENVIRONMENT=Test
+    volumes:
+      # Mount test results output (optional)
+      - ./test-results:/app/test-results:rw
+    # Use Windows containers
+    isolation: process
+    # Auto-remove container after tests complete
+    # Exit code will reflect test results (0 = success, 1 = failure)
+
+  # Development test runner with volume mounts (no rebuild needed for changes)
+  certz-test-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: certz-test:latest
+    container_name: certz-test-runner-dev
+    environment:
+      - DOTNET_ENVIRONMENT=Test
+    volumes:
+      # Mount certz.exe and test script from host (changes reflected immediately)
+      - ./docker/tools/certz.exe:/app/certz.exe:ro
+      - ./docker/tools/certz.pdb:/app/certz.pdb:ro
+      - ./test-all.ps1:/app/test-all.ps1:ro
+      # Mount test results output (optional)
+      - ./test-results:/app/test-results:rw
+    isolation: process

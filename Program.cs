@@ -275,9 +275,9 @@ class Program
 
             await File.WriteAllBytesAsync(path, certData);
 
-            var name = Path.GetFileNameWithoutExtension(path);
             var directory = Path.GetDirectoryName(path);
-            var passwordFile = Path.Combine(directory, $"{name}.password.txt");
+            var fileName = Path.GetFileName(path);
+            var passwordFile = Path.Combine(directory, $"{fileName}.password.txt");
             await File.WriteAllTextAsync(passwordFile, password);
 
             Console.WriteLine(" - certificate '{0}' and password '{1}'", Path.GetFileName(path), Path.GetFileName(passwordFile));
@@ -298,14 +298,14 @@ class Program
 
     internal static async Task CreateCertificate(FileInfo pfx, string password, FileInfo cert, FileInfo key, string[] dnsNames, int days)
     {
-        if (pfx == null && cert == null)
+        // Set default for PFX if no files are specified
+        if (pfx == null && cert == null && key == null)
         {
             pfx = new FileInfo("devcert.pfx");
-            cert = new FileInfo("devcert.cer");
-            key = new FileInfo("devcert.key");
         }
 
-        if (cert == null | key == null)
+        // Validate: if cert or key is specified, both must be specified
+        if ((cert != null && key == null) || (cert == null && key != null))
         {
             throw new ArgumentException("Both the cert and key parameters should be provided.");
         }
@@ -476,9 +476,9 @@ class Program
         var pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
         await File.WriteAllBytesAsync(pfxFile.FullName, pfxData);
 
-        var name = Path.GetFileNameWithoutExtension(pfxFile.FullName);
         var directory = Path.GetDirectoryName(pfxFile.FullName);
-        var passwordFile = Path.Combine(directory, $"{name}.password.txt");
+        var fileName = Path.GetFileName(pfxFile.FullName);
+        var passwordFile = Path.Combine(directory, $"{fileName}.password.txt");
         await File.WriteAllTextAsync(passwordFile, password);
 
         Console.WriteLine("Successfully converted certificate and key to PFX format:");

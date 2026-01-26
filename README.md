@@ -60,3 +60,33 @@ certz.exe export --f devcert-bak.pfx --c devcert-bak.pem --url https://www.githu
 ```
 certz.exe convert --c certificate.crt --k private.key --f output.pfx --p Password12345
 ```
+
+## Testing
+
+Comprehensive testing documentation and automated test scripts are available to validate all features:
+
+- **[TESTING.md](TESTING.md)** - Complete testing guide with manual test scenarios for all commands
+- **[test-all.ps1](test-all.ps1)** - Automated test suite that validates all features
+- **[Dockerfile.test](Dockerfile.test)** - Docker configuration for isolated container testing
+- **[DOCKER-TESTING.md](DOCKER-TESTING.md)** - Docker testing quick reference and troubleshooting
+- **[DOCKER-FILES-EXPLAINED.md](DOCKER-FILES-EXPLAINED.md)** - Understanding how files are made available in containers
+
+### Quick Test
+
+Run the comprehensive test suite locally (requires Administrator privileges):
+
+```powershell
+.\test-all.ps1
+```
+
+Or run in an isolated Windows Docker container:
+
+```powershell
+# Standard mode (files baked into image)
+.\test-all.ps1 -UseDocker
+
+# Development mode (files mounted as volumes - no rebuild needed for changes)
+.\test-all.ps1 -UseDocker -DevMode
+```
+
+For detailed testing instructions, see [TESTING.md](TESTING.md).

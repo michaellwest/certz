@@ -23,3 +23,8 @@
 **/values.dev.yaml
 LICENSE
 README.md
+
+# Include files needed for test container
+!test-all.ps1
+!docker/tools/certz.exe
+!docker/tools/certz.pdb
