@@ -401,25 +401,59 @@ try {
     # Output should confirm password was written to file
     $outputConfirms = $output -match "Password.*written to"
     $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
-    Write-TestResult "Create with password file" $success "Password saved to file"
+
+    # Build detailed failure message
+    $failureDetails = @()
+    if (-not $pfxExists) { $failureDetails += "PFX file not created" }
+    if (-not $pwFileExists) { $failureDetails += "Password file not created" }
+    if ($pwFileExists -and -not $hasValidPassword) {
+        $failureDetails += "Invalid password content (length: $($pwFileContent.Length), content matches forbidden pattern: $($pwFileContent -match 'IMPORTANT|WARNING|='))"
+    }
+    if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
+
+    $details = if ($success) { "Password saved to file" } else { $failureDetails -join "; " }
+    Write-TestResult "Create with password file" $success $details
 } catch {
     Write-TestResult "Create with password file" $false $_.Exception.Message
 }
 
 # Test 1.9: Verify password file content can be used to install certificate
 try {
-    $password = Get-Content "pwfile-create.password.txt" -Raw
-    .\certz.exe install --f pwfile-create.pfx --p $password --sn My --sl CurrentUser | Out-Null
-    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-    $success = $null -ne $cert
+    $pwFileExists = Test-FileExists "pwfile-create.password.txt"
+    $pfxExists = Test-FileExists "pwfile-create.pfx"
 
-    # Cleanup
-    if ($cert) {
-        .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
+    $failureDetails = @()
+    if (-not $pwFileExists) { $failureDetails += "Password file does not exist" }
+    if (-not $pfxExists) { $failureDetails += "PFX file does not exist" }
+
+    if ($pwFileExists -and $pfxExists) {
+        $password = Get-Content "pwfile-create.password.txt" -Raw
+        $installOutput = .\certz.exe install --f pwfile-create.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-String
+        $installExitCode = $LASTEXITCODE
+
+        $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
+                Where-Object { $_.Subject -like "*dev.local*" } |
+                Select-Object -First 1
+        $success = $null -ne $cert
+
+        if (-not $success) {
+            if ($installExitCode -ne 0) {
+                $failureDetails += "Install command failed (exit code: $installExitCode)"
+            }
+            $failureDetails += "Certificate not found in CurrentUser\My store after install"
+            if ($installOutput) { $failureDetails += "Install output: $($installOutput.Trim())" }
+        }
+
+        # Cleanup
+        if ($cert) {
+            .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
+        }
+    } else {
+        $success = $false
     }
-    Write-TestResult "Use password from file to install" $success "Password file content is valid"
+
+    $details = if ($success) { "Password file content is valid" } else { $failureDetails -join "; " }
+    Write-TestResult "Use password from file to install" $success $details
 } catch {
     Write-TestResult "Use password from file to install" $false $_.Exception.Message
 }
@@ -427,12 +461,22 @@ try {
 # Test 1.10: Password file not created when password is provided
 Remove-TestFiles "pwfile-provided"
 try {
-    .\certz.exe create --f pwfile-provided.pfx --p ProvidedPass --password-file pwfile-provided.password.txt 2>&1 | Out-Null
+    $output = .\certz.exe create --f pwfile-provided.pfx --p ProvidedPass --password-file pwfile-provided.password.txt 2>&1 | Out-String
+    $createExitCode = $LASTEXITCODE
     $pfxExists = Test-FileExists "pwfile-provided.pfx"
     # Password file should NOT be created when password is explicitly provided
-    $pwFileNotCreated = -not (Test-FileExists "pwfile-provided.password.txt")
+    $pwFileCreated = Test-FileExists "pwfile-provided.password.txt"
+    $pwFileNotCreated = -not $pwFileCreated
     $success = $pfxExists -and $pwFileNotCreated
-    Write-TestResult "Password file ignored when password provided" $success "No file created with explicit password"
+
+    # Build detailed failure message
+    $failureDetails = @()
+    if ($createExitCode -ne 0) { $failureDetails += "Create command failed (exit code: $createExitCode)" }
+    if (-not $pfxExists) { $failureDetails += "PFX file not created" }
+    if ($pwFileCreated) { $failureDetails += "Password file was created when it should not have been (explicit password was provided)" }
+
+    $details = if ($success) { "No file created with explicit password" } else { $failureDetails -join "; " }
+    Write-TestResult "Password file ignored when password provided" $success $details
 } catch {
     Write-TestResult "Password file ignored when password provided" $false $_.Exception.Message
 }
@@ -900,13 +944,26 @@ try {
 Remove-TestFiles "export-pwfile"
 try {
     $output = .\certz.exe export --url https://www.github.com --f export-pwfile.pfx --password-file export-pwfile.password.txt 2>&1 | Out-String
+    $exportExitCode = $LASTEXITCODE
     $pfxExists = Test-FileExists "export-pwfile.pfx"
     $pwFileExists = Test-FileExists "export-pwfile.password.txt"
     $pwFileContent = if ($pwFileExists) { Get-Content "export-pwfile.password.txt" -Raw } else { "" }
     $hasValidPassword = $pwFileContent.Length -ge 20
     $outputConfirms = $output -match "Password.*written to"
     $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
-    Write-TestResult "Export with password file (URL)" $success "Password saved to file"
+
+    # Build detailed failure message
+    $failureDetails = @()
+    if ($exportExitCode -ne 0) { $failureDetails += "Export command failed (exit code: $exportExitCode)" }
+    if (-not $pfxExists) { $failureDetails += "PFX file not created" }
+    if (-not $pwFileExists) { $failureDetails += "Password file not created" }
+    if ($pwFileExists -and -not $hasValidPassword) {
+        $failureDetails += "Invalid password content (length: $($pwFileContent.Length), expected >= 20)"
+    }
+    if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
+
+    $details = if ($success) { "Password saved to file" } else { $failureDetails -join "; " }
+    Write-TestResult "Export with password file (URL)" $success $details
 } catch {
     Write-TestResult "Export with password file (URL)" $false $_.Exception.Message
 }
@@ -915,8 +972,14 @@ try {
 Remove-TestFiles "export-store-pwfile"
 try {
     # First create and install a certificate
-    .\certz.exe create --f export-store-pwfile-src.pfx --p TempPass | Out-Null
-    .\certz.exe install --f export-store-pwfile-src.pfx --p TempPass --sn My --sl LocalMachine | Out-Null
+    .\certz.exe create --f export-store-pwfile-src.pfx --p TempPass 2>&1 | Out-Null
+    $createExitCode = $LASTEXITCODE
+    .\certz.exe install --f export-store-pwfile-src.pfx --p TempPass --sn My --sl LocalMachine 2>&1 | Out-Null
+    $installExitCode = $LASTEXITCODE
+
+    $failureDetails = @()
+    if ($createExitCode -ne 0) { $failureDetails += "Create command failed (exit code: $createExitCode)" }
+    if ($installExitCode -ne 0) { $failureDetails += "Install command failed (exit code: $installExitCode)" }
 
     $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
             Where-Object { $_.Subject -like "*dev.local*" } |
@@ -924,6 +987,7 @@ try {
 
     if ($cert) {
         $output = .\certz.exe export --thumb $cert.Thumbprint --f export-store-pwfile.pfx --password-file export-store-pwfile.password.txt 2>&1 | Out-String
+        $exportExitCode = $LASTEXITCODE
         $pfxExists = Test-FileExists "export-store-pwfile.pfx"
         $pwFileExists = Test-FileExists "export-store-pwfile.password.txt"
         $pwFileContent = if ($pwFileExists) { Get-Content "export-store-pwfile.password.txt" -Raw } else { "" }
@@ -931,12 +995,24 @@ try {
         $outputConfirms = $output -match "Password.*written to"
         $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
 
+        # Build detailed failure message
+        if ($exportExitCode -ne 0) { $failureDetails += "Export command failed (exit code: $exportExitCode)" }
+        if (-not $pfxExists) { $failureDetails += "PFX file not created" }
+        if (-not $pwFileExists) { $failureDetails += "Password file not created" }
+        if ($pwFileExists -and -not $hasValidPassword) {
+            $failureDetails += "Invalid password content (length: $($pwFileContent.Length), expected >= 20)"
+        }
+        if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
+
         # Cleanup
         .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
     } else {
         $success = $false
+        $failureDetails += "Certificate not found in LocalMachine\My store after install"
     }
-    Write-TestResult "Export with password file (store)" $success "Password saved to file"
+
+    $details = if ($success) { "Password saved to file" } else { $failureDetails -join "; " }
+    Write-TestResult "Export with password file (store)" $success $details
 } catch {
     Write-TestResult "Export with password file (store)" $false $_.Exception.Message
 }
@@ -969,32 +1045,79 @@ try {
 # Test 6.3: Convert with password file
 Remove-TestFiles "converted-pwfile"
 try {
-    $output = .\certz.exe convert --c pemonly.cer --k pemonly.key --f converted-pwfile.pfx --password-file converted-pwfile.password.txt 2>&1 | Out-String
-    $pfxExists = Test-FileExists "converted-pwfile.pfx"
-    $pwFileExists = Test-FileExists "converted-pwfile.password.txt"
-    $pwFileContent = if ($pwFileExists) { Get-Content "converted-pwfile.password.txt" -Raw } else { "" }
-    $hasValidPassword = $pwFileContent.Length -ge 20 -and $pwFileContent -notmatch "IMPORTANT|WARNING|="
-    $outputConfirms = $output -match "Password.*written to"
-    $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
-    Write-TestResult "Convert with password file" $success "Password saved to file during conversion"
+    # Verify source files exist first
+    $cerExists = Test-FileExists "pemonly.cer"
+    $keyExists = Test-FileExists "pemonly.key"
+
+    $failureDetails = @()
+    if (-not $cerExists) { $failureDetails += "Source CER file (pemonly.cer) does not exist" }
+    if (-not $keyExists) { $failureDetails += "Source KEY file (pemonly.key) does not exist" }
+
+    if ($cerExists -and $keyExists) {
+        $output = .\certz.exe convert --c pemonly.cer --k pemonly.key --f converted-pwfile.pfx --password-file converted-pwfile.password.txt 2>&1 | Out-String
+        $convertExitCode = $LASTEXITCODE
+        $pfxExists = Test-FileExists "converted-pwfile.pfx"
+        $pwFileExists = Test-FileExists "converted-pwfile.password.txt"
+        $pwFileContent = if ($pwFileExists) { Get-Content "converted-pwfile.password.txt" -Raw } else { "" }
+        $hasValidPassword = $pwFileContent.Length -ge 20 -and $pwFileContent -notmatch "IMPORTANT|WARNING|="
+        $outputConfirms = $output -match "Password.*written to"
+        $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
+
+        # Build detailed failure message
+        if ($convertExitCode -ne 0) { $failureDetails += "Convert command failed (exit code: $convertExitCode)" }
+        if (-not $pfxExists) { $failureDetails += "PFX file not created" }
+        if (-not $pwFileExists) { $failureDetails += "Password file not created" }
+        if ($pwFileExists -and -not $hasValidPassword) {
+            $failureDetails += "Invalid password content (length: $($pwFileContent.Length), contains forbidden pattern: $($pwFileContent -match 'IMPORTANT|WARNING|='))"
+        }
+        if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
+    } else {
+        $success = $false
+    }
+
+    $details = if ($success) { "Password saved to file during conversion" } else { $failureDetails -join "; " }
+    Write-TestResult "Convert with password file" $success $details
 } catch {
     Write-TestResult "Convert with password file" $false $_.Exception.Message
 }
 
 # Test 6.4: Verify converted certificate with password file can be installed
 try {
-    $password = Get-Content "converted-pwfile.password.txt" -Raw
-    .\certz.exe install --f converted-pwfile.pfx --p $password --sn My --sl CurrentUser | Out-Null
-    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-    $success = $null -ne $cert
+    $pwFileExists = Test-FileExists "converted-pwfile.password.txt"
+    $pfxExists = Test-FileExists "converted-pwfile.pfx"
 
-    # Cleanup
-    if ($cert) {
-        .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
+    $failureDetails = @()
+    if (-not $pwFileExists) { $failureDetails += "Password file (converted-pwfile.password.txt) does not exist" }
+    if (-not $pfxExists) { $failureDetails += "PFX file (converted-pwfile.pfx) does not exist" }
+
+    if ($pwFileExists -and $pfxExists) {
+        $password = Get-Content "converted-pwfile.password.txt" -Raw
+        $installOutput = .\certz.exe install --f converted-pwfile.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-String
+        $installExitCode = $LASTEXITCODE
+
+        $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
+                Where-Object { $_.Subject -like "*dev.local*" } |
+                Select-Object -First 1
+        $success = $null -ne $cert
+
+        if (-not $success) {
+            if ($installExitCode -ne 0) {
+                $failureDetails += "Install command failed (exit code: $installExitCode)"
+            }
+            $failureDetails += "Certificate not found in CurrentUser\My store after install"
+            if ($installOutput) { $failureDetails += "Install output: $($installOutput.Trim())" }
+        }
+
+        # Cleanup
+        if ($cert) {
+            .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
+        }
+    } else {
+        $success = $false
     }
-    Write-TestResult "Install converted cert using password file" $success "Converted cert password is valid"
+
+    $details = if ($success) { "Converted cert password is valid" } else { $failureDetails -join "; " }
+    Write-TestResult "Install converted cert using password file" $success $details
 } catch {
     Write-TestResult "Install converted cert using password file" $false $_.Exception.Message
 }
