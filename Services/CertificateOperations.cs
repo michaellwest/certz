@@ -22,6 +22,7 @@ internal static class CertificateOperations
     {
         if (passwordFile != null)
         {
+            passwordFile.Directory?.Create();
             File.WriteAllText(passwordFile.FullName, password);
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Green;
@@ -54,6 +55,11 @@ internal static class CertificateOperations
 
     internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation)
     {
+        if (!file.Exists)
+        {
+            throw new FileNotFoundException($"Certificate file not found: {file.FullName}");
+        }
+
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
         using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
         Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
@@ -65,6 +71,13 @@ internal static class CertificateOperations
 
     internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false, FileInfo? passwordFile = null)
     {
+        // Ensure output directory exists
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
         //TODO: File extension validation
         if (certificateFileType == CertificateFileType.Pfx)
         {
@@ -320,6 +333,7 @@ internal static class CertificateOperations
         }
 
         // Export as PFX
+        pfxFile.Directory?.Create();
         var pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
         await File.WriteAllBytesAsync(pfxFile.FullName, pfxData);
 
@@ -368,6 +382,7 @@ internal static class CertificateOperations
         // Export certificate to PEM
         if (outputCert != null)
         {
+            outputCert.Directory?.Create();
             var certificatePem = PemEncoding.Write("CERTIFICATE", certificate.RawData);
             await File.WriteAllTextAsync(outputCert.FullName, new string(certificatePem));
             Console.WriteLine("Exported certificate:");
@@ -401,6 +416,7 @@ internal static class CertificateOperations
                 }
             }
 
+            outputKey.Directory?.Create();
             await File.WriteAllTextAsync(outputKey.FullName, privateKeyPem);
             Console.WriteLine(" - Output private key: '{0}'", outputKey.Name);
         }
@@ -413,6 +429,11 @@ internal static class CertificateOperations
 
     internal static async Task ShowCertificateInfo(FileInfo file, string password)
     {
+        if (!file.Exists)
+        {
+            throw new FileNotFoundException($"Certificate file not found: {file.FullName}");
+        }
+
         X509Certificate2? certificate = null;
 
         if (file.Extension.Equals(".pfx", StringComparison.OrdinalIgnoreCase) ||
@@ -469,6 +490,11 @@ internal static class CertificateOperations
 
     internal static async Task VerifyCertificate(FileInfo file, string password, bool checkRevocation, int warningDays)
     {
+        if (!file.Exists)
+        {
+            throw new FileNotFoundException($"Certificate file not found: {file.FullName}");
+        }
+
         X509Certificate2? certificate = null;
 
         if (file.Extension.Equals(".pfx", StringComparison.OrdinalIgnoreCase) ||

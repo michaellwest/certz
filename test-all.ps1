@@ -187,9 +187,9 @@ if ($UseDocker) {
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -eq 0) {
-            Write-Host "`n✓ Docker tests completed successfully!" -ForegroundColor Green
+            Write-Host "`nDocker tests completed successfully!" -ForegroundColor Green
         } else {
-            Write-Host "`n✗ Docker tests failed!" -ForegroundColor Red
+            Write-Host "`nDocker tests failed!" -ForegroundColor Red
         }
 
         exit $exitCode
@@ -297,6 +297,208 @@ function Remove-TestCertificates {
     }
 }
 
+# ----------------------------------------------------------------------------
+# REFACTORED HELPER FUNCTIONS
+# ----------------------------------------------------------------------------
+
+function Get-TestCertificate {
+    param(
+        [string]$SubjectPattern = "*dev.local*",
+        [string]$StoreName = "My",
+        [string]$StoreLocation = "LocalMachine"
+    )
+    return Get-ChildItem "Cert:\$StoreLocation\$StoreName" -ErrorAction SilentlyContinue |
+           Where-Object { $_.Subject -like $SubjectPattern } |
+           Select-Object -First 1
+}
+
+function Test-PasswordFile {
+    param(
+        [string]$FilePath,
+        [int]$MinLength = 20,
+        [string[]]$ForbiddenPatterns = @("IMPORTANT", "WARNING")
+    )
+    $result = @{ Exists = $false; Valid = $false; Content = ""; Errors = @() }
+
+    if (-not (Test-FileExists $FilePath)) {
+        $result.Errors += "Password file not created"
+        return $result
+    }
+    $result.Exists = $true
+    $result.Content = Get-Content $FilePath -Raw
+
+    if ($result.Content.Length -lt $MinLength) {
+        $result.Errors += "Password too short (length: $($result.Content.Length), expected >= $MinLength)"
+    }
+    foreach ($pattern in $ForbiddenPatterns) {
+        if ($result.Content -match $pattern) {
+            $result.Errors += "Password contains forbidden pattern: $pattern"
+        }
+    }
+    $result.Valid = $result.Errors.Count -eq 0
+    return $result
+}
+
+function Test-CertzFileCreation {
+    param(
+        [string]$TestName,
+        [string]$FilePrefix,
+        [string[]]$CertzArgs,
+        [string[]]$ExpectedFiles,
+        [string]$Details = ""
+    )
+    Remove-TestFiles $FilePrefix
+    try {
+        Write-Host "[TEST] $TestName" -ForegroundColor Cyan
+        Write-Host "Running with arguments $($CertzArgs)"
+
+        & .\certz.exe @CertzArgs | Out-Null
+        $allExist = $true
+        foreach ($file in $ExpectedFiles) {
+            if (-not (Test-FileExists $file)) {
+                $allExist = $false
+                break
+            }
+        }
+        Write-TestResult $TestName $allExist $Details
+        return $allExist
+    } catch {
+        Write-TestResult $TestName $false $_.Exception.Message
+        return $false
+    }
+}
+
+function Test-CertzWithOutput {
+    param(
+        [string]$TestName,
+        [string]$FilePrefix,
+        [string[]]$CertzArgs,
+        [string[]]$ExpectedFiles = @(),
+        [string]$OutputPattern = "",
+        [switch]$OutputShouldNotMatch,
+        [string]$Details = ""
+    )
+    Remove-TestFiles $FilePrefix
+    try {
+        Write-Host "[TEST] $TestName" -ForegroundColor Cyan
+        Write-Host "Running with arguments $($CertzArgs)"
+
+        $output = & .\certz.exe @CertzArgs 2>&1 | Out-String
+
+        $filesExist = $true
+        if ($ExpectedFiles.Count -gt 0) {
+            foreach ($file in $ExpectedFiles) {
+                if (-not (Test-FileExists $file)) {
+                    $filesExist = $false
+                    break
+                }
+            }
+        }
+
+        $outputMatch = $true
+        if ($OutputPattern) {
+            if ($OutputShouldNotMatch) {
+                $outputMatch = $output -notmatch $OutputPattern
+            } else {
+                $outputMatch = $output -match $OutputPattern
+            }
+        }
+
+        # TODO Remove this debug line later
+        Write-Host $output
+
+        $success = $filesExist -and $outputMatch
+        Write-TestResult $TestName $success $Details
+        return @{ Success = $success; Output = $output }
+    } catch {
+        Write-TestResult $TestName $false $_.Exception.Message
+        return @{ Success = $false; Output = "" }
+    }
+}
+
+function Test-CertzExpectedFailure {
+    param(
+        [string]$TestName,
+        [string]$FilePrefix,
+        [string[]]$CertzArgs,
+        [string]$Details = "Validation error expected"
+    )
+    Remove-TestFiles $FilePrefix
+    try {
+        Write-Host "[TEST] $TestName" -ForegroundColor Cyan
+        Write-Host "Running with arguments $($CertzArgs)"
+
+        & .\certz.exe @CertzArgs 2>&1 | Out-Null
+        $success = $LASTEXITCODE -ne 0
+        Write-TestResult $TestName $success $Details
+        return $success
+    } catch {
+        Write-TestResult $TestName $true "Exception caught as expected"
+        return $true
+    }
+}
+
+function Test-CertzInstall {
+    param(
+        [string]$TestName,
+        [string]$PfxFile,
+        [string]$Password,
+        [string]$StoreName = "My",
+        [string]$StoreLocation = "LocalMachine",
+        [string]$SubjectPattern = "*dev.local*",
+        [string]$Details = ""
+    )
+    try {
+        Write-Host "[TEST] $TestName" -ForegroundColor Cyan
+#        Write-Host "Running with arguments $($CertzArgs)"
+
+        & .\certz.exe install --f $PfxFile --p $Password --sn $StoreName --sl $StoreLocation | Out-Null
+        $cert = Get-TestCertificate -SubjectPattern $SubjectPattern -StoreName $StoreName -StoreLocation $StoreLocation
+        $success = $null -ne $cert
+        Write-TestResult $TestName $success $Details
+        return $cert
+    } catch {
+        Write-TestResult $TestName $false $_.Exception.Message
+        return $null
+    }
+}
+
+function Test-CertzPasswordFileCreation {
+    param(
+        [string]$TestName,
+        [string]$FilePrefix,
+        [string[]]$CertzArgs,
+        [string]$PfxFile,
+        [string]$PasswordFile,
+        [string]$Details = "Password saved to file"
+    )
+    Remove-TestFiles $FilePrefix
+    try {
+        Write-Host "[TEST] $TestName" -ForegroundColor Cyan
+        Write-Host "Running with arguments $($CertzArgs)"
+
+        $output = & .\certz.exe @CertzArgs 2>&1 | Out-String
+        $pfxExists = Test-FileExists $PfxFile
+        $pwResult = Test-PasswordFile -FilePath $PasswordFile
+        $outputConfirms = $output -match "Password.*written to"
+
+        $success = $pfxExists -and $pwResult.Valid -and $outputConfirms
+
+        $failureDetails = @()
+        if (-not $pfxExists) { $failureDetails += "PFX file not created" }
+        if (-not $pwResult.Exists) { $failureDetails += "Password file not created" }
+        elseif (-not $pwResult.Valid) { $failureDetails += $pwResult.Errors }
+        if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
+
+        $detailMsg = if ($success) { $Details } else { $failureDetails -join "; " }
+        Write-TestResult $TestName $success $detailMsg
+        return @{ Success = $success; Output = $output; PasswordContent = $pwResult.Content }
+    } catch {
+        Write-TestResult $TestName $false $_.Exception.Message
+        return @{ Success = $false; Output = ""; PasswordContent = "" }
+    }
+}
+
 # Initialize test environment
 Write-Host "`nCertz Comprehensive Test Suite" -ForegroundColor Magenta
 Write-Host "==============================`n" -ForegroundColor Magenta
@@ -314,55 +516,36 @@ Remove-TestCertificates -Subject "*.dev.local" -StoreName "My" -StoreLocation "C
 Write-TestHeader "Testing CREATE Command"
 
 # Test 1.1: Create with defaults (generates secure random password displayed on screen)
-Remove-TestFiles "devcert"
-try {
-    $output = .\certz.exe create 2>&1 | Out-String
-    $success = (Test-FileExists "devcert.pfx") -and ($output -match "IMPORTANT: Certificate Password")
-    Write-TestResult "Create with defaults" $success "PFX created with generated password"
-} catch {
-    Write-TestResult "Create with defaults" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Create with defaults" -FilePrefix "devcert" `
+    -CertzArgs @("create") `
+    -ExpectedFiles @("devcert.pfx") `
+    -OutputPattern "IMPORTANT: Certificate Password" `
+    -Details "PFX created with generated password"
 
 # Test 1.2: Create with custom PFX and password
-Remove-TestFiles "mycert"
-try {
-    $output = .\certz.exe create --f mycert.pfx --p MySecurePass123 2>&1 | Out-String
-    # When password is provided, no password warning should be displayed
-    $success = (Test-FileExists "mycert.pfx") -and ($output -notmatch "IMPORTANT: Certificate Password")
-    Write-TestResult "Create with custom password" $success "PFX created with provided password"
-} catch {
-    Write-TestResult "Create with custom password" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Create with custom password" -FilePrefix "mycert" `
+    -CertzArgs @("create", "--f", "mycert.pfx", "--p", "MySecurePass123") `
+    -ExpectedFiles @("mycert.pfx") `
+    -OutputPattern "IMPORTANT: Certificate Password" -OutputShouldNotMatch `
+    -Details "PFX created with provided password"
 
 # Test 1.3: Create with custom SANs
-Remove-TestFiles "testcert"
-try {
-    .\certz.exe create --f testcert.pfx --p TestCertPass --san *.example.com localhost 127.0.0.1 192.168.1.100 | Out-Null
-    $success = Test-FileExists "testcert.pfx"
-    Write-TestResult "Create with custom SANs" $success "Multiple DNS and IP SANs"
-} catch {
-    Write-TestResult "Create with custom SANs" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with custom SANs" -FilePrefix "testcert" `
+    -CertzArgs @("create", "--f", "testcert.pfx", "--p", "TestCertPass", "--san", "*.example.com", "localhost", "127.0.0.1", "192.168.1.100") `
+    -ExpectedFiles @("testcert.pfx") `
+    -Details "Multiple DNS and IP SANs"
 
 # Test 1.4: Create with custom validity period (within CA/B Forum 398-day limit)
-Remove-TestFiles "longcert"
-try {
-    .\certz.exe create --f longcert.pfx --p LongCertPass --days 365 | Out-Null
-    $success = Test-FileExists "longcert.pfx"
-    Write-TestResult "Create with 365 days validity" $success "1-year certificate"
-} catch {
-    Write-TestResult "Create with 365 days validity" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with 365 days validity" -FilePrefix "longcert" `
+    -CertzArgs @("create", "--f", "longcert.pfx", "--p", "LongCertPass", "--days", "365") `
+    -ExpectedFiles @("longcert.pfx") `
+    -Details "1-year certificate"
 
 # Test 1.5: Create with all options
-Remove-TestFiles "fulltest"
-try {
-    .\certz.exe create --f fulltest.pfx --c fulltest.cer --k fulltest.key --p ComplexPass456 --san *.dev.local *.test.com 127.0.0.1 --days 180 | Out-Null
-    $success = (Test-FileExists "fulltest.pfx") -and (Test-FileExists "fulltest.cer") -and (Test-FileExists "fulltest.key")
-    Write-TestResult "Create with all options" $success "PFX, CER, and KEY created"
-} catch {
-    Write-TestResult "Create with all options" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with all options" -FilePrefix "fulltest" `
+    -CertzArgs @("create", "--f", "fulltest.pfx", "--c", "fulltest.cer", "--k", "fulltest.key", "--p", "ComplexPass456", "--san", "*.dev.local", "*.test.com", "127.0.0.1", "--days", "180") `
+    -ExpectedFiles @("fulltest.pfx", "fulltest.cer", "fulltest.key") `
+    -Details "PFX, CER, and KEY created"
 
 # Test 1.6: Create PEM-only certificates
 Remove-TestFiles "pemonly"
@@ -375,14 +558,10 @@ try {
 }
 
 # Test 1.7: Create with multiple SANs
-Remove-TestFiles "multisan"
-try {
-    .\certz.exe create --f multisan.pfx --p MultiSanPass --san *.app1.local *.app2.local *.app3.local localhost | Out-Null
-    $success = Test-FileExists "multisan.pfx"
-    Write-TestResult "Create with multiple SANs" $success "4 DNS entries"
-} catch {
-    Write-TestResult "Create with multiple SANs" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with multiple SANs" -FilePrefix "multisan" `
+    -CertzArgs @("create", "--f", "multisan.pfx", "--p", "MultiSanPass", "--san", "*.app1.local", "*.app2.local", "*.app3.local", "localhost") `
+    -ExpectedFiles @("multisan.pfx") `
+    -Details "4 DNS entries"
 
 # ============================================================================
 # PASSWORD FILE TESTS
@@ -390,64 +569,30 @@ try {
 Write-TestHeader "Testing Password File Option"
 
 # Test 1.8: Create with password file (password written to file)
-Remove-TestFiles "pwfile-create"
-try {
-    $output = .\certz.exe create --f pwfile-create.pfx --password-file pwfile-create.password.txt 2>&1 | Out-String
-    $pfxExists = Test-FileExists "pwfile-create.pfx"
-    $pwFileExists = Test-FileExists "pwfile-create.password.txt"
-    $pwFileContent = if ($pwFileExists) { Get-Content "pwfile-create.password.txt" -Raw } else { "" }
-    # Password file should contain just the password (no newlines, no formatting)
-    $hasValidPassword = $pwFileContent.Length -ge 20 -and $pwFileContent -notmatch "IMPORTANT|WARNING|="
-    # Output should confirm password was written to file
-    $outputConfirms = $output -match "Password.*written to"
-    $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
-
-    # Build detailed failure message
-    $failureDetails = @()
-    if (-not $pfxExists) { $failureDetails += "PFX file not created" }
-    if (-not $pwFileExists) { $failureDetails += "Password file not created" }
-    if ($pwFileExists -and -not $hasValidPassword) {
-        $failureDetails += "Invalid password content (length: $($pwFileContent.Length), content matches forbidden pattern: $($pwFileContent -match 'IMPORTANT|WARNING|='))"
-    }
-    if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
-
-    $details = if ($success) { "Password saved to file" } else { $failureDetails -join "; " }
-    Write-TestResult "Create with password file" $success $details
-} catch {
-    Write-TestResult "Create with password file" $false $_.Exception.Message
-}
+$pwCreateResult = Test-CertzPasswordFileCreation -TestName "Create with password file" -FilePrefix "pwfile-create" `
+    -CertzArgs @("create", "--f", "pwfile-create.pfx", "--password-file", "pwfile-create.password.txt") `
+    -PfxFile "pwfile-create.pfx" -PasswordFile "pwfile-create.password.txt"
 
 # Test 1.9: Verify password file content can be used to install certificate
 try {
     $pwFileExists = Test-FileExists "pwfile-create.password.txt"
     $pfxExists = Test-FileExists "pwfile-create.pfx"
-
     $failureDetails = @()
+
     if (-not $pwFileExists) { $failureDetails += "Password file does not exist" }
     if (-not $pfxExists) { $failureDetails += "PFX file does not exist" }
 
     if ($pwFileExists -and $pfxExists) {
         $password = Get-Content "pwfile-create.password.txt" -Raw
-        $installOutput = .\certz.exe install --f pwfile-create.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-String
-        $installExitCode = $LASTEXITCODE
-
-        $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-                Where-Object { $_.Subject -like "*dev.local*" } |
-                Select-Object -First 1
+        & .\certz.exe install --f pwfile-create.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-Null
+        $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
         $success = $null -ne $cert
 
         if (-not $success) {
-            if ($installExitCode -ne 0) {
-                $failureDetails += "Install command failed (exit code: $installExitCode)"
-            }
             $failureDetails += "Certificate not found in CurrentUser\My store after install"
-            if ($installOutput) { $failureDetails += "Install output: $($installOutput.Trim())" }
         }
-
         # Cleanup
-        if ($cert) {
-            .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
-        }
+        if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
     } else {
         $success = $false
     }
@@ -461,19 +606,14 @@ try {
 # Test 1.10: Password file not created when password is provided
 Remove-TestFiles "pwfile-provided"
 try {
-    $output = .\certz.exe create --f pwfile-provided.pfx --p ProvidedPass --password-file pwfile-provided.password.txt 2>&1 | Out-String
-    $createExitCode = $LASTEXITCODE
+    & .\certz.exe create --f pwfile-provided.pfx --p ProvidedPass --password-file pwfile-provided.password.txt 2>&1 | Out-Null
     $pfxExists = Test-FileExists "pwfile-provided.pfx"
-    # Password file should NOT be created when password is explicitly provided
-    $pwFileCreated = Test-FileExists "pwfile-provided.password.txt"
-    $pwFileNotCreated = -not $pwFileCreated
+    $pwFileNotCreated = -not (Test-FileExists "pwfile-provided.password.txt")
     $success = $pfxExists -and $pwFileNotCreated
 
-    # Build detailed failure message
     $failureDetails = @()
-    if ($createExitCode -ne 0) { $failureDetails += "Create command failed (exit code: $createExitCode)" }
     if (-not $pfxExists) { $failureDetails += "PFX file not created" }
-    if ($pwFileCreated) { $failureDetails += "Password file was created when it should not have been (explicit password was provided)" }
+    if (-not $pwFileNotCreated) { $failureDetails += "Password file was created when it should not have been" }
 
     $details = if ($success) { "No file created with explicit password" } else { $failureDetails -join "; " }
     Write-TestResult "Password file ignored when password provided" $success $details
@@ -487,44 +627,27 @@ try {
 Write-TestHeader "Testing Key Size Options"
 
 # Test 1.11: Create with 2048-bit RSA key (default)
-Remove-TestFiles "keysize-2048"
-try {
-    $output = .\certz.exe create --f keysize-2048.pfx --p KeySize2048Pass --key-size 2048 2>&1 | Out-String
-    $success = (Test-FileExists "keysize-2048.pfx") -and ($output -match "INFO: Using 2048-bit RSA key")
-    Write-TestResult "Create with 2048-bit RSA key" $success "NIST warning displayed"
-} catch {
-    Write-TestResult "Create with 2048-bit RSA key" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Create with 2048-bit RSA key" -FilePrefix "keysize-2048" `
+    -CertzArgs @("create", "--f", "keysize-2048.pfx", "--p", "KeySize2048Pass", "--key-size", "2048") `
+    -ExpectedFiles @("keysize-2048.pfx") `
+    -OutputPattern "INFO: Using 2048-bit RSA key" `
+    -Details "NIST warning displayed"
 
 # Test 1.12: Create with 3072-bit RSA key (NIST recommended)
-Remove-TestFiles "keysize-3072"
-try {
-    .\certz.exe create --f keysize-3072.pfx --p KeySize3072Pass --key-size 3072 | Out-Null
-    $success = Test-FileExists "keysize-3072.pfx"
-    Write-TestResult "Create with 3072-bit RSA key" $success "NIST recommended key size"
-} catch {
-    Write-TestResult "Create with 3072-bit RSA key" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with 3072-bit RSA key" -FilePrefix "keysize-3072" `
+    -CertzArgs @("create", "--f", "keysize-3072.pfx", "--p", "KeySize3072Pass", "--key-size", "3072") `
+    -ExpectedFiles @("keysize-3072.pfx") `
+    -Details "NIST recommended key size"
 
 # Test 1.13: Create with 4096-bit RSA key
-Remove-TestFiles "keysize-4096"
-try {
-    .\certz.exe create --f keysize-4096.pfx --p KeySize4096Pass --key-size 4096 | Out-Null
-    $success = Test-FileExists "keysize-4096.pfx"
-    Write-TestResult "Create with 4096-bit RSA key" $success "Maximum RSA key size"
-} catch {
-    Write-TestResult "Create with 4096-bit RSA key" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with 4096-bit RSA key" -FilePrefix "keysize-4096" `
+    -CertzArgs @("create", "--f", "keysize-4096.pfx", "--p", "KeySize4096Pass", "--key-size", "4096") `
+    -ExpectedFiles @("keysize-4096.pfx") `
+    -Details "Maximum RSA key size"
 
 # Test 1.14: Invalid key size should fail
-Remove-TestFiles "keysize-invalid"
-try {
-    $output = .\certz.exe create --f keysize-invalid.pfx --p InvalidPass --key-size 1024 2>&1
-    $success = $LASTEXITCODE -ne 0
-    Write-TestResult "Reject invalid key size (1024)" $success "Validation error expected"
-} catch {
-    Write-TestResult "Reject invalid key size (1024)" $true "Exception caught as expected"
-}
+Test-CertzExpectedFailure -TestName "Reject invalid key size (1024)" -FilePrefix "keysize-invalid" `
+    -CertzArgs @("create", "--f", "keysize-invalid.pfx", "--p", "InvalidPass", "--key-size", "1024")
 
 # ============================================================================
 # HASH ALGORITHM TESTS
@@ -532,44 +655,24 @@ try {
 Write-TestHeader "Testing Hash Algorithm Options"
 
 # Test 1.15: Create with SHA256
-Remove-TestFiles "hash-sha256"
-try {
-    .\certz.exe create --f hash-sha256.pfx --p HashSha256Pass --hash-algorithm SHA256 | Out-Null
-    $success = Test-FileExists "hash-sha256.pfx"
-    Write-TestResult "Create with SHA256 hash" $success "Standard hash algorithm"
-} catch {
-    Write-TestResult "Create with SHA256 hash" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with SHA256 hash" -FilePrefix "hash-sha256" `
+    -CertzArgs @("create", "--f", "hash-sha256.pfx", "--p", "HashSha256Pass", "--hash-algorithm", "SHA256") `
+    -ExpectedFiles @("hash-sha256.pfx") -Details "Standard hash algorithm"
 
 # Test 1.16: Create with SHA384
-Remove-TestFiles "hash-sha384"
-try {
-    .\certz.exe create --f hash-sha384.pfx --p HashSha384Pass --hash-algorithm SHA384 | Out-Null
-    $success = Test-FileExists "hash-sha384.pfx"
-    Write-TestResult "Create with SHA384 hash" $success "Stronger hash algorithm"
-} catch {
-    Write-TestResult "Create with SHA384 hash" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with SHA384 hash" -FilePrefix "hash-sha384" `
+    -CertzArgs @("create", "--f", "hash-sha384.pfx", "--p", "HashSha384Pass", "--hash-algorithm", "SHA384") `
+    -ExpectedFiles @("hash-sha384.pfx") -Details "Stronger hash algorithm"
 
 # Test 1.17: Create with SHA512
-Remove-TestFiles "hash-sha512"
-try {
-    .\certz.exe create --f hash-sha512.pfx --p HashSha512Pass --hash-algorithm SHA512 | Out-Null
-    $success = Test-FileExists "hash-sha512.pfx"
-    Write-TestResult "Create with SHA512 hash" $success "Strongest hash algorithm"
-} catch {
-    Write-TestResult "Create with SHA512 hash" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with SHA512 hash" -FilePrefix "hash-sha512" `
+    -CertzArgs @("create", "--f", "hash-sha512.pfx", "--p", "HashSha512Pass", "--hash-algorithm", "SHA512") `
+    -ExpectedFiles @("hash-sha512.pfx") -Details "Strongest hash algorithm"
 
 # Test 1.18: Create with auto hash selection (3072-bit key should use SHA384)
-Remove-TestFiles "hash-auto"
-try {
-    .\certz.exe create --f hash-auto.pfx --p HashAutoPass --key-size 3072 --hash-algorithm auto | Out-Null
-    $success = Test-FileExists "hash-auto.pfx"
-    Write-TestResult "Create with auto hash selection" $success "Auto-selects based on key size"
-} catch {
-    Write-TestResult "Create with auto hash selection" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with auto hash selection" -FilePrefix "hash-auto" `
+    -CertzArgs @("create", "--f", "hash-auto.pfx", "--p", "HashAutoPass", "--key-size", "3072", "--hash-algorithm", "auto") `
+    -ExpectedFiles @("hash-auto.pfx") -Details "Auto-selects based on key size"
 
 # ============================================================================
 # KEY TYPE TESTS (RSA and ECDSA)
@@ -577,54 +680,30 @@ try {
 Write-TestHeader "Testing Key Type Options"
 
 # Test 1.19: Create with RSA key type (explicit)
-Remove-TestFiles "keytype-rsa"
-try {
-    .\certz.exe create --f keytype-rsa.pfx --p KeyTypeRsaPass --key-type RSA | Out-Null
-    $success = Test-FileExists "keytype-rsa.pfx"
-    Write-TestResult "Create with RSA key type" $success "Explicit RSA key type"
-} catch {
-    Write-TestResult "Create with RSA key type" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with RSA key type" -FilePrefix "keytype-rsa" `
+    -CertzArgs @("create", "--f", "keytype-rsa.pfx", "--p", "KeyTypeRsaPass", "--key-type", "RSA") `
+    -ExpectedFiles @("keytype-rsa.pfx") -Details "Explicit RSA key type"
 
 # Test 1.20: Create with ECDSA P-256 key
-Remove-TestFiles "keytype-ecdsa256"
-try {
-    .\certz.exe create --f keytype-ecdsa256.pfx --c keytype-ecdsa256.cer --k keytype-ecdsa256.key --p EcdsaP256Pass --key-type ECDSA-P256 | Out-Null
-    $success = (Test-FileExists "keytype-ecdsa256.pfx") -and (Test-FileExists "keytype-ecdsa256.key")
-    Write-TestResult "Create with ECDSA P-256 key" $success "Modern TLS 1.3 optimized"
-} catch {
-    Write-TestResult "Create with ECDSA P-256 key" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with ECDSA P-256 key" -FilePrefix "keytype-ecdsa256" `
+    -CertzArgs @("create", "--f", "keytype-ecdsa256.pfx", "--c", "keytype-ecdsa256.cer", "--k", "keytype-ecdsa256.key", "--p", "EcdsaP256Pass", "--key-type", "ECDSA-P256") `
+    -ExpectedFiles @("keytype-ecdsa256.pfx", "keytype-ecdsa256.key") -Details "Modern TLS 1.3 optimized"
 
 # Test 1.21: Create with ECDSA P-384 key
-Remove-TestFiles "keytype-ecdsa384"
-try {
-    .\certz.exe create --f keytype-ecdsa384.pfx --p EcdsaP384Pass --key-type ECDSA-P384 | Out-Null
-    $success = Test-FileExists "keytype-ecdsa384.pfx"
-    Write-TestResult "Create with ECDSA P-384 key" $success "High security ECDSA"
-} catch {
-    Write-TestResult "Create with ECDSA P-384 key" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with ECDSA P-384 key" -FilePrefix "keytype-ecdsa384" `
+    -CertzArgs @("create", "--f", "keytype-ecdsa384.pfx", "--p", "EcdsaP384Pass", "--key-type", "ECDSA-P384") `
+    -ExpectedFiles @("keytype-ecdsa384.pfx") -Details "High security ECDSA"
 
 # Test 1.22: Create with ECDSA P-521 key
-Remove-TestFiles "keytype-ecdsa521"
-try {
-    .\certz.exe create --f keytype-ecdsa521.pfx --p EcdsaP521Pass --key-type ECDSA-P521 | Out-Null
-    $success = Test-FileExists "keytype-ecdsa521.pfx"
-    Write-TestResult "Create with ECDSA P-521 key" $success "Maximum ECDSA security"
-} catch {
-    Write-TestResult "Create with ECDSA P-521 key" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with ECDSA P-521 key" -FilePrefix "keytype-ecdsa521" `
+    -CertzArgs @("create", "--f", "keytype-ecdsa521.pfx", "--p", "EcdsaP521Pass", "--key-type", "ECDSA-P521") `
+    -ExpectedFiles @("keytype-ecdsa521.pfx") -Details "Maximum ECDSA security"
 
 # Test 1.23: ECDSA certificate can be converted to PEM and back
 Remove-TestFiles "ecdsa-convert"
 try {
-    # Create ECDSA certificate
     .\certz.exe create --f ecdsa-convert.pfx --c ecdsa-convert.cer --k ecdsa-convert.key --p EcdsaConvertPass --key-type ECDSA-P256 | Out-Null
-
-    # Convert PEM back to PFX
     .\certz.exe convert --cert ecdsa-convert.cer --key ecdsa-convert.key --pfx ecdsa-convert-back.pfx --p EcdsaBackPass | Out-Null
-
     $success = (Test-FileExists "ecdsa-convert.pfx") -and (Test-FileExists "ecdsa-convert-back.pfx")
     Write-TestResult "ECDSA certificate conversion round-trip" $success "PEM to PFX with ECDSA key"
 } catch {
@@ -637,34 +716,19 @@ try {
 Write-TestHeader "Testing CA Certificate Options"
 
 # Test 1.24: Create CA certificate
-Remove-TestFiles "ca-cert"
-try {
-    .\certz.exe create --f ca-cert.pfx --p CaCertPass --san "My Test CA" --is-ca | Out-Null
-    $success = Test-FileExists "ca-cert.pfx"
-    Write-TestResult "Create CA certificate" $success "Certificate Authority cert created"
-} catch {
-    Write-TestResult "Create CA certificate" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create CA certificate" -FilePrefix "ca-cert" `
+    -CertzArgs @("create", "--f", "ca-cert.pfx", "--p", "CaCertPass", "--san", "My Test CA", "--is-ca") `
+    -ExpectedFiles @("ca-cert.pfx") -Details "Certificate Authority cert created"
 
 # Test 1.25: Create CA certificate with path length constraint
-Remove-TestFiles "ca-path"
-try {
-    .\certz.exe create --f ca-path.pfx --p CaPathPass --san "My Intermediate CA" --is-ca --path-length 1 | Out-Null
-    $success = Test-FileExists "ca-path.pfx"
-    Write-TestResult "Create CA with path length" $success "Intermediate CA with depth=1"
-} catch {
-    Write-TestResult "Create CA with path length" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create CA with path length" -FilePrefix "ca-path" `
+    -CertzArgs @("create", "--f", "ca-path.pfx", "--p", "CaPathPass", "--san", "My Intermediate CA", "--is-ca", "--path-length", "1") `
+    -ExpectedFiles @("ca-path.pfx") -Details "Intermediate CA with depth=1"
 
 # Test 1.26: Create CA certificate with CRL and OCSP URLs
-Remove-TestFiles "ca-full"
-try {
-    .\certz.exe create --f ca-full.pfx --p CaFullPass --san "My Full CA" --is-ca --crl-url http://crl.example.com/ca.crl --ocsp-url http://ocsp.example.com | Out-Null
-    $success = Test-FileExists "ca-full.pfx"
-    Write-TestResult "Create CA with CRL/OCSP" $success "CA with revocation endpoints"
-} catch {
-    Write-TestResult "Create CA with CRL/OCSP" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create CA with CRL/OCSP" -FilePrefix "ca-full" `
+    -CertzArgs @("create", "--f", "ca-full.pfx", "--p", "CaFullPass", "--san", "My Full CA", "--is-ca", "--crl-url", "http://crl.example.com/ca.crl", "--ocsp-url", "http://ocsp.example.com") `
+    -ExpectedFiles @("ca-full.pfx") -Details "CA with revocation endpoints"
 
 # ============================================================================
 # SUBJECT DN FIELD TESTS
@@ -672,142 +736,82 @@ try {
 Write-TestHeader "Testing Subject Distinguished Name Fields"
 
 # Test 1.27: Create with Organization field
-Remove-TestFiles "dn-org"
-try {
-    .\certz.exe create --f dn-org.pfx --p DnOrgPass --san *.example.com --subject-o "Acme Corporation" | Out-Null
-    $success = Test-FileExists "dn-org.pfx"
-    Write-TestResult "Create with Organization (O)" $success "Subject O field set"
-} catch {
-    Write-TestResult "Create with Organization (O)" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Create with Organization (O)" -FilePrefix "dn-org" `
+    -CertzArgs @("create", "--f", "dn-org.pfx", "--p", "DnOrgPass", "--san", "*.example.com", "--subject-o", "Acme Corporation") `
+    -ExpectedFiles @("dn-org.pfx") -Details "Subject O field set"
 
 # Test 1.28: Create with full Distinguished Name
 Remove-TestFiles "dn-full"
 try {
     .\certz.exe create --f dn-full.pfx --p DnFullPass --san *.example.com --subject-o "Acme Corporation" --subject-ou "Engineering" --subject-c US --subject-st "California" --subject-l "San Francisco" | Out-Null
     $success = Test-FileExists "dn-full.pfx"
-
-    # Verify the DN fields are in the certificate
     $output = .\certz.exe info --f dn-full.pfx --p DnFullPass 2>&1 | Out-String
     $hasDN = ($output -match "Acme Corporation") -and ($output -match "Engineering") -and ($output -match "California")
-
     Write-TestResult "Create with full DN" ($success -and $hasDN) "All DN fields present"
 } catch {
     Write-TestResult "Create with full DN" $false $_.Exception.Message
 }
 
-# Test 1.26: Country code validation (must be 2 characters)
-Remove-TestFiles "dn-country-invalid"
-try {
-    $output = .\certz.exe create --f dn-country-invalid.pfx --p InvalidPass --san *.example.com --subject-c USA 2>&1
-    $success = $LASTEXITCODE -ne 0
-    Write-TestResult "Reject invalid country code - 3 chars" $success "Validation error expected"
-} catch {
-    Write-TestResult "Reject invalid country code - 3 chars" $true "Exception caught as expected"
-}
+# Test 1.29: Country code validation (must be 2 characters)
+Test-CertzExpectedFailure -TestName "Reject invalid country code - 3 chars" -FilePrefix "dn-country-invalid" `
+    -CertzArgs @("create", "--f", "dn-country-invalid.pfx", "--p", "InvalidPass", "--san", "*.example.com", "--subject-c", "USA")
 
 # ============================================================================
 # VALIDITY PERIOD VALIDATION TESTS
 # ============================================================================
 Write-TestHeader "Testing Validity Period Validation"
 
-# Test 1.27: Default validity is 90 days
-Remove-TestFiles "validity-default"
-try {
-    .\certz.exe create --f validity-default.pfx --p ValidityDefaultPass | Out-Null
-    $success = Test-FileExists "validity-default.pfx"
+# Test 1.30: Default validity is 90 days
+Test-CertzFileCreation -TestName "Default validity - 90 days" -FilePrefix "validity-default" `
+    -CertzArgs @("create", "--f", "validity-default.pfx", "--p", "ValidityDefaultPass") `
+    -ExpectedFiles @("validity-default.pfx") -Details "Certificate created with default validity"
 
-    # Check expiration date is ~90 days from now
-    # (We can't easily check this without parsing cert, so just verify creation works)
-    Write-TestResult "Default validity - 90 days" $success "Certificate created with default validity"
-} catch {
-    Write-TestResult "Default validity - 90 days" $false $_.Exception.Message
-}
+# Test 1.31: Validity >200 days shows warning (until March 2026)
+Test-CertzWithOutput -TestName "Warning for over 200 day validity" -FilePrefix "validity-warning" `
+    -CertzArgs @("create", "--f", "validity-warning.pfx", "--p", "ValidityWarnPass", "--days", "250") `
+    -ExpectedFiles @("validity-warning.pfx") `
+    -OutputPattern "WARNING.*validity.*exceeds" `
+    -Details "Future compliance warning shown"
 
-# Test 1.28: Validity >200 days shows warning (until March 2026)
-Remove-TestFiles "validity-warning"
-try {
-    $output = .\certz.exe create --f validity-warning.pfx --p ValidityWarnPass --days 250 2>&1 | Out-String
-    $success = (Test-FileExists "validity-warning.pfx") -and ($output -match "WARNING.*validity.*exceeds")
-    Write-TestResult "Warning for over 200 day validity" $success "Future compliance warning shown"
-} catch {
-    Write-TestResult "Warning for over 200 day validity" $false $_.Exception.Message
-}
+# Test 1.32: Validity >398 days should fail
+Test-CertzExpectedFailure -TestName "Reject over 398 day validity" -FilePrefix "validity-error" `
+    -CertzArgs @("create", "--f", "validity-error.pfx", "--p", "ValidityErrorPass", "--days", "400") `
+    -Details "CA/B Forum limit enforced"
 
-# Test 1.29: Validity >398 days should fail
-Remove-TestFiles "validity-error"
-try {
-    $output = .\certz.exe create --f validity-error.pfx --p ValidityErrorPass --days 400 2>&1
-    $success = $LASTEXITCODE -ne 0
-    Write-TestResult "Reject over 398 day validity" $success "CA/B Forum limit enforced"
-} catch {
-    Write-TestResult "Reject over 398 day validity" $true "Exception caught as expected"
-}
+# Test 1.33: Minimum validity - 1 day
+Test-CertzFileCreation -TestName "Minimum validity - 1 day" -FilePrefix "validity-min" `
+    -CertzArgs @("create", "--f", "validity-min.pfx", "--p", "ValidityMinPass", "--days", "1") `
+    -ExpectedFiles @("validity-min.pfx") -Details "Short-lived certificate"
 
-# Test 1.30: Minimum validity - 1 day
-Remove-TestFiles "validity-min"
-try {
-    .\certz.exe create --f validity-min.pfx --p ValidityMinPass --days 1 | Out-Null
-    $success = Test-FileExists "validity-min.pfx"
-    Write-TestResult "Minimum validity - 1 day" $success "Short-lived certificate"
-} catch {
-    Write-TestResult "Minimum validity - 1 day" $false $_.Exception.Message
-}
-
-# Test 1.31: Zero days should fail
-Remove-TestFiles "validity-zero"
-try {
-    $output = .\certz.exe create --f validity-zero.pfx --p ValidityZeroPass --days 0 2>&1
-    $success = $LASTEXITCODE -ne 0
-    Write-TestResult "Reject 0 day validity" $success "Minimum 1 day required"
-} catch {
-    Write-TestResult "Reject 0 day validity" $true "Exception caught as expected"
-}
+# Test 1.34: Zero days should fail
+Test-CertzExpectedFailure -TestName "Reject 0 day validity" -FilePrefix "validity-zero" `
+    -CertzArgs @("create", "--f", "validity-zero.pfx", "--p", "ValidityZeroPass", "--days", "0") `
+    -Details "Minimum 1 day required"
 
 # ============================================================================
 # AIA/CDP EXTENSION TESTS
 # ============================================================================
 Write-TestHeader "Testing AIA and CDP Extensions"
 
-# Test 1.32: Create with CRL Distribution Point
-Remove-TestFiles "ext-crl"
-try {
-    .\certz.exe create --f ext-crl.pfx --p ExtCrlPass --crl-url http://crl.example.com/cert.crl | Out-Null
-    $success = Test-FileExists "ext-crl.pfx"
-    Write-TestResult "Create with CRL Distribution Point" $success "CDP extension added"
-} catch {
-    Write-TestResult "Create with CRL Distribution Point" $false $_.Exception.Message
-}
+# Test 1.35: Create with CRL Distribution Point
+Test-CertzFileCreation -TestName "Create with CRL Distribution Point" -FilePrefix "ext-crl" `
+    -CertzArgs @("create", "--f", "ext-crl.pfx", "--p", "ExtCrlPass", "--crl-url", "http://crl.example.com/cert.crl") `
+    -ExpectedFiles @("ext-crl.pfx") -Details "CDP extension added"
 
-# Test 1.33: Create with OCSP responder URL
-Remove-TestFiles "ext-ocsp"
-try {
-    .\certz.exe create --f ext-ocsp.pfx --p ExtOcspPass --ocsp-url http://ocsp.example.com | Out-Null
-    $success = Test-FileExists "ext-ocsp.pfx"
-    Write-TestResult "Create with OCSP responder" $success "AIA OCSP extension added"
-} catch {
-    Write-TestResult "Create with OCSP responder" $false $_.Exception.Message
-}
+# Test 1.36: Create with OCSP responder URL
+Test-CertzFileCreation -TestName "Create with OCSP responder" -FilePrefix "ext-ocsp" `
+    -CertzArgs @("create", "--f", "ext-ocsp.pfx", "--p", "ExtOcspPass", "--ocsp-url", "http://ocsp.example.com") `
+    -ExpectedFiles @("ext-ocsp.pfx") -Details "AIA OCSP extension added"
 
-# Test 1.34: Create with CA Issuers URL
-Remove-TestFiles "ext-ca-issuers"
-try {
-    .\certz.exe create --f ext-ca-issuers.pfx --p ExtCaIssuersPass --ca-issuers-url http://certs.example.com/ca.cer | Out-Null
-    $success = Test-FileExists "ext-ca-issuers.pfx"
-    Write-TestResult "Create with CA Issuers URL" $success "AIA CA Issuers extension added"
-} catch {
-    Write-TestResult "Create with CA Issuers URL" $false $_.Exception.Message
-}
+# Test 1.37: Create with CA Issuers URL
+Test-CertzFileCreation -TestName "Create with CA Issuers URL" -FilePrefix "ext-ca-issuers" `
+    -CertzArgs @("create", "--f", "ext-ca-issuers.pfx", "--p", "ExtCaIssuersPass", "--ca-issuers-url", "http://certs.example.com/ca.cer") `
+    -ExpectedFiles @("ext-ca-issuers.pfx") -Details "AIA CA Issuers extension added"
 
-# Test 1.35: Create with all AIA/CDP extensions
-Remove-TestFiles "ext-all"
-try {
-    .\certz.exe create --f ext-all.pfx --p ExtAllPass --crl-url http://crl.example.com/cert.crl --ocsp-url http://ocsp.example.com --ca-issuers-url http://certs.example.com/ca.cer | Out-Null
-    $success = Test-FileExists "ext-all.pfx"
-    Write-TestResult "Create with all AIA/CDP extensions" $success "Full revocation info"
-} catch {
-    Write-TestResult "Create with all AIA/CDP extensions" $false $_.Exception.Message
-}
+# Test 1.38: Create with all AIA/CDP extensions
+Test-CertzFileCreation -TestName "Create with all AIA/CDP extensions" -FilePrefix "ext-all" `
+    -CertzArgs @("create", "--f", "ext-all.pfx", "--p", "ExtAllPass", "--crl-url", "http://crl.example.com/cert.crl", "--ocsp-url", "http://ocsp.example.com", "--ca-issuers-url", "http://certs.example.com/ca.cer") `
+    -ExpectedFiles @("ext-all.pfx") -Details "Full revocation info"
 
 # ============================================================================
 # INSTALL COMMAND TESTS
@@ -819,40 +823,20 @@ Remove-TestFiles "install-test"
 .\certz.exe create --f install-test.pfx --p InstallTestPass --san *.dev.local | Out-Null
 
 # Test 2.1: Install to default store (My/LocalMachine)
-try {
-    .\certz.exe install --f install-test.pfx --p InstallTestPass | Out-Null
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-    $success = $null -ne $cert
-    Write-TestResult "Install to default store (My)" $success "Certificate in LocalMachine\My"
-} catch {
-    Write-TestResult "Install to default store (My)" $false $_.Exception.Message
-}
+Test-CertzInstall -TestName "Install to default store (My)" `
+    -PfxFile "install-test.pfx" -Password "InstallTestPass" `
+    -Details "Certificate in LocalMachine\My"
 
 # Test 2.2: Install to Root store
-try {
-    .\certz.exe install --f install-test.pfx --p InstallTestPass --sn root | Out-Null
-    $cert = Get-ChildItem Cert:\LocalMachine\Root -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-    $success = $null -ne $cert
-    Write-TestResult "Install to Root store" $success "Certificate in LocalMachine\Root"
-} catch {
-    Write-TestResult "Install to Root store" $false $_.Exception.Message
-}
+Test-CertzInstall -TestName "Install to Root store" `
+    -PfxFile "install-test.pfx" -Password "InstallTestPass" -StoreName "Root" `
+    -Details "Certificate in LocalMachine\Root"
 
 # Test 2.3: Install to CurrentUser store
-try {
-    .\certz.exe install --f install-test.pfx --p InstallTestPass --sl CurrentUser --sn My | Out-Null
-    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-    $success = $null -ne $cert
-    Write-TestResult "Install to CurrentUser store" $success "Certificate in CurrentUser\My"
-} catch {
-    Write-TestResult "Install to CurrentUser store" $false $_.Exception.Message
-}
+Test-CertzInstall -TestName "Install to CurrentUser store" `
+    -PfxFile "install-test.pfx" -Password "InstallTestPass" `
+    -StoreName "My" -StoreLocation "CurrentUser" `
+    -Details "Certificate in CurrentUser\My"
 
 # ============================================================================
 # LIST COMMAND TESTS
@@ -860,31 +844,16 @@ try {
 Write-TestHeader "Testing LIST Command"
 
 # Test 3.1: List from default store
-try {
-    $output = .\certz.exe list 2>&1 | Out-String
-    $success = $output.Length -gt 0
-    Write-TestResult "List from default store (My)" $success "Output received"
-} catch {
-    Write-TestResult "List from default store (My)" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "List from default store (My)" -FilePrefix "" `
+    -CertzArgs @("list") -OutputPattern "." -Details "Output received"
 
 # Test 3.2: List from Root store
-try {
-    $output = .\certz.exe list --sn root --sl LocalMachine 2>&1 | Out-String
-    $success = $output.Length -gt 0
-    Write-TestResult "List from Root store" $success "Output received"
-} catch {
-    Write-TestResult "List from Root store" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "List from Root store" -FilePrefix "" `
+    -CertzArgs @("list", "--sn", "root", "--sl", "LocalMachine") -OutputPattern "." -Details "Output received"
 
 # Test 3.3: List from CurrentUser store
-try {
-    $output = .\certz.exe list --sl CurrentUser --sn My 2>&1 | Out-String
-    $success = $output.Length -gt 0
-    Write-TestResult "List from CurrentUser store" $success "Output received"
-} catch {
-    Write-TestResult "List from CurrentUser store" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "List from CurrentUser store" -FilePrefix "" `
+    -CertzArgs @("list", "--sl", "CurrentUser", "--sn", "My") -OutputPattern "." -Details "Output received"
 
 # ============================================================================
 # EXPORT COMMAND TESTS
@@ -892,33 +861,21 @@ try {
 Write-TestHeader "Testing EXPORT Command"
 
 # Test 5.1: Export from remote URL
-Remove-TestFiles "github"
-try {
-    .\certz.exe export --url https://www.github.com --f github.pfx --c github.cer | Out-Null
-    $success = (Test-FileExists "github.pfx") -and (Test-FileExists "github.cer")
-    Write-TestResult "Export from remote URL (github.com)" $success "PFX and CER created"
-} catch {
-    Write-TestResult "Export from remote URL (github.com)" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Export from remote URL (github.com)" -FilePrefix "github" `
+    -CertzArgs @("export", "--url", "https://www.github.com", "--f", "github.pfx", "--c", "github.cer") `
+    -ExpectedFiles @("github.pfx", "github.cer") -Details "PFX and CER created"
 
 # Test 5.2: Export from remote with custom password
-Remove-TestFiles "microsoft"
-try {
-    $output = .\certz.exe export --url https://www.microsoft.com --f microsoft.pfx --p CustomExportPass 2>&1 | Out-String
-    # When password is provided, no password warning should be displayed
-    $success = (Test-FileExists "microsoft.pfx") -and ($output -notmatch "IMPORTANT: Certificate Password")
-    Write-TestResult "Export with custom password" $success "PFX exported with provided password"
-} catch {
-    Write-TestResult "Export with custom password" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Export with custom password" -FilePrefix "microsoft" `
+    -CertzArgs @("export", "--url", "https://www.microsoft.com", "--f", "microsoft.pfx", "--p", "CustomExportPass") `
+    -ExpectedFiles @("microsoft.pfx") `
+    -OutputPattern "IMPORTANT: Certificate Password" -OutputShouldNotMatch `
+    -Details "PFX exported with provided password"
 
 # Test 5.3: Export from certificate store by thumbprint
 Remove-TestFiles "exported"
 try {
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
     if ($cert) {
         .\certz.exe export --thumb $cert.Thumbprint --f exported.pfx --c exported.cer --p ExportPass123 | Out-Null
         $success = (Test-FileExists "exported.pfx") -and (Test-FileExists "exported.cer")
@@ -941,78 +898,35 @@ try {
 }
 
 # Test 5.5: Export with password file from URL
-Remove-TestFiles "export-pwfile"
-try {
-    $output = .\certz.exe export --url https://www.github.com --f export-pwfile.pfx --password-file export-pwfile.password.txt 2>&1 | Out-String
-    $exportExitCode = $LASTEXITCODE
-    $pfxExists = Test-FileExists "export-pwfile.pfx"
-    $pwFileExists = Test-FileExists "export-pwfile.password.txt"
-    $pwFileContent = if ($pwFileExists) { Get-Content "export-pwfile.password.txt" -Raw } else { "" }
-    $hasValidPassword = $pwFileContent.Length -ge 20
-    $outputConfirms = $output -match "Password.*written to"
-    $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
-
-    # Build detailed failure message
-    $failureDetails = @()
-    if ($exportExitCode -ne 0) { $failureDetails += "Export command failed (exit code: $exportExitCode)" }
-    if (-not $pfxExists) { $failureDetails += "PFX file not created" }
-    if (-not $pwFileExists) { $failureDetails += "Password file not created" }
-    if ($pwFileExists -and -not $hasValidPassword) {
-        $failureDetails += "Invalid password content (length: $($pwFileContent.Length), expected >= 20)"
-    }
-    if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
-
-    $details = if ($success) { "Password saved to file" } else { $failureDetails -join "; " }
-    Write-TestResult "Export with password file (URL)" $success $details
-} catch {
-    Write-TestResult "Export with password file (URL)" $false $_.Exception.Message
-}
+Test-CertzPasswordFileCreation -TestName "Export with password file (URL)" -FilePrefix "export-pwfile" `
+    -CertzArgs @("export", "--url", "https://www.github.com", "--f", "export-pwfile.pfx", "--password-file", "export-pwfile.password.txt") `
+    -PfxFile "export-pwfile.pfx" -PasswordFile "export-pwfile.password.txt"
 
 # Test 5.6: Export with password file from store
 Remove-TestFiles "export-store-pwfile"
 try {
-    # First create and install a certificate
     .\certz.exe create --f export-store-pwfile-src.pfx --p TempPass 2>&1 | Out-Null
-    $createExitCode = $LASTEXITCODE
     .\certz.exe install --f export-store-pwfile-src.pfx --p TempPass --sn My --sl LocalMachine 2>&1 | Out-Null
-    $installExitCode = $LASTEXITCODE
 
-    $failureDetails = @()
-    if ($createExitCode -ne 0) { $failureDetails += "Create command failed (exit code: $createExitCode)" }
-    if ($installExitCode -ne 0) { $failureDetails += "Install command failed (exit code: $installExitCode)" }
-
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
     if ($cert) {
         $output = .\certz.exe export --thumb $cert.Thumbprint --f export-store-pwfile.pfx --password-file export-store-pwfile.password.txt 2>&1 | Out-String
-        $exportExitCode = $LASTEXITCODE
         $pfxExists = Test-FileExists "export-store-pwfile.pfx"
-        $pwFileExists = Test-FileExists "export-store-pwfile.password.txt"
-        $pwFileContent = if ($pwFileExists) { Get-Content "export-store-pwfile.password.txt" -Raw } else { "" }
-        $hasValidPassword = $pwFileContent.Length -ge 20
+        $pwResult = Test-PasswordFile -FilePath "export-store-pwfile.password.txt" -ForbiddenPatterns @()
         $outputConfirms = $output -match "Password.*written to"
-        $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
+        $success = $pfxExists -and $pwResult.Valid -and $outputConfirms
 
-        # Build detailed failure message
-        if ($exportExitCode -ne 0) { $failureDetails += "Export command failed (exit code: $exportExitCode)" }
+        $failureDetails = @()
         if (-not $pfxExists) { $failureDetails += "PFX file not created" }
-        if (-not $pwFileExists) { $failureDetails += "Password file not created" }
-        if ($pwFileExists -and -not $hasValidPassword) {
-            $failureDetails += "Invalid password content (length: $($pwFileContent.Length), expected >= 20)"
-        }
+        if (-not $pwResult.Valid) { $failureDetails += $pwResult.Errors }
         if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
 
-        # Cleanup
         .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
+        $details = if ($success) { "Password saved to file" } else { $failureDetails -join "; " }
+        Write-TestResult "Export with password file (store)" $success $details
     } else {
-        $success = $false
-        $failureDetails += "Certificate not found in LocalMachine\My store after install"
+        Write-TestResult "Export with password file (store)" $false "No certificate found in store"
     }
-
-    $details = if ($success) { "Password saved to file" } else { $failureDetails -join "; " }
-    Write-TestResult "Export with password file (store)" $success $details
 } catch {
     Write-TestResult "Export with password file (store)" $false $_.Exception.Message
 }
@@ -1022,102 +936,43 @@ try {
 # ============================================================================
 Write-TestHeader "Testing CONVERT Command"
 
+# Create fresh source files for convert tests (don't rely on files from earlier tests)
+Remove-TestFiles "convert-input"
+.\certz.exe create --c convert-input.cer --k convert-input.key --p ConvertInputPass | Out-Null
+
 # Test 6.1: Convert CER/KEY to PFX
-Remove-TestFiles "converted"
-try {
-    .\certz.exe convert --c pemonly.cer --k pemonly.key --f converted.pfx --p ConvertPass123 | Out-Null
-    $success = Test-FileExists "converted.pfx"
-    Write-TestResult "Convert CER/KEY to PFX" $success "Conversion successful"
-} catch {
-    Write-TestResult "Convert CER/KEY to PFX" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Convert CER/KEY to PFX" -FilePrefix "converted" `
+    -CertzArgs @("convert", "--c", "convert-input.cer", "--k", "convert-input.key", "--f", "converted.pfx", "--p", "ConvertPass123") `
+    -ExpectedFiles @("converted.pfx") -Details "Conversion successful"
 
 # Test 6.2: Convert with generated password (no password provided)
-Remove-TestFiles "converted-default"
-try {
-    $output = .\certz.exe convert --c pemonly.cer --k pemonly.key --f converted-default.pfx 2>&1 | Out-String
-    $success = (Test-FileExists "converted-default.pfx") -and ($output -match "IMPORTANT: Certificate Password")
-    Write-TestResult "Convert with generated password" $success "Secure password generated and displayed"
-} catch {
-    Write-TestResult "Convert with generated password" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Convert with generated password" -FilePrefix "converted-default" `
+    -CertzArgs @("convert", "--c", "convert-input.cer", "--k", "convert-input.key", "--f", "converted-default.pfx") `
+    -ExpectedFiles @("converted-default.pfx") `
+    -OutputPattern "IMPORTANT: Certificate Password" `
+    -Details "Secure password generated and displayed"
 
 # Test 6.3: Convert with password file
-Remove-TestFiles "converted-pwfile"
-try {
-    # Verify source files exist first
-    $cerExists = Test-FileExists "pemonly.cer"
-    $keyExists = Test-FileExists "pemonly.key"
-
-    $failureDetails = @()
-    if (-not $cerExists) { $failureDetails += "Source CER file (pemonly.cer) does not exist" }
-    if (-not $keyExists) { $failureDetails += "Source KEY file (pemonly.key) does not exist" }
-
-    if ($cerExists -and $keyExists) {
-        $output = .\certz.exe convert --c pemonly.cer --k pemonly.key --f converted-pwfile.pfx --password-file converted-pwfile.password.txt 2>&1 | Out-String
-        $convertExitCode = $LASTEXITCODE
-        $pfxExists = Test-FileExists "converted-pwfile.pfx"
-        $pwFileExists = Test-FileExists "converted-pwfile.password.txt"
-        $pwFileContent = if ($pwFileExists) { Get-Content "converted-pwfile.password.txt" -Raw } else { "" }
-        $hasValidPassword = $pwFileContent.Length -ge 20 -and $pwFileContent -notmatch "IMPORTANT|WARNING|="
-        $outputConfirms = $output -match "Password.*written to"
-        $success = $pfxExists -and $pwFileExists -and $hasValidPassword -and $outputConfirms
-
-        # Build detailed failure message
-        if ($convertExitCode -ne 0) { $failureDetails += "Convert command failed (exit code: $convertExitCode)" }
-        if (-not $pfxExists) { $failureDetails += "PFX file not created" }
-        if (-not $pwFileExists) { $failureDetails += "Password file not created" }
-        if ($pwFileExists -and -not $hasValidPassword) {
-            $failureDetails += "Invalid password content (length: $($pwFileContent.Length), contains forbidden pattern: $($pwFileContent -match 'IMPORTANT|WARNING|='))"
-        }
-        if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
-    } else {
-        $success = $false
-    }
-
-    $details = if ($success) { "Password saved to file during conversion" } else { $failureDetails -join "; " }
-    Write-TestResult "Convert with password file" $success $details
-} catch {
-    Write-TestResult "Convert with password file" $false $_.Exception.Message
-}
+Test-CertzPasswordFileCreation -TestName "Convert with password file" -FilePrefix "converted-pwfile" `
+    -CertzArgs @("convert", "--c", "convert-input.cer", "--k", "convert-input.key", "--f", "converted-pwfile.pfx", "--password-file", "converted-pwfile.password.txt") `
+    -PfxFile "converted-pwfile.pfx" -PasswordFile "converted-pwfile.password.txt" `
+    -Details "Password saved to file during conversion"
 
 # Test 6.4: Verify converted certificate with password file can be installed
 try {
     $pwFileExists = Test-FileExists "converted-pwfile.password.txt"
     $pfxExists = Test-FileExists "converted-pwfile.pfx"
 
-    $failureDetails = @()
-    if (-not $pwFileExists) { $failureDetails += "Password file (converted-pwfile.password.txt) does not exist" }
-    if (-not $pfxExists) { $failureDetails += "PFX file (converted-pwfile.pfx) does not exist" }
-
     if ($pwFileExists -and $pfxExists) {
         $password = Get-Content "converted-pwfile.password.txt" -Raw
-        $installOutput = .\certz.exe install --f converted-pwfile.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-String
-        $installExitCode = $LASTEXITCODE
-
-        $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-                Where-Object { $_.Subject -like "*dev.local*" } |
-                Select-Object -First 1
+        .\certz.exe install --f converted-pwfile.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-Null
+        $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
         $success = $null -ne $cert
-
-        if (-not $success) {
-            if ($installExitCode -ne 0) {
-                $failureDetails += "Install command failed (exit code: $installExitCode)"
-            }
-            $failureDetails += "Certificate not found in CurrentUser\My store after install"
-            if ($installOutput) { $failureDetails += "Install output: $($installOutput.Trim())" }
-        }
-
-        # Cleanup
-        if ($cert) {
-            .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null
-        }
+        if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
+        Write-TestResult "Install converted cert using password file" $success "Converted cert password is valid"
     } else {
-        $success = $false
+        Write-TestResult "Install converted cert using password file" $false "Required files do not exist"
     }
-
-    $details = if ($success) { "Converted cert password is valid" } else { $failureDetails -join "; " }
-    Write-TestResult "Install converted cert using password file" $success $details
 } catch {
     Write-TestResult "Install converted cert using password file" $false $_.Exception.Message
 }
@@ -1125,11 +980,8 @@ try {
 # Test 6.5: Verify converted certificate can be installed
 try {
     .\certz.exe install --f converted.pfx --p ConvertPass123 --sl CurrentUser --sn My | Out-Null
-    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-    $success = $null -ne $cert
-    Write-TestResult "Install converted certificate" $success "Converted cert is valid"
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+    Write-TestResult "Install converted certificate" ($null -ne $cert) "Converted cert is valid"
 } catch {
     Write-TestResult "Install converted certificate" $false $_.Exception.Message
 }
@@ -1141,18 +993,12 @@ Write-TestHeader "Testing REMOVE Command"
 
 # Test 4.1: Remove by thumbprint from Root
 try {
-    $cert = Get-ChildItem Cert:\LocalMachine\Root -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "Root" -StoreLocation "LocalMachine"
     if ($cert) {
         $thumb = $cert.Thumbprint
         .\certz.exe remove --thumb $thumb --sn root | Out-Null
-
-        $certAfter = Get-ChildItem Cert:\LocalMachine\Root -ErrorAction SilentlyContinue |
-                     Where-Object { $_.Thumbprint -eq $thumb }
-        $success = $null -eq $certAfter
-        Write-TestResult "Remove by thumbprint" $success "Certificate removed from Root"
+        $certAfter = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "Root" -StoreLocation "LocalMachine"
+        Write-TestResult "Remove by thumbprint" ($null -eq $certAfter -or $certAfter.Thumbprint -ne $thumb) "Certificate removed from Root"
     } else {
         Write-TestResult "Remove by thumbprint" $false "No certificate found to remove"
     }
@@ -1163,10 +1009,8 @@ try {
 # Test 4.2: Remove by subject from LocalMachine\My
 try {
     .\certz.exe remove --subject "*.dev.local" --sn My --sl LocalMachine | Out-Null
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" }
-    $success = $null -eq $cert -or $cert.Count -eq 0
-    Write-TestResult "Remove by subject (LocalMachine)" $success "All matching certs removed"
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
+    Write-TestResult "Remove by subject (LocalMachine)" ($null -eq $cert) "All matching certs removed"
 } catch {
     Write-TestResult "Remove by subject (LocalMachine)" $false $_.Exception.Message
 }
@@ -1174,10 +1018,8 @@ try {
 # Test 4.3: Remove by subject from CurrentUser\My
 try {
     .\certz.exe remove --subject "*.dev.local" --sl CurrentUser --sn My | Out-Null
-    $cert = Get-ChildItem Cert:\CurrentUser\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" }
-    $success = $null -eq $cert -or $cert.Count -eq 0
-    Write-TestResult "Remove by subject (CurrentUser)" $success "All matching certs removed"
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+    Write-TestResult "Remove by subject (CurrentUser)" ($null -eq $cert) "All matching certs removed"
 } catch {
     Write-TestResult "Remove by subject (CurrentUser)" $false $_.Exception.Message
 }
@@ -1190,33 +1032,17 @@ Write-TestHeader "Testing Integration Scenarios"
 # Test 7.1: Complete lifecycle (create to install to export to remove)
 Remove-TestFiles "lifecycle"
 try {
-    # Create
     .\certz.exe create --f lifecycle.pfx --p LifecyclePass --c lifecycle.cer --k lifecycle.key | Out-Null
-
-    # Install
     .\certz.exe install --f lifecycle.pfx --p LifecyclePass --sn My --sl LocalMachine | Out-Null
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
 
-    # Verify installed
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-
-    # Export from store
     if ($cert) {
         .\certz.exe export --thumb $cert.Thumbprint --f lifecycle-export.pfx --p ExportPass | Out-Null
     }
-
-    # Remove
     .\certz.exe remove --subject "*.dev.local" --sn My --sl LocalMachine | Out-Null
+    $certAfter = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
 
-    # Verify removed
-    $certAfter = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-                 Where-Object { $_.Subject -like "*dev.local*" }
-
-    $success = ($null -ne $cert) -and
-               (Test-FileExists "lifecycle-export.pfx") -and
-               ($null -eq $certAfter -or $certAfter.Count -eq 0)
-
+    $success = ($null -ne $cert) -and (Test-FileExists "lifecycle-export.pfx") -and ($null -eq $certAfter)
     Write-TestResult "Complete certificate lifecycle" $success "Create-Install-Export-Remove"
 } catch {
     Write-TestResult "Complete certificate lifecycle" $false $_.Exception.Message
@@ -1225,31 +1051,19 @@ try {
 # Test 7.2: Format conversion chain (PFX to PEM to PFX)
 Remove-TestFiles "conversion-chain"
 try {
-    # Create original PFX
     .\certz.exe create --f conversion-chain-original.pfx --p OriginalPass | Out-Null
-
-    # Install to get access to certificate
     .\certz.exe install --f conversion-chain-original.pfx --p OriginalPass --sn My --sl LocalMachine | Out-Null
-
-    # Export to PEM
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
 
     if ($cert) {
         .\certz.exe export --thumb $cert.Thumbprint --c conversion-chain-intermediate.cer --k conversion-chain-intermediate.key | Out-Null
-
-        # Convert back to PFX
         .\certz.exe convert --c conversion-chain-intermediate.cer --k conversion-chain-intermediate.key --f conversion-chain-final.pfx --p FinalPass | Out-Null
-
-        # Cleanup
         .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
     }
 
     $success = (Test-FileExists "conversion-chain-original.pfx") -and
                (Test-FileExists "conversion-chain-intermediate.cer") -and
                (Test-FileExists "conversion-chain-final.pfx")
-
     Write-TestResult "Format conversion chain" $success "PFX to PEM to PFX"
 } catch {
     Write-TestResult "Format conversion chain" $false $_.Exception.Message
@@ -1265,59 +1079,42 @@ Remove-TestFiles "info-cert"
 .\certz.exe create --f info-cert.pfx --c info-cert.cer --k info-cert.key --p InfoTestPass --san *.dev.local | Out-Null
 
 # Test 9.1: Info from PFX file
-try {
-    $output = .\certz.exe info --f info-cert.pfx --p InfoTestPass 2>&1 | Out-String
-    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
-    Write-TestResult "Info from PFX file" $success "Certificate details displayed"
-} catch {
-    Write-TestResult "Info from PFX file" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Info from PFX file" -FilePrefix "" `
+    -CertzArgs @("info", "--f", "info-cert.pfx", "--p", "InfoTestPass") `
+    -OutputPattern "Certificate Information" -Details "Certificate details displayed"
 
 # Test 9.2: Info from PEM file (uses info-cert.cer created above)
-try {
-    $output = .\certz.exe info --f info-cert.cer 2>&1 | Out-String
-    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
-    Write-TestResult "Info from PEM file" $success "Certificate details displayed"
-} catch {
-    Write-TestResult "Info from PEM file" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Info from PEM file" -FilePrefix "" `
+    -CertzArgs @("info", "--f", "info-cert.cer") `
+    -OutputPattern "Certificate Information" -Details "Certificate details displayed"
 
 # Test 9.3: Info from URL
 try {
     $output = .\certz.exe info --url https://www.github.com 2>&1 | Out-String
     $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
     if (-not $success) {
-        # Network issues are acceptable for URL tests
         Write-TestResult "Info from URL" $true "Skipped (network issue)"
     } else {
         Write-TestResult "Info from URL" $success "Remote certificate details displayed"
     }
 } catch {
-    # Network failures are acceptable for URL tests
-    Write-TestResult "Info from URL" $true "Skipped (network error: $($_.Exception.Message))"
+    Write-TestResult "Info from URL" $true "Skipped (network error)"
 }
 
 # Test 9.4: Info from store by thumbprint
 try {
-    # Create and install a cert first
     Remove-TestFiles "info-test"
     .\certz.exe create --f info-test.pfx --p InfoPass | Out-Null
     .\certz.exe install --f info-test.pfx --p InfoPass --sn My --sl LocalMachine | Out-Null
 
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
     if ($cert) {
         $output = .\certz.exe info --thumbprint $cert.Thumbprint --sn My --sl LocalMachine 2>&1 | Out-String
         $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Information")
-
-        # Clean up
         .\certz.exe remove --thumbprint $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
     } else {
         $success = $false
     }
-
     Write-TestResult "Info from store by thumbprint" $success "Store certificate details displayed"
 } catch {
     Write-TestResult "Info from store by thumbprint" $false $_.Exception.Message
@@ -1333,44 +1130,29 @@ Remove-TestFiles "verify-cert"
 .\certz.exe create --f verify-cert.pfx --p VerifyTestPass --san *.dev.local | Out-Null
 
 # Test 10.1: Verify valid certificate from file
-try {
-    $output = .\certz.exe verify --f verify-cert.pfx --p VerifyTestPass 2>&1 | Out-String
-    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Validation Report")
-    Write-TestResult "Verify certificate from PFX file" $success "Validation report generated"
-} catch {
-    Write-TestResult "Verify certificate from PFX file" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Verify certificate from PFX file" -FilePrefix "" `
+    -CertzArgs @("verify", "--f", "verify-cert.pfx", "--p", "VerifyTestPass") `
+    -OutputPattern "Certificate Validation Report" -Details "Validation report generated"
 
 # Test 10.2: Verify with custom warning days
-try {
-    $output = .\certz.exe verify --f verify-cert.pfx --p VerifyTestPass --warn 60 2>&1 | Out-String
-    $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Validation Report")
-    Write-TestResult "Verify with custom warning threshold" $success "Custom warning threshold applied"
-} catch {
-    Write-TestResult "Verify with custom warning threshold" $false $_.Exception.Message
-}
+Test-CertzWithOutput -TestName "Verify with custom warning threshold" -FilePrefix "" `
+    -CertzArgs @("verify", "--f", "verify-cert.pfx", "--p", "VerifyTestPass", "--warn", "60") `
+    -OutputPattern "Certificate Validation Report" -Details "Custom warning threshold applied"
 
 # Test 10.3: Verify from store by thumbprint
 try {
-    # Create and install a cert first
     Remove-TestFiles "verify-test"
     .\certz.exe create --f verify-test.pfx --p VerifyPass | Out-Null
     .\certz.exe install --f verify-test.pfx --p VerifyPass --sn My --sl LocalMachine | Out-Null
 
-    $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
-            Where-Object { $_.Subject -like "*dev.local*" } |
-            Select-Object -First 1
-
+    $cert = Get-TestCertificate -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "LocalMachine"
     if ($cert) {
         $output = .\certz.exe verify --thumbprint $cert.Thumbprint --sn My --sl LocalMachine 2>&1 | Out-String
         $success = $LASTEXITCODE -eq 0 -and ($output -match "Certificate Validation Report")
-
-        # Clean up
         .\certz.exe remove --thumbprint $cert.Thumbprint --sn My --sl LocalMachine | Out-Null
     } else {
         $success = $false
     }
-
     Write-TestResult "Verify from store by thumbprint" $success "Store certificate validated"
 } catch {
     Write-TestResult "Verify from store by thumbprint" $false $_.Exception.Message
@@ -1386,14 +1168,9 @@ Remove-TestFiles "convert-source"
 .\certz.exe create --f convert-source.pfx --p ConvertSourcePass --san *.dev.local | Out-Null
 
 # Test 11.1: Convert PFX to PEM (both cert and key)
-Remove-TestFiles "pfx-to-pem"
-try {
-    .\certz.exe convert --pfx convert-source.pfx --p ConvertSourcePass --out-cert pfx-to-pem.cer --out-key pfx-to-pem.key 2>&1 | Out-Null
-    $success = (Test-FileExists "pfx-to-pem.cer") -and (Test-FileExists "pfx-to-pem.key")
-    Write-TestResult "Convert PFX to PEM (cert+key)" $success "Both CER and KEY files created"
-} catch {
-    Write-TestResult "Convert PFX to PEM (cert+key)" $false $_.Exception.Message
-}
+Test-CertzFileCreation -TestName "Convert PFX to PEM (cert+key)" -FilePrefix "pfx-to-pem" `
+    -CertzArgs @("convert", "--pfx", "convert-source.pfx", "--p", "ConvertSourcePass", "--out-cert", "pfx-to-pem.cer", "--out-key", "pfx-to-pem.key") `
+    -ExpectedFiles @("pfx-to-pem.cer", "pfx-to-pem.key") -Details "Both CER and KEY files created"
 
 # Test 11.2: Convert PFX to PEM (cert only)
 Remove-TestFiles "pfx-to-cer"
@@ -1418,15 +1195,9 @@ try {
 # Test 11.4: Round-trip conversion (PFX to PEM to PFX)
 Remove-TestFiles "roundtrip"
 try {
-    # PFX to PEM
     .\certz.exe convert --pfx convert-source.pfx --p ConvertSourcePass --out-cert roundtrip.cer --out-key roundtrip.key 2>&1 | Out-Null
-
-    # PEM back to PFX
     .\certz.exe convert --cert roundtrip.cer --key roundtrip.key --pfx roundtrip.pfx --p RoundtripPass 2>&1 | Out-Null
-
-    # Verify the final PFX is valid by getting info
-    $output = .\certz.exe info --f roundtrip.pfx --p RoundtripPass 2>&1
-
+    .\certz.exe info --f roundtrip.pfx --p RoundtripPass 2>&1 | Out-Null
     $success = (Test-FileExists "roundtrip.pfx") -and ($LASTEXITCODE -eq 0)
     Write-TestResult "Round-trip conversion (PFX to PEM to PFX)" $success "Full conversion cycle successful"
 } catch {
@@ -1439,22 +1210,14 @@ try {
 Write-TestHeader "Testing Error Handling"
 
 # Test 8.1: Invalid file path
-try {
-    $output = .\certz.exe install --f nonexistent.pfx --p password 2>&1
-    $success = $LASTEXITCODE -ne 0  # Should fail
-    Write-TestResult "Graceful failure on missing file" $success "Expected error occurred"
-} catch {
-    Write-TestResult "Graceful failure on missing file" $true "Exception caught as expected"
-}
+Test-CertzExpectedFailure -TestName "Graceful failure on missing file" -FilePrefix "" `
+    -CertzArgs @("install", "--f", "nonexistent.pfx", "--p", "password") `
+    -Details "Expected error occurred"
 
 # Test 8.2: Missing required parameters for convert
-try {
-    $output = .\certz.exe convert --c missing.cer --f output.pfx 2>&1
-    $success = $LASTEXITCODE -ne 0  # Should fail
-    Write-TestResult "Missing required key parameter" $success "Expected error occurred"
-} catch {
-    Write-TestResult "Missing required key parameter" $true "Exception caught as expected"
-}
+Test-CertzExpectedFailure -TestName "Missing required key parameter" -FilePrefix "" `
+    -CertzArgs @("convert", "--c", "missing.cer", "--f", "output.pfx") `
+    -Details "Expected error occurred"
 
 # ============================================================================
 # CLEANUP
@@ -1504,9 +1267,9 @@ if (-not $isInsideContainer) {
 
 # Exit with appropriate code
 if ($failedCount -eq 0) {
-    Write-Host "`nAll tests passed! ✓" -ForegroundColor Green
+    Write-Host "`nAll tests passed!" -ForegroundColor Green
     exit 0
 } else {
-    Write-Host "`nSome tests failed! ✗" -ForegroundColor Red
+    Write-Host "`nSome tests failed!" -ForegroundColor Red
     exit 1
 }

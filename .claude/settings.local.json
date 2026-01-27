@@ -17,7 +17,11 @@
       "Bash(powershell -Command:*)",
       "Bash(powershell -NoProfile -Command:*)",
       "Bash(.certz.exe create:*)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Bash(powershell:*)",
+      "Bash(xxd:*)",
+      "Bash(grep:*)",
+      "Bash(./certz.exe convert:*)"
     ]
   }
 }
