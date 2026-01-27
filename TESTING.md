@@ -53,25 +53,6 @@ For isolated testing in a containerized environment, use the Docker option.
 .\test-all.ps1 -UseDocker -DockerVerbose
 ```
 
-2. **Development Mode** (files mounted as volumes - best for active development):
-```powershell
-# Run tests with volume mounts (no rebuild needed for changes)
-.\test-all.ps1 -UseDocker -DevMode
-
-# With verbose output
-.\test-all.ps1 -UseDocker -DevMode -DockerVerbose
-```
-
-**When to use DevMode:**
-- You're actively modifying certz.exe or test-all.ps1
-- You want instant feedback without rebuilding the Docker image
-- You're debugging and iterating quickly
-
-**When to use Standard Mode:**
-- Running tests in CI/CD pipelines
-- You want reproducible, self-contained images
-- Files don't change frequently
-
 **Docker Testing Prerequisites:**
 - Docker Desktop for Windows installed
 - Windows containers enabled in Docker Desktop (switch from Linux containers if needed)

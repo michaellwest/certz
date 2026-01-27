@@ -248,11 +248,7 @@ Run the comprehensive test suite locally (requires Administrator privileges):
 Or run in an isolated Windows Docker container:
 
 ```powershell
-# Standard mode (files baked into image)
 .\test-all.ps1 -UseDocker
-
-# Development mode (files mounted as volumes - no rebuild needed for changes)
-.\test-all.ps1 -UseDocker -DevMode
 ```
 
 For detailed testing instructions, see [TESTING.md](TESTING.md).

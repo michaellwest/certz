@@ -4,27 +4,14 @@ This guide provides quick commands and troubleshooting for running certz tests i
 
 ## Quick Start
 
-### Which Mode Should I Use?
-
-| Mode | Command | Best For | Rebuild Needed? |
-|------|---------|----------|----------------|
-| **Standard** | `.\test-all.ps1 -UseDocker` | CI/CD, Production | Yes, after file changes |
-| **DevMode** | `.\test-all.ps1 -UseDocker -DevMode` | Active Development | No, uses volumes |
-
 ### Quick Commands
 
 ```powershell
-# Standard mode: Files baked into image (requires rebuild for changes)
+# Run tests in Docker
 .\test-all.ps1 -UseDocker
 
-# Standard mode with verbose output
+# Run with verbose output
 .\test-all.ps1 -UseDocker -DockerVerbose
-
-# Development mode: Files mounted as volumes (no rebuild needed)
-.\test-all.ps1 -UseDocker -DevMode
-
-# Development mode with verbose output
-.\test-all.ps1 -UseDocker -DevMode -DockerVerbose
 ```
 
 ## Prerequisites
@@ -46,9 +33,9 @@ This guide provides quick commands and troubleshooting for running certz tests i
 
 ## Understanding Docker File Management
 
-The Docker test setup supports **two approaches** for making certz.exe and test-all.ps1 available in the container:
+The Docker test setup copies certz.exe and test-all.ps1 into the container image during build.
 
-### Approach 1: Baked-In Files (Default - Best for CI/CD)
+### How Baked-In Files Work
 
 **How it works:**
 - Files are copied into the Docker image during build using `COPY` commands
@@ -59,7 +46,6 @@ The Docker test setup supports **two approaches** for making certz.exe and test-
 - CI/CD pipelines
 - Production testing
 - When you want consistent, reproducible builds
-- When files don't change frequently
 
 **Command:**
 ```powershell
@@ -67,66 +53,20 @@ The Docker test setup supports **two approaches** for making certz.exe and test-
 ```
 
 **Pros:**
-- ✅ Self-contained image (no external dependencies)
-- ✅ Guaranteed consistency
-- ✅ Faster container startup
-- ✅ Works offline after initial build
-
-**Cons:**
-- ❌ Must rebuild image after changing certz.exe or test-all.ps1
-- ❌ Slower development iteration
-
-### Approach 2: Volume Mounts (DevMode - Best for Active Development)
-
-**How it works:**
-- Files are mounted from host into container at runtime using volumes
-- Changes to source files are immediately reflected in container
-- No rebuild required
-
-**When to use:**
-- Active development
-- Debugging tests
-- Frequent changes to certz.exe or test scripts
-- Rapid iteration
-
-**Command:**
-```powershell
-.\test-all.ps1 -UseDocker -DevMode
-```
-
-**Pros:**
-- ✅ No rebuild needed for file changes
-- ✅ Instant feedback loop
-- ✅ Perfect for debugging
-- ✅ Test changes immediately
-
-**Cons:**
-- ❌ Requires files to exist on host
-- ❌ Paths must be correct
-- ❌ Slightly slower container startup
+- Self-contained image (no external dependencies)
+- Guaranteed consistency
+- Faster container startup
+- Works offline after initial build
 
 ## Docker Testing Commands
 
-### Basic Testing (Baked-In Files)
+### Basic Testing
 ```powershell
-# Run all tests in Docker (standard mode)
+# Run all tests in Docker
 .\test-all.ps1 -UseDocker
 
 # Run with verbose output for debugging
 .\test-all.ps1 -UseDocker -DockerVerbose
-```
-
-### Development Testing (Volume Mounts)
-```powershell
-# Run with volume mounts (no rebuild needed for changes)
-.\test-all.ps1 -UseDocker -DevMode
-
-# With verbose output
-.\test-all.ps1 -UseDocker -DevMode -DockerVerbose
-
-# After making changes to certz.exe or test-all.ps1, just re-run:
-.\test-all.ps1 -UseDocker -DevMode
-# No rebuild needed!
 ```
 
 ### Manual Docker Commands
@@ -155,9 +95,8 @@ docker rm certz-test-debug
 
 ### Using Docker Compose
 
-The project includes two Docker Compose services:
+The project includes Docker Compose configuration:
 
-**Standard Mode (certz-test):**
 ```powershell
 # Run tests with baked-in files
 docker-compose -f docker-compose.test.yml up --build certz-test
@@ -167,21 +106,6 @@ docker-compose -f docker-compose.test.yml up --build -d certz-test
 
 # View logs
 docker-compose -f docker-compose.test.yml logs -f certz-test
-
-# Clean up
-docker-compose -f docker-compose.test.yml down
-```
-
-**Development Mode (certz-test-dev):**
-```powershell
-# Run tests with volume mounts (no rebuild needed for file changes)
-docker-compose -f docker-compose.test.yml up certz-test-dev
-
-# With rebuild (first time or after Dockerfile changes)
-docker-compose -f docker-compose.test.yml up --build certz-test-dev
-
-# View logs
-docker-compose -f docker-compose.test.yml logs -f certz-test-dev
 
 # Clean up
 docker-compose -f docker-compose.test.yml down
@@ -236,27 +160,9 @@ docker pull mcr.microsoft.com/dotnet/sdk:7.0-nanoserver-ltsc2022
 
 **Solution:**
 1. Open Docker Desktop
-2. Settings → Resources
+2. Settings -> Resources
 3. Increase Memory to at least 4GB
 4. Click "Apply & Restart"
-
-### Volume Mount Issues (DevMode)
-
-**Problem:** Files not found or permission errors with `-DevMode`
-
-**Solution:**
-```powershell
-# Verify files exist
-Test-Path docker/tools/certz.exe
-Test-Path docker/tools/certz.pdb
-Test-Path test-all.ps1
-
-# Check file permissions
-Get-Acl docker/tools/certz.exe
-
-# Try without DevMode to use baked-in files
-.\test-all.ps1 -UseDocker
-```
 
 ### Path Issues Inside Container
 
@@ -293,21 +199,6 @@ docker run --rm -it --isolation=process certz-test:latest powershell
 .\certz.exe create --f test.pfx
 ```
 
-**For DevMode debugging:**
-```powershell
-# Run interactively with volume mounts
-docker run --rm -it --isolation=process `
-  -v ${PWD}/docker/tools/certz.exe:/app/certz.exe:ro `
-  -v ${PWD}/docker/tools/certz.pdb:/app/certz.pdb:ro `
-  -v ${PWD}/test-all.ps1:/app/test-all.ps1:ro `
-  certz-test:latest powershell
-
-# Inside container, verify files
-Get-ChildItem
-.\certz.exe --version
-.\test-all.ps1 -Verbose
-```
-
 ### Build is Very Slow
 
 **Optimization:**
@@ -322,9 +213,9 @@ docker build --no-cache -t certz-test:latest -f Dockerfile.test .
 
 ## Development Workflow Examples
 
-### Scenario 1: Testing Code Changes (DevMode Recommended)
+### Scenario 1: Testing Code Changes
 
-You're actively developing certz and want to test changes quickly:
+You're actively developing certz and want to test changes:
 
 ```powershell
 # 1. Build your changes
@@ -334,20 +225,11 @@ dotnet build -c Release
 Copy-Item bin/Release/net7.0/win-x64/publish/certz.exe docker/tools/
 Copy-Item bin/Release/net7.0/win-x64/publish/certz.pdb docker/tools/
 
-# 3. Run tests with DevMode (no Docker rebuild needed!)
-.\test-all.ps1 -UseDocker -DevMode
-
-# 4. Make more changes to code, rebuild, and test again
-dotnet build -c Release
-Copy-Item bin/Release/net7.0/win-x64/publish/certz.exe docker/tools/
-.\test-all.ps1 -UseDocker -DevMode  # Instant - no Docker rebuild!
-
-# 5. Modify test script
-# Edit test-all.ps1...
-.\test-all.ps1 -UseDocker -DevMode  # Tests use updated script immediately!
+# 3. Run tests in Docker
+.\test-all.ps1 -UseDocker
 ```
 
-### Scenario 2: CI/CD Pipeline (Baked-In Recommended)
+### Scenario 2: CI/CD Pipeline
 
 You're running tests in a CI/CD pipeline:
 
@@ -378,8 +260,8 @@ dotnet build -c Release
 Copy-Item bin/Release/net7.0/win-x64/publish/certz.exe docker/tools/
 Copy-Item bin/Release/net7.0/win-x64/publish/certz.pdb docker/tools/
 
-# 4. Run tests (use DevMode for development)
-.\test-all.ps1 -UseDocker -DevMode
+# 4. Run tests
+.\test-all.ps1 -UseDocker
 ```
 
 ## Advanced Usage
@@ -525,12 +407,12 @@ steps:
 
 ## Benefits of Docker Testing
 
-- ✅ **Isolation:** No pollution of host certificate stores
-- ✅ **Consistency:** Same environment across all machines
-- ✅ **CI/CD Ready:** Easy integration with pipelines
-- ✅ **No Admin Rights:** Docker handles elevation internally
-- ✅ **Reproducible:** Same results every time
-- ✅ **Clean State:** Fresh environment for each run
+- **Isolation:** No pollution of host certificate stores
+- **Consistency:** Same environment across all machines
+- **CI/CD Ready:** Easy integration with pipelines
+- **No Admin Rights:** Docker handles elevation internally
+- **Reproducible:** Same results every time
+- **Clean State:** Fresh environment for each run
 
 ## File Reference
 
@@ -555,7 +437,3 @@ For issues or questions:
 | Windows | 10/11, Server 2019/2022 | Container host |
 | .NET SDK | 7.0 | Base image |
 | PowerShell | 5.1+ | Script execution |
-
----
-
-**Last Updated:** 2026-01-25
