@@ -23,7 +23,7 @@ internal static class CertificateOperations
         if (passwordFile != null)
         {
             passwordFile.Directory?.Create();
-            File.WriteAllText(passwordFile.FullName, password);
+            File.WriteAllText(passwordFile.FullName, password.TrimEnd());
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"Password for {purpose} written to: {passwordFile.FullName}");

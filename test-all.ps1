@@ -272,6 +272,7 @@ function Write-TestHeader {
 
 function Write-TestResult {
     param(
+        [string]$TestId,
         [string]$TestName,
         [bool]$Success,
         [string]$Details = ""
@@ -287,7 +288,7 @@ function Write-TestResult {
         }
     } else {
         Write-Host "[FAIL] $TestName" -ForegroundColor Red
-        $script:FailedTests += $TestName
+        $script:FailedTests += "$TestId : $TestName"
         if ($Details) {
             Write-Host "       ERROR: $Details" -ForegroundColor Yellow
         }
@@ -478,14 +479,14 @@ function Invoke-Test {
     try {
         $result = & $TestScript
         if ($result -is [hashtable] -and $result.ContainsKey("Success")) {
-            Write-TestResult $TestName $result.Success $result.Details
+            Write-TestResult $TestId $TestName $result.Success $result.Details
             return $result
         } else {
-            Write-TestResult $TestName $true ""
+            Write-TestResult $TestId $TestName $true ""
             return @{ Success = $true; Result = $result }
         }
     } catch {
-        Write-TestResult $TestName $false $_.Exception.Message
+        Write-TestResult $TestId $TestName $false $_.Exception.Message
         return @{ Success = $false; Error = $_.Exception.Message }
     }
 }
@@ -542,10 +543,10 @@ function Test-CertzFileCreation {
                 break
             }
         }
-        Write-TestResult $TestName $allExist $Details
+        Write-TestResult $TestId $TestName $allExist $Details
         return $allExist
     } catch {
-        Write-TestResult $TestName $false $_.Exception.Message
+        Write-TestResult $TestId $TestName $false $_.Exception.Message
         return $false
     }
 }
@@ -595,10 +596,10 @@ function Test-CertzWithOutput {
         if ($Verbose) { Write-Host $output -ForegroundColor Gray }
 
         $success = $filesExist -and $outputMatch
-        Write-TestResult $TestName $success $Details
+        Write-TestResult $TestId $TestName $success $Details
         return @{ Success = $success; Output = $output }
     } catch {
-        Write-TestResult $TestName $false $_.Exception.Message
+        Write-TestResult $TestId $TestName $false $_.Exception.Message
         return @{ Success = $false; Output = "" }
     }
 }
@@ -623,10 +624,10 @@ function Test-CertzExpectedFailure {
 
         & .\certz.exe @CertzArgs 2>&1 | Out-Null
         $success = $LASTEXITCODE -ne 0
-        Write-TestResult $TestName $success $Details
+        Write-TestResult $TestId $TestName $success $Details
         return $success
     } catch {
-        Write-TestResult $TestName $true "Exception caught as expected"
+        Write-TestResult $TestId $TestName $true "Exception caught as expected"
         return $true
     }
 }
@@ -651,10 +652,10 @@ function Test-CertzInstall {
         & .\certz.exe install --f $PfxFile --p $Password --sn $StoreName --sl $StoreLocation | Out-Null
         $cert = Get-TestCertificate -SubjectPattern $SubjectPattern -StoreName $StoreName -StoreLocation $StoreLocation
         $success = $null -ne $cert
-        Write-TestResult $TestName $success $Details
+        Write-TestResult $TestId $TestName $success $Details
         return $cert
     } catch {
-        Write-TestResult $TestName $false $_.Exception.Message
+        Write-TestResult $TestId $TestName $false $_.Exception.Message
         return $null
     }
 }
@@ -691,10 +692,10 @@ function Test-CertzPasswordFileCreation {
         if (-not $outputConfirms) { $failureDetails += "Output did not confirm password written to file" }
 
         $detailMsg = if ($success) { $Details } else { $failureDetails -join "; " }
-        Write-TestResult $TestName $success $detailMsg
+        Write-TestResult $TestId $TestName $success $detailMsg
         return @{ Success = $success; Output = $output; PasswordContent = $pwResult.Content }
     } catch {
-        Write-TestResult $TestName $false $_.Exception.Message
+        Write-TestResult $TestId $TestName $false $_.Exception.Message
         return @{ Success = $false; Output = ""; PasswordContent = "" }
     }
 }
