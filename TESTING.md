@@ -87,7 +87,7 @@ If you encounter errors about incompatible image platforms:
 The Docker testing setup uses:
 - **Dockerfile.test** - Specialized test container configuration
 - **docker-compose.test.yml** - Docker Compose configuration for test orchestration
-- Base image: `mcr.microsoft.com/dotnet/sdk:7.0-nanoserver-ltsc2022`
+- Base image: `mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022`
 - Runs as ContainerAdministrator for certificate operations
 - Executes the same test-all.ps1 script in isolated environment
 

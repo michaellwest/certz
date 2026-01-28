@@ -144,8 +144,8 @@ internal static class OptionBuilders
     {
         var keySizeOption = new Option<int>("--key-size", "--ks")
         {
-            Description = "RSA key size in bits (2048, 3072, or 4096). NIST recommends 3072+ for protection beyond 2030.",
-            DefaultValueFactory = _ => 2048
+            Description = "RSA key size in bits (2048, 3072, or 4096). Default: 3072 (NIST recommended for protection beyond 2030).",
+            DefaultValueFactory = _ => 3072
         };
 
         keySizeOption.Validators.Add(result =>
@@ -162,7 +162,7 @@ internal static class OptionBuilders
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("INFO: Using 2048-bit RSA key.");
                 Console.WriteLine("      NIST recommends 3072+ bits for protection beyond 2030.");
-                Console.WriteLine("      Consider using --key-size 3072 or 4096 for long-lived certificates.");
+                Console.WriteLine("      This key size is acceptable but consider --key-size 3072 or 4096.");
                 Console.ResetColor();
             }
         });
@@ -211,6 +211,27 @@ internal static class OptionBuilders
         });
 
         return keyTypeOption;
+    }
+
+    internal static Option<string> CreateRsaPaddingOption()
+    {
+        var rsaPaddingOption = new Option<string>("--rsa-padding", "--rp")
+        {
+            Description = "RSA signature padding mode: pkcs1 (default, wider compatibility) or pss (modern, recommended for new certificates).",
+            DefaultValueFactory = _ => "pkcs1"
+        };
+
+        rsaPaddingOption.Validators.Add(result =>
+        {
+            var padding = result.GetValueOrDefault<string>();
+            var normalizedPadding = padding?.ToUpperInvariant();
+            if (normalizedPadding != "PKCS1" && normalizedPadding != "PSS")
+            {
+                result.AddError("RSA padding must be 'pkcs1' or 'pss'.");
+            }
+        });
+
+        return rsaPaddingOption;
     }
 
     internal static Option<bool> CreateIsCAOption()
@@ -321,5 +342,45 @@ internal static class OptionBuilders
             DefaultValueFactory = _ => null
         };
         return subjectLOption;
+    }
+
+    internal static Option<string> CreatePfxEncryptionOption()
+    {
+        var pfxEncryptionOption = new Option<string>("--pfx-encryption", "--pe")
+        {
+            Description = "PFX encryption mode: modern (AES-256, default) or legacy (3DES, for older systems).",
+            DefaultValueFactory = _ => "modern"
+        };
+
+        pfxEncryptionOption.Validators.Add(result =>
+        {
+            var encryption = result.GetValueOrDefault<string>();
+            var normalizedEncryption = encryption?.ToUpperInvariant();
+            if (normalizedEncryption != "MODERN" && normalizedEncryption != "LEGACY")
+            {
+                result.AddError("PFX encryption must be 'modern' or 'legacy'.");
+            }
+
+            if (normalizedEncryption == "LEGACY")
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("INFO: Using legacy 3DES encryption for PFX.");
+                Console.WriteLine("      This is for compatibility with older systems (Windows XP/Server 2003).");
+                Console.WriteLine("      Consider using 'modern' (AES-256) for better security.");
+                Console.ResetColor();
+            }
+        });
+
+        return pfxEncryptionOption;
+    }
+
+    internal static Option<bool> CreateExportableOption()
+    {
+        var exportableOption = new Option<bool>("--exportable", "--exp")
+        {
+            Description = "Allow private key to be exported after installation (default: true).",
+            DefaultValueFactory = _ => true
+        };
+        return exportableOption;
     }
 }

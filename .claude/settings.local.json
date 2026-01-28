@@ -21,7 +21,9 @@
       "Bash(powershell:*)",
       "Bash(xxd:*)",
       "Bash(grep:*)",
-      "Bash(./certz.exe convert:*)"
+      "Bash(./certz.exe convert:*)",
+      "Bash(git -C \"c:/Projects/github/michaellwest/certz\" tag --sort=-version:refname)",
+      "Bash(certutil:*)"
     ]
   }
 }

@@ -52,6 +52,18 @@ certz.exe create --f devcert.pfx --p MySecurePassword123! --dns *.example.com --
 certz.exe create --f devcert.pfx --p MySecurePassword123! --dns *.example.com --key-type ECDSA-P256
 ```
 
+**Example:** The following creates an RSA certificate with RSA-PSS padding (modern, recommended for new certificates).
+
+```
+certz.exe create --f devcert.pfx --p MySecurePassword123! --dns *.example.com --rsa-padding pss
+```
+
+**Example:** The following creates a certificate with legacy 3DES PFX encryption (for compatibility with older systems).
+
+```
+certz.exe create --f devcert.pfx --p MySecurePassword123! --dns *.example.com --pfx-encryption legacy
+```
+
 **Example:** The following creates a CA certificate with CRL and OCSP support.
 
 ```
@@ -68,6 +80,12 @@ certz.exe create --f devcert.pfx --p MySecurePassword123! --dns *.example.com --
 
 ```
 certz.exe install --f C:\certs\devcert.pfx --p Password12345 --sn root --sl localmachine
+```
+
+**Example:** The following installs a certificate with the private key marked as non-exportable.
+
+```
+certz.exe install --f C:\certs\devcert.pfx --p Password12345 --sn My --sl localmachine --exportable false
 ```
 
 **Example:** The following removes a certificate matching the provided thumbprint.
@@ -137,14 +155,19 @@ certz is designed to meet current industry standards and best practices for cert
 ### Cryptographic Standards
 
 #### Key Types and Sizes
-- **RSA**: Configurable 2048, 3072, or 4096 bits
+- **RSA**: Configurable 2048, 3072, or 4096 bits (default: 3072)
   - 2048 bits: Current minimum standard (NIST SP 800-131A Rev. 2)
-  - 3072 bits: Recommended for protection beyond 2030 (NIST SP 800-57 Part 1 Rev. 5)
+  - 3072 bits: **Default** - Recommended for protection beyond 2030 (NIST SP 800-57 Part 1 Rev. 5)
   - 4096 bits: Maximum security for long-lived certificates
 - **ECDSA**: P-256, P-384, P-521 curves (NIST SP 800-186)
   - P-256: Equivalent to 3072-bit RSA, recommended for TLS 1.3
   - P-384: Equivalent to 7680-bit RSA
   - P-521: Maximum ECDSA security
+
+#### RSA Signature Padding
+- **PKCS#1 v1.5** (default): Wider compatibility with older systems
+- **RSA-PSS**: Modern padding scheme, recommended for new certificates
+  - Use `--rsa-padding pss` to enable RSA-PSS signatures
 
 #### Hash Algorithms
 - **SHA-256**: Standard for RSA 2048-bit keys
@@ -195,9 +218,16 @@ certz correctly implements RFC 5280 criticality requirements:
 - **NIST SP 800-63B compliant**: 24-character random passwords with mixed character types
 
 #### Private Key Protection
-- **Secure key generation**: Uses platform cryptographic APIs (RSA.Create, ECDsa.Create)
+- **Secure key generation**: Uses platform cryptographic APIs (RSA.Create, ECDsa.Create) with Microsoft CNG (Cryptography Next Generation)
 - **PKCS#8 format**: Standard private key export format
-- **Configurable exportability**: Control whether private keys can be exported from certificate store
+- **Configurable exportability**: Control whether private keys can be exported from certificate store using `--exportable`
+- **Context-aware key storage**: Automatically uses appropriate key storage flags based on store location (MachineKeySet/UserKeySet)
+
+#### PFX/PKCS#12 Encryption
+- **Modern (default)**: AES-256-CBC with SHA-256 and 100,000 iterations
+  - Recommended for Windows Server 2019+, Windows 10/11
+- **Legacy**: 3DES encryption for compatibility with older systems
+  - Use `--pfx-encryption legacy` for Windows XP/Server 2003 compatibility
 
 ### Distinguished Names
 
@@ -223,9 +253,11 @@ certz can generate proper Certificate Authority certificates with:
 - [NIST SP 800-186](https://csrc.nist.gov/publications/detail/sp/800-186/final) - Discrete Logarithm-Based Cryptography
 - [NIST SP 800-63B](https://pages.nist.gov/800-63-3/sp800-63b.html) - Digital Identity Guidelines: Authentication
 - [RFC 5280](https://datatracker.ietf.org/doc/html/rfc5280) - X.509 Certificate and CRL Profile
+- [RFC 8017](https://datatracker.ietf.org/doc/html/rfc8017) - PKCS #1 RSA Cryptography (includes RSA-PSS)
 - [RFC 8446](https://tools.ietf.org/html/rfc8446) - TLS 1.3 Protocol
 - [CA/Browser Forum Baseline Requirements](https://cabforum.org/working-groups/server/baseline-requirements/)
 - [CA/Browser Forum SC-081v3](https://cabforum.org/2025/04/11/ballot-sc081v3/) - Certificate Validity Period Reductions
+- [Microsoft CNG](https://learn.microsoft.com/en-us/windows/win32/seccng/cng-portal) - Cryptography Next Generation
 
 ## Testing
 

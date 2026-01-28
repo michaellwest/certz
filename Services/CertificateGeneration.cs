@@ -13,6 +13,7 @@ internal static class CertificateGeneration
         int keySize = 2048,
         string hashAlgorithm = "auto",
         string keyType = "RSA",
+        string rsaPadding = "pkcs1",
         bool isCA = false,
         int pathLength = -1,
         string? crlUrl = null,
@@ -59,7 +60,10 @@ internal static class CertificateGeneration
         if (keyType == "RSA")
         {
             var rsaKey = CreateRSAKeyMaterial(keySize);
-            request = new CertificateRequest(subject, rsaKey, hashName, RSASignaturePadding.Pkcs1);
+            var padding = rsaPadding.ToUpperInvariant() == "PSS"
+                ? RSASignaturePadding.Pss
+                : RSASignaturePadding.Pkcs1;
+            request = new CertificateRequest(subject, rsaKey, hashName, padding);
             subjectKeyIdentifier = new X509SubjectKeyIdentifierExtension(request.PublicKey, false);
         }
         else if (keyType.StartsWith("ECDSA-"))

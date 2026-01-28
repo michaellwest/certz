@@ -148,7 +148,7 @@ docker-compose -f docker-compose.test.yml down
 **Solution:**
 ```powershell
 # Pull the base image manually
-docker pull mcr.microsoft.com/dotnet/sdk:7.0-nanoserver-ltsc2022
+docker pull mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 
 # Then retry the build
 .\test-all.ps1 -UseDocker
@@ -305,10 +305,10 @@ Edit `Dockerfile.test` and change the base image:
 
 ```dockerfile
 # For Windows Server 2019
-FROM mcr.microsoft.com/dotnet/sdk:7.0-nanoserver-1809
+FROM mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-1809
 
 # For Windows Server 2022 (default)
-FROM mcr.microsoft.com/dotnet/sdk:7.0-nanoserver-ltsc2022
+FROM mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 ```
 
 ## CI/CD Integration

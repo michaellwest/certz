@@ -20,6 +20,7 @@ internal static class ConvertCommand
         var passwordFileOption = OptionBuilders.CreatePasswordFileOption();
         var outputCertOption = OptionBuilders.CreateOutputCertOption();
         var outputKeyOption = OptionBuilders.CreateOutputKeyOption();
+        var pfxEncryptionOption = OptionBuilders.CreatePfxEncryptionOption();
 
         var convertCommand = new Command("convert", "Converts between PFX and PEM certificate formats.");
         convertCommand.Options.Add(certOption);
@@ -29,6 +30,7 @@ internal static class ConvertCommand
         convertCommand.Options.Add(passwordFileOption);
         convertCommand.Options.Add(outputCertOption);
         convertCommand.Options.Add(outputKeyOption);
+        convertCommand.Options.Add(pfxEncryptionOption);
 
         convertCommand.SetAction(async (parseResult) =>
         {
@@ -39,12 +41,13 @@ internal static class ConvertCommand
             var passwordFile = parseResult.GetValue(passwordFileOption);
             var outCert = parseResult.GetValue(outputCertOption);
             var outKey = parseResult.GetValue(outputKeyOption);
+            var pfxEncryption = parseResult.GetValue(pfxEncryptionOption);
 
             // Determine conversion direction
             if (cert != null && key != null && pfx != null)
             {
                 // PEM to PFX (original functionality)
-                await CertificateOperations.ConvertToPfx(cert, key, pfx, password, passwordFile);
+                await CertificateOperations.ConvertToPfx(cert, key, pfx, password, passwordFile, pfxEncryption!);
             }
             else if (pfx != null && (outCert != null || outKey != null))
             {

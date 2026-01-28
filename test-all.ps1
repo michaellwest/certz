@@ -27,7 +27,7 @@
 .PARAMETER Category
     Run only tests in specific categories. Accepts an array of category names.
     Available categories: create, password, keysize, hash, keytype, ca, subject,
-    validity, extensions, install, list, remove, export, convert, integration, error, info, verify
+    validity, extensions, rsa-padding, pfx-encryption, install, list, remove, export, convert, integration, error, info, verify
 
 .EXAMPLE
     .\test-all.ps1
@@ -85,11 +85,13 @@ $script:TestCategories = @{
     "subject" = @("cre-7.1", "cre-7.2", "cre-7.3")
     "validity" = @("cre-8.1", "cre-8.2", "cre-8.3", "cre-8.4", "cre-8.5")
     "extensions" = @("cre-9.1", "cre-9.2", "cre-9.3", "cre-9.4")
-    "install" = @("ins-1.1", "ins-1.2", "ins-1.3")
+    "rsa-padding" = @("cre-10.1", "cre-10.2", "cre-10.3")
+    "pfx-encryption" = @("cre-11.1", "cre-11.2", "cre-11.3", "cnv-3.1", "cnv-3.2")
+    "install" = @("ins-1.1", "ins-1.2", "ins-1.3", "ins-2.1", "ins-2.2")
     "list" = @("lst-1.1", "lst-1.2", "lst-1.3")
     "remove" = @("rem-1.1", "rem-1.2", "rem-1.3")
     "export" = @("exp-1.1", "exp-1.2", "exp-1.3", "exp-1.4", "exp-1.5", "exp-1.6")
-    "convert" = @("cnv-1.1", "cnv-1.2", "cnv-1.3", "cnv-1.4", "cnv-1.5", "cnv-2.1", "cnv-2.2", "cnv-2.3", "cnv-2.4")
+    "convert" = @("cnv-1.1", "cnv-1.2", "cnv-1.3", "cnv-1.4", "cnv-1.5", "cnv-2.1", "cnv-2.2", "cnv-2.3", "cnv-2.4", "cnv-3.1", "cnv-3.2")
     "integration" = @("int-1.1", "int-1.2")
     "error" = @("err-1.1", "err-1.2")
     "info" = @("inf-1.1", "inf-1.2", "inf-1.3", "inf-1.4")
@@ -809,18 +811,18 @@ Invoke-Test -TestId "cre-2.3" -TestName "Password file ignored when password pro
 # ============================================================================
 Write-TestHeader "Testing Key Size Options"
 
-# Test cre-3.1: Create with 2048-bit RSA key (default)
+# Test cre-3.1: Create with 2048-bit RSA key (shows NIST warning)
 Test-CertzWithOutput -TestId "cre-3.1" -TestName "Create with 2048-bit RSA key" -FilePrefix "keysize-2048" `
     -CertzArgs @("create", "--f", "keysize-2048.pfx", "--p", "KeySize2048Pass", "--key-size", "2048") `
     -ExpectedFiles @("keysize-2048.pfx") `
     -OutputPattern "INFO: Using 2048-bit RSA key" `
     -Details "NIST warning displayed"
 
-# Test cre-3.2: Create with 3072-bit RSA key (NIST recommended)
-Test-CertzFileCreation -TestId "cre-3.2" -TestName "Create with 3072-bit RSA key" -FilePrefix "keysize-3072" `
+# Test cre-3.2: Create with 3072-bit RSA key (NIST recommended, now default)
+Test-CertzFileCreation -TestId "cre-3.2" -TestName "Create with 3072-bit RSA key (default)" -FilePrefix "keysize-3072" `
     -CertzArgs @("create", "--f", "keysize-3072.pfx", "--p", "KeySize3072Pass", "--key-size", "3072") `
     -ExpectedFiles @("keysize-3072.pfx") `
-    -Details "NIST recommended key size"
+    -Details "NIST recommended key size (default)"
 
 # Test cre-3.3: Create with 4096-bit RSA key
 Test-CertzFileCreation -TestId "cre-3.3" -TestName "Create with 4096-bit RSA key" -FilePrefix "keysize-4096" `
@@ -994,6 +996,52 @@ Test-CertzFileCreation -TestId "cre-9.4" -TestName "Create with all AIA/CDP exte
     -ExpectedFiles @("ext-all.pfx") -Details "Full revocation info"
 
 # ============================================================================
+# RSA PADDING TESTS
+# ============================================================================
+Write-TestHeader "Testing RSA Padding Options"
+
+# Test cre-10.1: Create with PKCS#1 v1.5 padding (default)
+Test-CertzFileCreation -TestId "cre-10.1" -TestName "Create with PKCS#1 v1.5 padding (default)" -FilePrefix "padding-pkcs1" `
+    -CertzArgs @("create", "--f", "padding-pkcs1.pfx", "--p", "PaddingPkcs1Pass", "--rsa-padding", "pkcs1") `
+    -ExpectedFiles @("padding-pkcs1.pfx") -Details "Default RSA padding"
+
+# Test cre-10.2: Create with RSA-PSS padding (modern)
+Test-CertzFileCreation -TestId "cre-10.2" -TestName "Create with RSA-PSS padding" -FilePrefix "padding-pss" `
+    -CertzArgs @("create", "--f", "padding-pss.pfx", "--p", "PaddingPssPass", "--rsa-padding", "pss") `
+    -ExpectedFiles @("padding-pss.pfx") -Details "Modern RSA-PSS padding"
+
+# Test cre-10.3: RSA-PSS padding with ECDSA key (should be ignored)
+Test-CertzFileCreation -TestId "cre-10.3" -TestName "RSA padding ignored for ECDSA" -FilePrefix "padding-ecdsa" `
+    -CertzArgs @("create", "--f", "padding-ecdsa.pfx", "--p", "PaddingEcdsaPass", "--key-type", "ECDSA-P256", "--rsa-padding", "pss") `
+    -ExpectedFiles @("padding-ecdsa.pfx") -Details "RSA padding not applicable to ECDSA"
+
+# ============================================================================
+# PFX ENCRYPTION TESTS
+# ============================================================================
+Write-TestHeader "Testing PFX Encryption Options"
+
+# Test cre-11.1: Create with modern AES-256 encryption (default)
+Test-CertzFileCreation -TestId "cre-11.1" -TestName "Create with modern PFX encryption (default)" -FilePrefix "pfx-modern" `
+    -CertzArgs @("create", "--f", "pfx-modern.pfx", "--p", "PfxModernPass", "--pfx-encryption", "modern") `
+    -ExpectedFiles @("pfx-modern.pfx") -Details "AES-256 encryption"
+
+# Test cre-11.2: Create with legacy 3DES encryption
+Test-CertzWithOutput -TestId "cre-11.2" -TestName "Create with legacy PFX encryption" -FilePrefix "pfx-legacy" `
+    -CertzArgs @("create", "--f", "pfx-legacy.pfx", "--p", "PfxLegacyPass", "--pfx-encryption", "legacy") `
+    -ExpectedFiles @("pfx-legacy.pfx") `
+    -OutputPattern "INFO: Using legacy 3DES encryption" `
+    -Details "3DES encryption for compatibility"
+
+# Test cre-11.3: Verify modern encrypted PFX can be installed
+Invoke-Test -TestId "cre-11.3" -TestName "Install modern encrypted PFX" -FilePrefix "pfx-modern-install" -TestScript {
+    .\certz.exe create --f pfx-modern-install.pfx --p ModernInstallPass --pfx-encryption modern | Out-Null
+    .\certz.exe install --f pfx-modern-install.pfx --p ModernInstallPass --sn My --sl CurrentUser | Out-Null
+    $cert = Assert-CertificateInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+    if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
+    @{ Success = $true; Details = "Modern AES-256 PFX installs correctly" }
+}
+
+# ============================================================================
 # INSTALL COMMAND TESTS
 # ============================================================================
 Write-TestHeader "Testing INSTALL Command"
@@ -1017,6 +1065,52 @@ Test-CertzInstall -TestId "ins-1.3" -TestName "Install to CurrentUser store" `
     -PfxFile "install-test.pfx" -Password "InstallTestPass" `
     -StoreName "My" -StoreLocation "CurrentUser" `
     -Details "Certificate in CurrentUser\My"
+
+# ============================================================================
+# EXPORTABLE OPTION TESTS
+# ============================================================================
+Write-TestHeader "Testing Exportable Option"
+
+# Test ins-2.1: Install with exportable=true (default)
+Invoke-Test -TestId "ins-2.1" -TestName "Install with exportable key (default)" -FilePrefix "exportable-true" -TestScript {
+    .\certz.exe create --f exportable-true.pfx --p ExportableTruePass | Out-Null
+    .\certz.exe install --f exportable-true.pfx --p ExportableTruePass --sn My --sl CurrentUser --exportable true | Out-Null
+    $cert = Assert-CertificateInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+
+    # Try to export the private key - should succeed with exportable=true
+    $exportSuccess = $false
+    try {
+        $exported = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "TestExport123")
+        $exportSuccess = $exported.Length -gt 0
+    } catch {
+        $exportSuccess = $false
+    }
+
+    if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
+
+    if (-not $exportSuccess) { throw "Private key should be exportable" }
+    @{ Success = $true; Details = "Private key is exportable" }
+}
+
+# Test ins-2.2: Install with exportable=false
+Invoke-Test -TestId "ins-2.2" -TestName "Install with non-exportable key" -FilePrefix "exportable-false" -TestScript {
+    .\certz.exe create --f exportable-false.pfx --p ExportableFalsePass | Out-Null
+    .\certz.exe install --f exportable-false.pfx --p ExportableFalsePass --sn My --sl CurrentUser --exportable false | Out-Null
+    $cert = Assert-CertificateInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+
+    # Try to export the private key - should fail with exportable=false
+    $exportFailed = $false
+    try {
+        $exported = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "TestExport123")
+    } catch {
+        $exportFailed = $true
+    }
+
+    if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
+
+    if (-not $exportFailed) { throw "Private key should NOT be exportable" }
+    @{ Success = $true; Details = "Private key is non-exportable" }
+}
 
 # ============================================================================
 # LIST COMMAND TESTS
@@ -1320,6 +1414,23 @@ Invoke-Test -TestId "cnv-2.4" -TestName "Round-trip conversion (PFX to PEM to PF
     Assert-FileExists "roundtrip.pfx" "Final PFX should exist"
     @{ Success = $true; Details = "Full conversion cycle successful" }
 }
+
+# ============================================================================
+# CONVERT PFX ENCRYPTION TESTS
+# ============================================================================
+Write-TestHeader "Testing Convert PFX Encryption Options"
+
+# Test cnv-3.1: Convert PEM to PFX with modern encryption
+Test-CertzFileCreation -TestId "cnv-3.1" -TestName "Convert PEM to PFX with modern encryption" -FilePrefix "convert-modern" `
+    -CertzArgs @("convert", "--cert", "convert-input.cer", "--key", "convert-input.key", "--pfx", "convert-modern.pfx", "--p", "ConvertModernPass", "--pfx-encryption", "modern") `
+    -ExpectedFiles @("convert-modern.pfx") -Details "AES-256 encrypted PFX"
+
+# Test cnv-3.2: Convert PEM to PFX with legacy encryption
+Test-CertzWithOutput -TestId "cnv-3.2" -TestName "Convert PEM to PFX with legacy encryption" -FilePrefix "convert-legacy" `
+    -CertzArgs @("convert", "--cert", "convert-input.cer", "--key", "convert-input.key", "--pfx", "convert-legacy.pfx", "--p", "ConvertLegacyPass", "--pfx-encryption", "legacy") `
+    -ExpectedFiles @("convert-legacy.pfx") `
+    -OutputPattern "INFO: Using legacy 3DES encryption" `
+    -Details "3DES encrypted PFX for compatibility"
 
 # ============================================================================
 # ERROR HANDLING TESTS

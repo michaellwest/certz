@@ -28,6 +28,8 @@ internal static class CreateCommand
         var keySizeOption = OptionBuilders.CreateKeySizeOption();
         var hashAlgorithmOption = OptionBuilders.CreateHashAlgorithmOption();
         var keyTypeOption = OptionBuilders.CreateKeyTypeOption();
+        var rsaPaddingOption = OptionBuilders.CreateRsaPaddingOption();
+        var pfxEncryptionOption = OptionBuilders.CreatePfxEncryptionOption();
         var isCAOption = OptionBuilders.CreateIsCAOption();
         var pathLengthOption = OptionBuilders.CreatePathLengthOption();
         var crlUrlOption = OptionBuilders.CreateCrlUrlOption();
@@ -50,6 +52,8 @@ internal static class CreateCommand
         createCommand.Options.Add(keySizeOption);
         createCommand.Options.Add(hashAlgorithmOption);
         createCommand.Options.Add(keyTypeOption);
+        createCommand.Options.Add(rsaPaddingOption);
+        createCommand.Options.Add(pfxEncryptionOption);
         createCommand.Options.Add(isCAOption);
         createCommand.Options.Add(pathLengthOption);
         createCommand.Options.Add(crlUrlOption);
@@ -73,6 +77,8 @@ internal static class CreateCommand
             var keySize = parseResult.GetValue(keySizeOption);
             var hashAlgorithm = parseResult.GetValue(hashAlgorithmOption);
             var keyType = parseResult.GetValue(keyTypeOption);
+            var rsaPadding = parseResult.GetValue(rsaPaddingOption);
+            var pfxEncryption = parseResult.GetValue(pfxEncryptionOption);
             var isCA = parseResult.GetValue(isCAOption);
             var pathLength = parseResult.GetValue(pathLengthOption);
             var crlUrl = parseResult.GetValue(crlUrlOption);
@@ -86,10 +92,10 @@ internal static class CreateCommand
 
             await CertificateOperations.CreateCertificate(
                 pfx!, password, cert!, key!, dnsNames!, days,
-                keySize, hashAlgorithm!, keyType!,
+                keySize, hashAlgorithm!, keyType!, rsaPadding!,
                 isCA, pathLength, crlUrl, ocspUrl, caIssuersUrl,
                 subjectO, subjectOU, subjectC, subjectST, subjectL,
-                passwordFile);
+                passwordFile, pfxEncryption!);
         });
 
         return createCommand;

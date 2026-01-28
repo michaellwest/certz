@@ -17,12 +17,14 @@ internal static class InstallCommand
         var passwordOption = OptionBuilders.CreatePasswordOption();
         var storeNameOption = OptionBuilders.CreateStoreNameOption();
         var storeLocationOption = OptionBuilders.CreateStoreLocationOption();
+        var exportableOption = OptionBuilders.CreateExportableOption();
 
         var installCommand = new Command("install", "Installs a certificate.");
         installCommand.Options.Add(fileOption);
         installCommand.Options.Add(passwordOption);
         installCommand.Options.Add(storeNameOption);
         installCommand.Options.Add(storeLocationOption);
+        installCommand.Options.Add(exportableOption);
 
         installCommand.SetAction(async (parseResult) =>
         {
@@ -30,7 +32,8 @@ internal static class InstallCommand
             var password = parseResult.GetValue(passwordOption);
             var storename = parseResult.GetValue(storeNameOption);
             var storelocation = parseResult.GetValue(storeLocationOption);
-            await CertificateOperations.InstallCertificate(file!, password, storename, storelocation);
+            var exportable = parseResult.GetValue(exportableOption);
+            await CertificateOperations.InstallCertificate(file!, password, storename, storelocation, exportable);
         });
 
         return installCommand;

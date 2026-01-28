@@ -53,15 +53,45 @@ internal static class CertificateOperations
         Console.WriteLine();
     }
 
-    internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation)
+    private static X509KeyStorageFlags GetKeyStorageFlags(
+        StoreLocation? storeLocation = null,
+        bool persist = false,
+        bool exportable = true,
+        bool ephemeral = false)
+    {
+        if (ephemeral)
+        {
+            return X509KeyStorageFlags.EphemeralKeySet;
+        }
+
+        var flags = (X509KeyStorageFlags)0;
+
+        if (exportable)
+            flags |= X509KeyStorageFlags.Exportable;
+
+        if (persist)
+            flags |= X509KeyStorageFlags.PersistKeySet;
+
+        // Use MachineKeySet for LocalMachine, UserKeySet for CurrentUser
+        // This ensures keys are stored with the correct provider context
+        if (storeLocation == StoreLocation.LocalMachine)
+            flags |= X509KeyStorageFlags.MachineKeySet;
+        else if (storeLocation == StoreLocation.CurrentUser)
+            flags |= X509KeyStorageFlags.UserKeySet;
+
+        return flags;
+    }
+
+    internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation, bool exportable = true)
     {
         if (!file.Exists)
         {
             throw new FileNotFoundException($"Certificate file not found: {file.FullName}");
         }
 
+        var flags = GetKeyStorageFlags(storeLocation, persist: true, exportable: exportable);
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
-        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
+        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, flags);
         Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
         store.Add(certificate);
         store.Close();
@@ -69,7 +99,7 @@ internal static class CertificateOperations
         await Task.Delay(10);
     }
 
-    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false, FileInfo? passwordFile = null)
+    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false, FileInfo? passwordFile = null, string pfxEncryption = "modern")
     {
         // Ensure output directory exists
         var directory = Path.GetDirectoryName(path);
@@ -78,10 +108,26 @@ internal static class CertificateOperations
             Directory.CreateDirectory(directory);
         }
 
-        //TODO: File extension validation
         if (certificateFileType == CertificateFileType.Pfx)
         {
-            var certData = certificate.Export(X509ContentType.Pfx, password);
+            byte[] certData;
+
+            if (pfxEncryption.ToUpperInvariant() == "MODERN")
+            {
+                // Modern encryption: AES-256-CBC with SHA-256 and high iteration count
+                // Recommended for Windows Server 2019+, Windows 11
+                var pbeParams = new PbeParameters(
+                    PbeEncryptionAlgorithm.Aes256Cbc,
+                    HashAlgorithmName.SHA256,
+                    iterationCount: 100000);
+
+                certData = certificate.ExportPkcs12(pbeParams, password);
+            }
+            else
+            {
+                // Legacy encryption: 3DES for compatibility with older systems
+                certData = certificate.Export(X509ContentType.Pfx, password);
+            }
 
             await File.WriteAllBytesAsync(path, certData);
 
@@ -125,10 +171,10 @@ internal static class CertificateOperations
 
     internal static async Task CreateCertificate(
         FileInfo pfx, string? password, FileInfo cert, FileInfo key, string[] dnsNames, int days,
-        int keySize = 2048, string hashAlgorithm = "auto", string keyType = "RSA",
+        int keySize = 2048, string hashAlgorithm = "auto", string keyType = "RSA", string rsaPadding = "pkcs1",
         bool isCA = false, int pathLength = -1, string? crlUrl = null, string? ocspUrl = null, string? caIssuersUrl = null,
         string? subjectO = null, string? subjectOU = null, string? subjectC = null, string? subjectST = null, string? subjectL = null,
-        FileInfo? passwordFile = null)
+        FileInfo? passwordFile = null, string pfxEncryption = "modern")
     {
         // Set default for PFX if no files are specified
         if (pfx == null && cert == null && key == null)
@@ -155,7 +201,7 @@ internal static class CertificateOperations
         // Weekend adjustment removed to prevent exceeding CA/B Forum validity limits
         // Certificates should expire on the exact day specified by the user
         var certificate = CertificateGeneration.GenerateCertificate(
-            dnsNames, validFrom, validTo, keySize, hashAlgorithm, keyType,
+            dnsNames, validFrom, validTo, keySize, hashAlgorithm, keyType, rsaPadding,
             isCA, pathLength, crlUrl, ocspUrl, caIssuersUrl,
             subjectO, subjectOU, subjectC, subjectST, subjectL);
         if (certificate == null)
@@ -175,7 +221,7 @@ internal static class CertificateOperations
         Console.WriteLine("Saved the following certificate files:");
         if (pfx != null)
         {
-            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
+            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile, pfxEncryption);
         }
 
         if (cert != null)
@@ -284,7 +330,7 @@ internal static class CertificateOperations
         await Task.Delay(10);
     }
 
-    internal static async Task ConvertToPfx(FileInfo certFile, FileInfo keyFile, FileInfo pfxFile, string password, FileInfo? passwordFile = null)
+    internal static async Task ConvertToPfx(FileInfo certFile, FileInfo keyFile, FileInfo pfxFile, string password, FileInfo? passwordFile = null, string pfxEncryption = "modern")
     {
         if (!certFile.Exists)
         {
@@ -334,7 +380,21 @@ internal static class CertificateOperations
 
         // Export as PFX
         pfxFile.Directory?.Create();
-        var pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
+        byte[] pfxData;
+        if (pfxEncryption.ToUpperInvariant() == "MODERN")
+        {
+            // Modern encryption: AES-256-CBC with SHA-256 and high iteration count
+            var pbeParams = new PbeParameters(
+                PbeEncryptionAlgorithm.Aes256Cbc,
+                HashAlgorithmName.SHA256,
+                iterationCount: 100000);
+            pfxData = certificateWithKey.ExportPkcs12(pbeParams, password);
+        }
+        else
+        {
+            // Legacy encryption: 3DES for compatibility with older systems
+            pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
+        }
         await File.WriteAllBytesAsync(pfxFile.FullName, pfxData);
 
         Console.WriteLine("Successfully converted certificate and key to PFX format:");
