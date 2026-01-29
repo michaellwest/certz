@@ -788,19 +788,41 @@ Remove-TestFiles "pwfile-create"
 
 # Test cre-2.2: Verify password file content can be used to install certificate
 Invoke-Test -TestId "cre-2.2" -TestName "Use password from file to install" -FilePrefix "pwfile-install" -TestScript {
-    # Create a certificate with password file (self-contained setup)
-    .\certz.exe create --f pwfile-install.pfx --password-file pwfile-install.password.txt 2>&1 | Out-Null
-    Assert-FileExists "pwfile-install.pfx" "PFX file should be created"
-    Assert-FileExists "pwfile-install.password.txt" "Password file should be created"
+    $testId = "cre-2.2"
+    $uniqueId = [guid]::NewGuid().ToString().Substring(0,8)
+    $subject = "CN=certz-test-$testId-$uniqueId"
+    $password = "TestPassword-$uniqueId"
+    $pfxPath = "pwfile-install.pfx"
+    $passwordFile = "pwfile-install.password.txt"
 
-    $password = Get-Content "pwfile-install.password.txt" -Raw
-    & .\certz.exe install --f pwfile-install.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-Null
-    $cert = Assert-CertificateInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+    try {
+        # PRECONDITION: Create PFX and password file using PowerShell only
+        $cert = New-SelfSignedCertificate -Subject $subject -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(30)
+        $securePassword = ConvertTo-SecureString -String $password -Force -AsPlainText
+        Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePassword | Out-Null
+        Set-Content -Path $passwordFile -Value $password -NoNewline
 
-    # Cleanup
-    if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
-    Remove-TestFiles "pwfile-install"
-    @{ Success = $true; Details = "Password file content is valid" }
+        # Remove from temp store (we only wanted the PFX file)
+        Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+
+        Assert-FileExists $pfxPath "PFX file should be created"
+        Assert-FileExists $passwordFile "Password file should be created"
+
+        # ACTION: Single certz.exe call - the behavior under test
+        $filePassword = Get-Content $passwordFile -Raw
+        & .\certz.exe install --f $pfxPath --p $filePassword --sn My --sl CurrentUser 2>&1 | Out-Null
+
+        # ASSERTION: Verify using PowerShell
+        $installedCert = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Subject -eq $subject } | Select-Object -First 1
+        if (-not $installedCert) { throw "Certificate was not installed to store" }
+
+        @{ Success = $true; Details = "Password file content is valid" }
+    } finally {
+        # CLEANUP: PowerShell only - never use certz
+        Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Subject -eq $subject } | Remove-Item -Force -ErrorAction SilentlyContinue
+        Remove-Item $pfxPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $passwordFile -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Test cre-2.3: Password file not created when password is provided

@@ -7,6 +7,7 @@
 - Include test scenarios for each command and option combination
 - Document expected behavior and outputs for each test case
 - Provide example test scripts or commands that users can run to verify functionality
+- Use the `test-isoloation-plan.md` to ensure proper testing requirements are followed
 
 ### 2. Command Usage Documentation
 - Comprehensive documentation on how to use the various commands
