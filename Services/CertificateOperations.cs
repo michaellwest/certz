@@ -2,20 +2,11 @@ namespace certz.Services;
 
 internal static class CertificateOperations
 {
-    private static string GenerateSecurePassword(int length = 24)
+    private static string GenerateSecurePassword()
     {
-        const string validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_+-=[]{}|;:,.<>?";
-        var random = new byte[length];
-        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-        {
-            rng.GetBytes(random);
-        }
-        var result = new char[length];
-        for (int i = 0; i < length; i++)
-        {
-            result[i] = validChars[random[i] % validChars.Length];
-        }
-        return new string(result);
+        // 32 bytes = 256 bits = 64 hex characters
+        byte[] data = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToHexString(data);
     }
 
     private static void DisplayPasswordWarning(string password, string purpose, FileInfo? passwordFile = null)
