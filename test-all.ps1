@@ -781,21 +781,25 @@ Test-CertzFileCreation -TestId "cre-1.7" -TestName "Create with multiple SANs" -
 Write-TestHeader "Testing Password File Option"
 
 # Test cre-2.1: Create with password file (password written to file)
-$pwCreateResult = Test-CertzPasswordFileCreation -TestId "cre-2.1" -TestName "Create with password file" -FilePrefix "pwfile-create" `
+Test-CertzPasswordFileCreation -TestId "cre-2.1" -TestName "Create with password file" -FilePrefix "pwfile-create" `
     -CertzArgs @("create", "--f", "pwfile-create.pfx", "--password-file", "pwfile-create.password.txt") `
     -PfxFile "pwfile-create.pfx" -PasswordFile "pwfile-create.password.txt"
+Remove-TestFiles "pwfile-create"
 
 # Test cre-2.2: Verify password file content can be used to install certificate
-Invoke-Test -TestId "cre-2.2" -TestName "Use password from file to install" -TestScript {
-    Assert-FileExists "pwfile-create.password.txt" "Password file should exist from previous test"
-    Assert-FileExists "pwfile-create.pfx" "PFX file should exist from previous test"
+Invoke-Test -TestId "cre-2.2" -TestName "Use password from file to install" -FilePrefix "pwfile-install" -TestScript {
+    # Create a certificate with password file (self-contained setup)
+    .\certz.exe create --f pwfile-install.pfx --password-file pwfile-install.password.txt 2>&1 | Out-Null
+    Assert-FileExists "pwfile-install.pfx" "PFX file should be created"
+    Assert-FileExists "pwfile-install.password.txt" "Password file should be created"
 
-    $password = Get-Content "pwfile-create.password.txt" -Raw
-    & .\certz.exe install --f pwfile-create.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-Null
+    $password = Get-Content "pwfile-install.password.txt" -Raw
+    & .\certz.exe install --f pwfile-install.pfx --p $password --sn My --sl CurrentUser 2>&1 | Out-Null
     $cert = Assert-CertificateInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
 
     # Cleanup
     if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
+    Remove-TestFiles "pwfile-install"
     @{ Success = $true; Details = "Password file content is valid" }
 }
 
@@ -804,6 +808,7 @@ Invoke-Test -TestId "cre-2.3" -TestName "Password file ignored when password pro
     & .\certz.exe create --f pwfile-provided.pfx --p ProvidedPass --password-file pwfile-provided.password.txt 2>&1 | Out-Null
     Assert-FileExists "pwfile-provided.pfx" "PFX file should be created"
     Assert-FileNotExists "pwfile-provided.password.txt" "Password file should not be created when password is provided"
+    Remove-TestFiles "pwfile-provided"
     @{ Success = $true; Details = "No file created with explicit password" }
 }
 
@@ -1062,10 +1067,11 @@ Test-CertzInstall -TestId "ins-1.2" -TestName "Install to Root store" `
     -Details "Certificate in LocalMachine\Root"
 
 # Test ins-1.3: Install to CurrentUser store
-Test-CertzInstall -TestId "ins-1.3" -TestName "Install to CurrentUser store" `
+$ins13Cert = Test-CertzInstall -TestId "ins-1.3" -TestName "Install to CurrentUser store" `
     -PfxFile "install-test.pfx" -Password "InstallTestPass" `
     -StoreName "My" -StoreLocation "CurrentUser" `
     -Details "Certificate in CurrentUser\My"
+if ($ins13Cert) { .\certz.exe remove --thumb $ins13Cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
 
 # ============================================================================
 # EXPORTABLE OPTION TESTS
@@ -1088,6 +1094,8 @@ Invoke-Test -TestId "ins-2.1" -TestName "Install with exportable key (default)" 
     }
 
     if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
+    Assert-CertificateNotInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser" -Message "Certificate should be removed from store"
+    Remove-TestFiles "exportable-true"
 
     if (-not $exportSuccess) { throw "Private key should be exportable" }
     @{ Success = $true; Details = "Private key is exportable" }
@@ -1108,6 +1116,8 @@ Invoke-Test -TestId "ins-2.2" -TestName "Install with non-exportable key" -FileP
     }
 
     if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
+    Assert-CertificateNotInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser" -Message "Certificate should be removed from store"
+    Remove-TestFiles "exportable-false"
 
     if (-not $exportFailed) { throw "Private key should NOT be exportable" }
     @{ Success = $true; Details = "Private key is non-exportable" }
@@ -1231,7 +1241,8 @@ Invoke-Test -TestId "cnv-1.4" -TestName "Install converted cert using password f
 # Test cnv-1.5: Verify converted certificate can be installed
 Invoke-Test -TestId "cnv-1.5" -TestName "Install converted certificate" -TestScript {
     .\certz.exe install --f converted.pfx --p ConvertPass123 --sl CurrentUser --sn My | Out-Null
-    Assert-CertificateInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+    $cert = Assert-CertificateInStore -SubjectPattern "*dev.local*" -StoreName "My" -StoreLocation "CurrentUser"
+    if ($cert) { .\certz.exe remove --thumb $cert.Thumbprint --sn My --sl CurrentUser | Out-Null }
     @{ Success = $true; Details = "Converted cert is valid" }
 }
 
