@@ -191,22 +191,23 @@ internal static class OptionBuilders
         return hashAlgorithmOption;
     }
 
+    internal static readonly string[] validKeyTypes = ["RSA", "ECDSA-P256", "ECDSA-P384", "ECDSA-P521"];
+
     internal static Option<string> CreateKeyTypeOption()
     {
         var keyTypeOption = new Option<string>("--key-type", "--kt")
         {
-            Description = "Key type: RSA (default), ECDSA-P256, ECDSA-P384, or ECDSA-P521.",
-            DefaultValueFactory = _ => "RSA"
+            Description = "Key type: RSA, ECDSA-P256 (default), ECDSA-P384, or ECDSA-P521.",
+            DefaultValueFactory = _ => "ECDSA-P256"
         };
 
         keyTypeOption.Validators.Add(result =>
         {
             var keyType = result.GetValueOrDefault<string>();
             var normalizedType = keyType?.ToUpperInvariant();
-            var validTypes = new[] { "RSA", "ECDSA-P256", "ECDSA-P384", "ECDSA-P521" };
-            if (!validTypes.Contains(normalizedType))
+            if (!validKeyTypes.Contains(normalizedType))
             {
-                result.AddError($"Key type must be one of: {string.Join(", ", validTypes)}");
+                result.AddError($"Key type must be one of: {string.Join(", ", validKeyTypes)}");
             }
         });
 
@@ -217,8 +218,8 @@ internal static class OptionBuilders
     {
         var rsaPaddingOption = new Option<string>("--rsa-padding", "--rp")
         {
-            Description = "RSA signature padding mode: pkcs1 (default, wider compatibility) or pss (modern, recommended for new certificates).",
-            DefaultValueFactory = _ => "pkcs1"
+            Description = "RSA signature padding mode: pkcs1 (wider compatibility) or pss (default, modern, recommended for new certificates).",
+            DefaultValueFactory = _ => "pss"
         };
 
         rsaPaddingOption.Validators.Add(result =>

@@ -13,9 +13,9 @@ internal static class InfoCommand
 
     private static Command BuildInfoCommand()
     {
-        var fileOption = OptionBuilders.CreateFileOption(false, new[] { "--file", "--f", "--cert", "--c" });
+        var fileOption = OptionBuilders.CreateFileOption(false, ["--file", "--f", "--cert", "--c"]);
         var thumbprintOption = OptionBuilders.CreateThumbprintOption();
-        var urlOption = OptionBuilders.CreateUrlOption(false, new[] { "--url", "--u" });
+        var urlOption = OptionBuilders.CreateUrlOption(false, ["--url", "--u"]);
         var passwordOption = OptionBuilders.CreatePasswordOption();
         var storeNameOption = OptionBuilders.CreateStoreNameOption();
         var storeLocationOption = OptionBuilders.CreateStoreLocationOption();

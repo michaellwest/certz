@@ -846,7 +846,7 @@ Test-CertzWithOutput -TestId "cre-3.1" -TestName "Create with 2048-bit RSA key" 
     -OutputPattern "INFO: Using 2048-bit RSA key" `
     -Details "NIST warning displayed"
 
-# Test cre-3.2: Create with 3072-bit RSA key (NIST recommended, now default)
+# Test cre-3.2: Create with 3072-bit RSA key (NIST recommended)
 Test-CertzFileCreation -TestId "cre-3.2" -TestName "Create with 3072-bit RSA key (default)" -FilePrefix "keysize-3072" `
     -CertzArgs @("create", "--f", "keysize-3072.pfx", "--p", "KeySize3072Pass", "--key-size", "3072") `
     -ExpectedFiles @("keysize-3072.pfx") `

@@ -155,21 +155,24 @@ certz is designed to meet current industry standards and best practices for cert
 ### Cryptographic Standards
 
 #### Key Types and Sizes
-- **RSA**: Configurable 2048, 3072, or 4096 bits (default: 3072)
-  - 2048 bits: Current minimum standard (NIST SP 800-131A Rev. 2)
-  - 3072 bits: **Default** - Recommended for protection beyond 2030 (NIST SP 800-57 Part 1 Rev. 5)
-  - 4096 bits: Maximum security for long-lived certificates
+
 - **ECDSA**: P-256, P-384, P-521 curves (NIST SP 800-186)
   - P-256: Equivalent to 3072-bit RSA, recommended for TLS 1.3
   - P-384: Equivalent to 7680-bit RSA
   - P-521: Maximum ECDSA security
+- **RSA**: Configurable 2048, 3072, or 4096 bits (default: 3072)
+  - 2048 bits: Current minimum standard (NIST SP 800-131A Rev. 2)
+  - 3072 bits: **Default** - Recommended for protection beyond 2030 (NIST SP 800-57 Part 1 Rev. 5)
+  - 4096 bits: Maximum security for long-lived certificates
 
 #### RSA Signature Padding
-- **PKCS#1 v1.5** (default): Wider compatibility with older systems
-- **RSA-PSS**: Modern padding scheme, recommended for new certificates
+
+- **RSA-PSS** (default): Modern padding scheme, recommended for new certificates
   - Use `--rsa-padding pss` to enable RSA-PSS signatures
+- **PKCS#1 v1.5**: Wider compatibility with older systems
 
 #### Hash Algorithms
+
 - **SHA-256**: Standard for RSA 2048-bit keys
 - **SHA-384**: Recommended for RSA 3072-bit keys and ECDSA P-384
 - **SHA-512**: Recommended for RSA 4096-bit keys and ECDSA P-521
@@ -193,6 +196,7 @@ The tool will warn you if creating certificates that will violate upcoming limit
 certz implements all critical RFC 5280 extensions:
 
 #### Mandatory Extensions
+
 - **Subject Key Identifier (2.5.29.14)**: Uniquely identifies the certificate's public key
 - **Authority Key Identifier (2.5.29.35)**: Links to the issuing CA's key
 - **Basic Constraints (2.5.29.19)**: Identifies CA vs end-entity certificates
@@ -200,12 +204,15 @@ certz implements all critical RFC 5280 extensions:
 - **Subject Alternative Names (2.5.29.17)**: Modern standard for certificate identities
 
 #### Optional Extensions
+
 - **Enhanced Key Usage (2.5.29.37)**: Purpose-specific usage (Server Authentication, etc.)
 - **CRL Distribution Points (2.5.29.31)**: Revocation checking via CRL
 - **Authority Information Access (1.3.6.1.5.5.7.1.1)**: OCSP responder and CA issuer URLs
 
 #### Extension Criticality
+
 certz correctly implements RFC 5280 criticality requirements:
+
 - **Critical**: Basic Constraints, Key Usage (as recommended)
 - **Non-critical**: Enhanced Key Usage, AIA, CRL Distribution Points
 - **Context-dependent**: SAN (critical only when subject DN is empty)
@@ -213,17 +220,20 @@ certz correctly implements RFC 5280 criticality requirements:
 ### Security Features
 
 #### Password Security
+
 - **No default passwords**: Secure random passwords generated if not provided
 - **No plaintext storage**: Passwords displayed once with warning to store securely
 - **NIST SP 800-63B compliant**: 24-character random passwords with mixed character types
 
 #### Private Key Protection
+
 - **Secure key generation**: Uses platform cryptographic APIs (RSA.Create, ECDsa.Create) with Microsoft CNG (Cryptography Next Generation)
 - **PKCS#8 format**: Standard private key export format
 - **Configurable exportability**: Control whether private keys can be exported from certificate store using `--exportable`
 - **Context-aware key storage**: Automatically uses appropriate key storage flags based on store location (MachineKeySet/UserKeySet)
 
 #### PFX/PKCS#12 Encryption
+
 - **Modern (default)**: AES-256-CBC with SHA-256 and 100,000 iterations
   - Recommended for Windows Server 2019+, Windows 10/11
 - **Legacy**: 3DES encryption for compatibility with older systems
@@ -232,6 +242,7 @@ certz correctly implements RFC 5280 criticality requirements:
 ### Distinguished Names
 
 certz supports full X.500 Distinguished Names per RFC 5280:
+
 - **CN** (Common Name): Required, typically the primary domain name
 - **O** (Organization): Company or organization name
 - **OU** (Organizational Unit): Department or division
@@ -242,6 +253,7 @@ certz supports full X.500 Distinguished Names per RFC 5280:
 ### CA Certificate Support
 
 certz can generate proper Certificate Authority certificates with:
+
 - **Correct Key Usage**: KeyCertSign, CRLSign, DigitalSignature
 - **Path Length Constraints**: Control certificate chain depth
 - **No EKU**: CA certificates omit Enhanced Key Usage extension (correct per RFC 5280)
