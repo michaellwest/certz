@@ -256,6 +256,125 @@ internal class TextFormatter : IOutputFormatter
         return sb.ToString();
     }
 
+    public void WriteStoreList(StoreListResult result)
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Subject[/]"))
+            .AddColumn(new TableColumn("[bold]Thumbprint[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Expires[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Days[/]").Centered())
+            .AddColumn(new TableColumn("[bold]Key[/]").Centered())
+            .AddColumn(new TableColumn("[bold]CA[/]").Centered());
+
+        foreach (var cert in result.Certificates)
+        {
+            // Color code expiration
+            var daysColor = cert.DaysRemaining switch
+            {
+                < 0 => "red",
+                < 30 => "yellow",
+                _ => "green"
+            };
+
+            // Extract CN from subject
+            var subject = GetSimpleName(cert.Subject);
+
+            table.AddRow(
+                Markup.Escape(subject.Length > 40 ? subject[..37] + "..." : subject),
+                $"[dim]{cert.Thumbprint[..16]}...[/]",
+                cert.NotAfter.ToString("yyyy-MM-dd"),
+                $"[{daysColor}]{cert.DaysRemaining}[/]",
+                cert.HasPrivateKey ? "[cyan]Yes[/]" : "[dim]No[/]",
+                cert.IsCa ? "[cyan]Yes[/]" : "[dim]No[/]"
+            );
+        }
+
+        var headerText = $"[bold]{result.StoreLocation}\\{result.StoreName}[/] ({result.FilteredCount} of {result.TotalCount} certificates)";
+        AnsiConsole.Write(new Panel(table)
+            .Header(headerText)
+            .Border(BoxBorder.Rounded));
+    }
+
+    public void WriteTrustAdded(TrustOperationResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError(result.ErrorMessage ?? "Unknown error");
+            return;
+        }
+
+        foreach (var cert in result.Certificates)
+        {
+            var subject = GetSimpleName(cert.Subject);
+            AnsiConsole.MarkupLine($"[green]Certificate added to {result.StoreLocation}\\{result.StoreName}:[/]");
+            AnsiConsole.MarkupLine($"  Subject: [bold]{Markup.Escape(subject)}[/]");
+            AnsiConsole.MarkupLine($"  Thumbprint: [dim]{cert.Thumbprint}[/]");
+            AnsiConsole.MarkupLine($"  Expires: {cert.NotAfter:yyyy-MM-dd}");
+        }
+    }
+
+    public void WriteTrustRemoved(TrustOperationResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError(result.ErrorMessage ?? "Unknown error");
+            return;
+        }
+
+        foreach (var cert in result.Certificates)
+        {
+            var subject = GetSimpleName(cert.Subject);
+            AnsiConsole.MarkupLine($"[green]Certificate removed from {result.StoreLocation}\\{result.StoreName}:[/]");
+            AnsiConsole.MarkupLine($"  Subject: [bold]{Markup.Escape(subject)}[/]");
+            AnsiConsole.MarkupLine($"  Thumbprint: [dim]{cert.Thumbprint}[/]");
+        }
+
+        if (result.Certificates.Count > 1)
+        {
+            AnsiConsole.MarkupLine($"[green]Total: {result.Certificates.Count} certificates removed.[/]");
+        }
+    }
+
+    public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
+    {
+        AnsiConsole.MarkupLine($"[yellow]Multiple certificates match ({matchingCerts.Count}).[/]");
+        AnsiConsole.MarkupLine("[yellow]Use --force to remove all matching certificates, or specify a thumbprint for single removal.[/]");
+        AnsiConsole.WriteLine();
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Subject[/]"))
+            .AddColumn(new TableColumn("[bold]Thumbprint[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Expires[/]").NoWrap());
+
+        foreach (var cert in matchingCerts)
+        {
+            var subject = GetSimpleName(cert.Subject);
+            table.AddRow(
+                Markup.Escape(subject.Length > 50 ? subject[..47] + "..." : subject),
+                cert.Thumbprint,
+                cert.NotAfter.ToString("yyyy-MM-dd")
+            );
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    /// <summary>
+    /// Extracts the CN (Common Name) from a subject string.
+    /// </summary>
+    private static string GetSimpleName(string subject)
+    {
+        if (subject.Contains("CN="))
+        {
+            var cnStart = subject.IndexOf("CN=") + 3;
+            var cnEnd = subject.IndexOf(',', cnStart);
+            return cnEnd > 0 ? subject.Substring(cnStart, cnEnd - cnStart) : subject.Substring(cnStart);
+        }
+        return subject;
+    }
+
     public void WriteError(string message)
     {
         AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(message)}");

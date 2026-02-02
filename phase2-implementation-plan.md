@@ -34,9 +34,9 @@ The following decisions were made for Phase 2 (documented in feature-plan-recomm
 | 8 | Implement URL Inspection | [x] | Services/CertificateInspector.cs - InspectUrlAsync() |
 | 9 | Implement Thumbprint/Store Inspection | [x] | Services/CertificateInspector.cs - InspectFromStore() |
 | 10 | Add --save and --save-key Export Options | [x] | Services/CertificateInspector.cs - SaveCertificate(), SavePrivateKey() |
-| 11 | Create Store List Command | [ ] | |
-| 12 | Create Trust Add Command | [ ] | |
-| 13 | Create Trust Remove Command | [ ] | |
+| 11 | Create Store List Command | [x] | Commands/Store/StoreListCommand.cs, Services/StoreListHandler.cs |
+| 12 | Create Trust Add Command | [x] | Commands/Trust/TrustCommand.cs, Services/TrustHandler.cs |
+| 13 | Create Trust Remove Command | [x] | Commands/Trust/TrustCommand.cs - BuildRemoveCommand() |
 | 14 | Update Formatters for Inspect Output | [x] | IOutputFormatter, TextFormatter, JsonFormatter |
 
 ---

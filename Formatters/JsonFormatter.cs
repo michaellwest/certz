@@ -69,6 +69,52 @@ internal record ErrorOutput(bool Success, string Error);
 internal record WarningOutput(string Warning);
 internal record SuccessOutput(bool Success, string Message);
 
+// Store list DTOs
+internal record StoreListOutput(
+    bool Success,
+    string StoreName,
+    string StoreLocation,
+    int TotalCount,
+    int FilteredCount,
+    StoreCertificateDto[] Certificates
+);
+
+internal record StoreCertificateDto(
+    string Subject,
+    string Issuer,
+    string Thumbprint,
+    string NotBefore,
+    string NotAfter,
+    int DaysRemaining,
+    bool IsExpired,
+    bool HasPrivateKey,
+    bool IsCa
+);
+
+// Trust operation DTOs
+internal record TrustOperationOutput(
+    bool Success,
+    string Operation,
+    string StoreName,
+    string StoreLocation,
+    TrustCertificateDto[] Certificates,
+    string? Error
+);
+
+internal record TrustCertificateDto(
+    string Subject,
+    string Thumbprint,
+    string NotAfter
+);
+
+// Multiple matches warning DTO
+internal record MultipleMatchesOutput(
+    bool Success,
+    string Message,
+    int MatchCount,
+    TrustCertificateDto[] Certificates
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = true,
@@ -76,6 +122,9 @@ internal record SuccessOutput(bool Success, string Message);
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CertificateCreatedOutput))]
 [JsonSerializable(typeof(CertificateInspectedOutput))]
+[JsonSerializable(typeof(StoreListOutput))]
+[JsonSerializable(typeof(TrustOperationOutput))]
+[JsonSerializable(typeof(MultipleMatchesOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -157,6 +206,90 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.CertificateInspectedOutput));
+    }
+
+    public void WriteStoreList(StoreListResult result)
+    {
+        var certificates = result.Certificates.Select(c => new StoreCertificateDto(
+            c.Subject,
+            c.Issuer,
+            c.Thumbprint,
+            c.NotBefore.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            c.DaysRemaining,
+            c.IsExpired,
+            c.HasPrivateKey,
+            c.IsCa
+        )).ToArray();
+
+        var output = new StoreListOutput(
+            Success: true,
+            StoreName: result.StoreName,
+            StoreLocation: result.StoreLocation,
+            TotalCount: result.TotalCount,
+            FilteredCount: result.FilteredCount,
+            Certificates: certificates
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.StoreListOutput));
+    }
+
+    public void WriteTrustAdded(TrustOperationResult result)
+    {
+        var certificates = result.Certificates.Select(c => new TrustCertificateDto(
+            c.Subject,
+            c.Thumbprint,
+            c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        )).ToArray();
+
+        var output = new TrustOperationOutput(
+            Success: result.Success,
+            Operation: "add",
+            StoreName: result.StoreName,
+            StoreLocation: result.StoreLocation,
+            Certificates: certificates,
+            Error: result.ErrorMessage
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.TrustOperationOutput));
+    }
+
+    public void WriteTrustRemoved(TrustOperationResult result)
+    {
+        var certificates = result.Certificates.Select(c => new TrustCertificateDto(
+            c.Subject,
+            c.Thumbprint,
+            c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        )).ToArray();
+
+        var output = new TrustOperationOutput(
+            Success: result.Success,
+            Operation: "remove",
+            StoreName: result.StoreName,
+            StoreLocation: result.StoreLocation,
+            Certificates: certificates,
+            Error: result.ErrorMessage
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.TrustOperationOutput));
+    }
+
+    public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
+    {
+        var certificates = matchingCerts.Select(c => new TrustCertificateDto(
+            c.Subject,
+            c.Thumbprint,
+            c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        )).ToArray();
+
+        var output = new MultipleMatchesOutput(
+            Success: false,
+            Message: "Multiple certificates match. Use --force to remove all, or specify a thumbprint for single removal.",
+            MatchCount: matchingCerts.Count,
+            Certificates: certificates
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.MultipleMatchesOutput));
     }
 
     public void WriteError(string message)
