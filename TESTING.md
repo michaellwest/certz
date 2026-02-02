@@ -20,16 +20,36 @@ cd c:\Projects\github\michaellwest\certz
 
 # Build the project (if needed)
 dotnet build
-
-# Navigate to the output directory
-cd docker\tools
 ```
 
 ## Quick Start - Automated Testing
 
-### Local Testing (Default)
+### v2.0 Test Suites (Recommended)
 
-Run the comprehensive test script to validate all features on your local machine:
+Run the dedicated test scripts for each command group:
+
+```powershell
+# Test certificate creation (create dev, create ca)
+.\test-create.ps1
+
+# Test certificate inspection (inspect file, URL, store)
+.\test-inspect.ps1
+
+# Test trust store management (trust add, trust remove, store list)
+.\test-trust.ps1
+
+# Run specific test by ID
+.\test-inspect.ps1 -TestId "ins-1.1"
+.\test-trust.ps1 -TestId "tru-1.1"
+
+# Run tests by category
+.\test-inspect.ps1 -Category inspect-file
+.\test-trust.ps1 -Category trust-add
+```
+
+### Legacy Testing (v1.x Commands)
+
+Run the comprehensive test script to validate all legacy features:
 
 ```powershell
 # From the project root directory (requires Administrator privileges)
@@ -93,9 +113,186 @@ The Docker testing setup uses:
 
 ---
 
-## Manual Testing - Command by Command
+## v2.0 Command Testing
 
-### 1. CREATE Command
+The following sections document testing for the new v2.0 command structure.
+
+### CREATE DEV Command
+
+Create development certificates with modern defaults.
+
+#### Test: Basic Development Certificate
+```powershell
+certz create dev localhost
+```
+**Expected:** Creates `certz-localhost.pfx` with ECDSA P-256 key, 90-day validity.
+
+#### Test: Development Certificate with Trust
+```powershell
+certz create dev api.local --trust
+```
+**Expected:** Creates certificate and installs to CurrentUser\Root store.
+
+#### Test: Development Certificate with SANs
+```powershell
+certz create dev myapp.local --san "*.myapp.local" --san "127.0.0.1"
+```
+**Expected:** Certificate includes all specified Subject Alternative Names.
+
+#### Test: CA-Signed Development Certificate
+```powershell
+certz create ca --name "Test CA" --file ca.pfx --password TestPass
+certz create dev api.local --issuer-cert ca.pfx --issuer-password TestPass
+```
+**Expected:** Creates certificate signed by the CA, not self-signed.
+
+### CREATE CA Command
+
+Create Certificate Authority certificates.
+
+#### Test: Basic CA Certificate
+```powershell
+certz create ca --name "Development Root CA"
+```
+**Expected:** Creates CA certificate with KeyCertSign, CRLSign key usage.
+
+#### Test: CA Certificate with Trust
+```powershell
+certz create ca --name "Dev CA" --trust
+```
+**Expected:** Creates CA and installs to CurrentUser\Root store.
+
+### INSPECT Command
+
+Inspect certificates from various sources.
+
+#### Test: Inspect PFX File
+```powershell
+certz inspect cert.pfx --password MyPassword
+```
+**Expected:** Displays certificate details including subject, issuer, validity, key info.
+
+#### Test: Inspect Remote URL
+```powershell
+certz inspect https://github.com
+```
+**Expected:** Retrieves and displays remote server certificate.
+
+#### Test: Inspect with Chain
+```powershell
+certz inspect https://github.com --chain
+```
+**Expected:** Displays certificate chain tree from root to leaf.
+
+#### Test: Inspect with Revocation Check
+```powershell
+certz inspect https://github.com --chain --crl
+```
+**Expected:** Checks OCSP/CRL and displays revocation status.
+
+#### Test: Inspect from Store
+```powershell
+certz inspect <thumbprint> --store Root
+```
+**Expected:** Retrieves certificate from Windows store by thumbprint.
+
+#### Test: Save Certificate
+```powershell
+certz inspect https://github.com --save github.cer
+```
+**Expected:** Saves certificate to PEM file.
+
+#### Test: Save in DER Format
+```powershell
+certz inspect cert.pfx --password Pass --save out.der --save-format der
+```
+**Expected:** Saves certificate in DER binary format.
+
+#### Test: JSON Output
+```powershell
+certz inspect cert.pfx --password Pass --format json
+```
+**Expected:** Outputs certificate info as JSON.
+
+### TRUST ADD Command
+
+Add certificates to trust store.
+
+#### Test: Add to Root Store
+```powershell
+certz trust add ca.cer --store Root
+```
+**Expected:** Certificate added to CurrentUser\Root store.
+
+#### Test: Add PFX to Store
+```powershell
+certz trust add cert.pfx --password MyPassword --store Root
+```
+**Expected:** Certificate from PFX added to store.
+
+#### Test: LocalMachine Requires Admin
+```powershell
+certz trust add ca.cer --store Root --location LocalMachine
+```
+**Expected:** Fails with clear error if not running as Administrator.
+
+### TRUST REMOVE Command
+
+Remove certificates from trust store.
+
+#### Test: Remove by Thumbprint
+```powershell
+certz trust remove <thumbprint> --force
+```
+**Expected:** Certificate removed from store without prompting.
+
+#### Test: Remove by Subject
+```powershell
+certz trust remove --subject "CN=dev*" --force
+```
+**Expected:** All matching certificates removed.
+
+#### Test: Multiple Matches Without Force
+```powershell
+certz trust remove --subject "CN=test*"
+```
+**Expected:** Lists matching certificates and requires --force to proceed.
+
+### STORE LIST Command
+
+List certificates in store.
+
+#### Test: List Default Store
+```powershell
+certz store list
+```
+**Expected:** Lists certificates in CurrentUser\My store.
+
+#### Test: List Root Store
+```powershell
+certz store list --store Root
+```
+**Expected:** Lists certificates in Root store.
+
+#### Test: List Expiring Certificates
+```powershell
+certz store list --expiring 30
+```
+**Expected:** Shows only certificates expiring within 30 days.
+
+#### Test: JSON Output
+```powershell
+certz store list --format json
+```
+**Expected:** Outputs certificate list as JSON.
+
+---
+
+## Legacy Manual Testing - Command by Command
+
+> **Note:** The following sections document v1.x commands which are still available for backwards compatibility.
+
+### 1. CREATE Command (Legacy)
 
 #### Test 1.1: Create with Default Options
 **Purpose:** Verify certificate creation with minimal parameters

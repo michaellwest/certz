@@ -69,7 +69,7 @@ Based on clarifying questions, the following decisions have been made:
 
 ## Recommended Implementation Phases
 
-### Phase 1: Command Structure Migration
+### Phase 1: Command Structure Migration ✅ COMPLETE
 Migrate to hierarchical verb-noun pattern. Breaking changes acceptable for v2.0.
 
 **New Command Tree:**
@@ -95,24 +95,32 @@ certz [--format text|json]
     └── --days, --out
 ```
 
-### Phase 2: Output Format Support
-Add `--format` global option supporting:
-- `text` (default, current behavior)
-- `json` (primary for CI/CD automation)
+**Completed:** `create dev`, `create ca` commands with `--trust`, `--issuer-cert`, `--issuer-key` options.
 
-Recommend creating an `IOutputFormatter` interface with `TextFormatter` and `JsonFormatter` implementations.
+### Phase 2: Inspect + Trust Commands ✅ COMPLETE
+- `inspect` command with file, URL, and thumbprint support
+- `--chain` for certificate chain visualization
+- `--crl` for revocation checking (OCSP preferred, CRL fallback)
+- `--save` and `--save-key` for certificate export
+- `--save-format` for PEM/DER output
+- `trust add` and `trust remove` commands
+- `store list` command with `--expired` and `--expiring` filters
+- `--format json` global option for all commands
 
-### Phase 3: Interactive Mode
+**Completed:** Full inspect, trust, and store command suites with JSON output support.
+
+### Phase 3: Interactive Mode 🔜 NEXT
 Implement `--guided` flag that invokes a full wizard using Spectre.Console prompts:
 - Step-by-step certificate creation
 - Explanations and recommendations at each step
 - Smart defaults based on use case
 
+**Plan:** See `phase3-implementation-plan.md`
+
 ### Phase 4: Advanced Diagnostics
-- Chain validation with rich ASCII tree (Spectre.Console)
-- Linting against CA/B Forum Baseline Requirements
-- Linting against Mozilla NSS Policy
-- Expiration monitoring with `--format json` output
+- `lint` command for CA/B Forum Baseline Requirements validation
+- Mozilla NSS Policy validation
+- `renew` command for certificate renewal with auto-detection
 
 ### Phase 5: Browser Trust Store Integration
 Extend `trust add/remove` to support:
