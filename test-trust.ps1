@@ -506,16 +506,24 @@ Write-TestHeader "Testing TRUST REMOVE Command"
 Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -FilePrefix "trm-thumb" -TestScript {
     $uniqueCN = "trust-remove-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create and install a test certificate using PowerShell
+    # SETUP: Create certificate in My store, then move to Root store
+    # (New-SelfSignedCertificate can only create certs in My store)
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
-        CertStoreLocation = "Cert:\CurrentUser\Root"
+        CertStoreLocation = "Cert:\CurrentUser\My"
         NotAfter = (Get-Date).AddDays(90)
     }
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
+
+    # Export and import to Root store
+    $tempCerFile = "trm-thumb-temp.cer"
+    Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
+    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Remove-Item $tempCerFile -Force
+    Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call
@@ -547,16 +555,24 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
 Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force" -FilePrefix "trm-subject" -TestScript {
     $uniquePrefix = "remove-subj-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create a test certificate using PowerShell
+    # SETUP: Create certificate in My store, then move to Root store
+    # (New-SelfSignedCertificate can only create certs in My store)
     $certParams = @{
         Subject = "CN=$uniquePrefix-test"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
-        CertStoreLocation = "Cert:\CurrentUser\Root"
+        CertStoreLocation = "Cert:\CurrentUser\My"
         NotAfter = (Get-Date).AddDays(90)
     }
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
+
+    # Export and import to Root store
+    $tempCerFile = "trm-subject-temp.cer"
+    Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
+    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Remove-Item $tempCerFile -Force
+    Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call with subject pattern
@@ -586,16 +602,24 @@ Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force"
 Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix "trm-store" -TestScript {
     $uniqueCN = "remove-store-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create and install a test certificate in CA store using PowerShell
+    # SETUP: Create certificate in My store, then move to CA store
+    # (New-SelfSignedCertificate can only create certs in My store)
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
-        CertStoreLocation = "Cert:\CurrentUser\CA"
+        CertStoreLocation = "Cert:\CurrentUser\My"
         NotAfter = (Get-Date).AddDays(90)
     }
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
+
+    # Export and import to CA store
+    $tempCerFile = "trm-store-temp.cer"
+    Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
+    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\CA" | Out-Null
+    Remove-Item $tempCerFile -Force
+    Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call
@@ -625,9 +649,18 @@ Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix
 Invoke-Test -TestId "trm-1.4" -TestName "Multiple matches without --force fails" -FilePrefix "trm-multi" -TestScript {
     $uniquePrefix = "multi-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create TWO certificates with similar subjects using PowerShell
-    $cert1 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-1" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\Root" -NotAfter (Get-Date).AddDays(90)
-    $cert2 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-2" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\Root" -NotAfter (Get-Date).AddDays(90)
+    # SETUP: Create TWO certificates with similar subjects in My store, then move to Root store
+    # (New-SelfSignedCertificate can only create certs in My store)
+    $cert1 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-1" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
+    $cert2 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-2" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
+
+    # Export and import both to Root store
+    Export-Certificate -Cert $cert1 -FilePath "trm-multi-1.cer" -Type CERT | Out-Null
+    Export-Certificate -Cert $cert2 -FilePath "trm-multi-2.cer" -Type CERT | Out-Null
+    Import-Certificate -FilePath "trm-multi-1.cer" -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Import-Certificate -FilePath "trm-multi-2.cer" -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Remove-Item "trm-multi-1.cer", "trm-multi-2.cer" -Force
+    Remove-Item $cert1.PSPath, $cert2.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call (should fail without --force)
@@ -697,17 +730,25 @@ Invoke-Test -TestId "sto-1.1" -TestName "List certificates in My store" -FilePre
 
 # Test sto-1.2: List certificates in Root store
 Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FilePrefix "sto-list-root" -TestScript {
-    # SETUP: Ensure at least one certificate exists in Root store
+    # SETUP: Create certificate in My store, then move to Root store
+    # (New-SelfSignedCertificate can only create certs in My store)
     $uniqueCN = "store-list-root-test-$([guid]::NewGuid().ToString().Substring(0,8))"
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
-        CertStoreLocation = "Cert:\CurrentUser\Root"
+        CertStoreLocation = "Cert:\CurrentUser\My"
         NotAfter = (Get-Date).AddDays(90)
     }
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
+
+    # Export and import to Root store
+    $tempCerFile = "sto-list-root-temp.cer"
+    Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
+    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Remove-Item $tempCerFile -Force
+    Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call
