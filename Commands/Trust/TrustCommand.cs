@@ -180,13 +180,12 @@ internal static class TrustCommand
             {
                 // List matching certificates and require --force
                 formatter.WriteMultipleMatchesWarning(matchingCerts);
-                Environment.ExitCode = 1;
                 // Clean up the cloned certs
                 foreach (var cert in matchingCerts)
                 {
                     cert.Dispose();
                 }
-                return;
+                return 1;
             }
 
             // Interactive confirmation for single match (text mode only, unless --force)
@@ -200,13 +199,12 @@ internal static class TrustCommand
                 if (!confirmed)
                 {
                     AnsiConsole.MarkupLine("[yellow]Operation cancelled.[/]");
-                    Environment.ExitCode = 1;
                     // Clean up the cloned certs
                     foreach (var c in matchingCerts)
                     {
                         c.Dispose();
                     }
-                    return;
+                    return 1;
                 }
             }
 
@@ -214,6 +212,7 @@ internal static class TrustCommand
             var result = TrustHandler.RemoveFromStore(matchingCerts, storeName, storeLocation);
 
             formatter.WriteTrustRemoved(result);
+            return 0;
         });
 
         return command;

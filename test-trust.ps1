@@ -158,32 +158,8 @@ function Import-CertificateToStoreNoUI {
     # Resolve to absolute path
     $absolutePath = (Resolve-Path $FilePath).Path
 
-    # Load the certificate to get its thumbprint and raw data
-    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($absolutePath)
-    $thumbprint = $cert.Thumbprint
-    $certData = $cert.RawData
-
-    # Build the certificate blob in Windows registry format
-    # Format: Each property has: PropID (4 bytes) + Reserved (4 bytes) + Length (4 bytes) + Data
-    # Property ID 32 (0x20) = CERT_KEY_CONTEXT_PROP_ID contains the certificate
-    $propId = 32
-    $dataLen = $certData.Length
-
-    # Create blob: PropID + Reserved(0) + DataLength + CertData
-    $blob = New-Object byte[] (12 + $dataLen)
-    [BitConverter]::GetBytes([uint32]$propId).CopyTo($blob, 0)
-    [BitConverter]::GetBytes([uint32]0).CopyTo($blob, 4)
-    [BitConverter]::GetBytes([uint32]$dataLen).CopyTo($blob, 8)
-    $certData.CopyTo($blob, 12)
-
-    # Registry path for CurrentUser certificate stores
-    $regPath = "HKCU:\Software\Microsoft\SystemCertificates\$StoreName\Certificates\$thumbprint"
-
-    # Create the registry key and set the certificate blob
-    if (-not (Test-Path $regPath)) {
-        New-Item -Path $regPath -Force | Out-Null
-    }
-    Set-ItemProperty -Path $regPath -Name "Blob" -Value $blob -Type Binary
+    # Use certutil to import without UI
+    certutil.exe -user -addstore $StoreName $absolutePath | Out-Null
 }
 
 # ============================================================================
@@ -581,7 +557,7 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
     try {
         # ACTION: Single certz.exe call
         $output = & .\certz.exe trust remove $thumbprint --force 2>&1
-
+        Write-Host $output
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
@@ -599,6 +575,7 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
         $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
             Where-Object { $_.Thumbprint -eq $thumbprint }
         foreach ($c in $matchingCerts) {
+            Write-Host "Cleaning up certificate with thumbprint $($c.Thumbprint)" -ForegroundColor Yellow
             Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
         }
     }
@@ -735,9 +712,11 @@ Invoke-Test -TestId "trm-1.4" -TestName "Multiple matches without --force fails"
     }
     finally {
         # CLEANUP: PowerShell only
-        Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Subject -like "*$uniquePrefix*" } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
+            Where-Object { $_.Subject -like "*$uniquePrefix*" }
+        foreach ($c in $matchingCerts) {
+            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
+        }
     }
 }
 
@@ -820,9 +799,11 @@ Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FileP
     }
     finally {
         # CLEANUP: PowerShell only
-        Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint }
+        foreach ($c in $matchingCerts) {
+            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
+        }
     }
 }
 
