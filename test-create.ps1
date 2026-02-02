@@ -606,7 +606,7 @@ Write-TestHeader "Testing Issuer Signing"
 Invoke-Test -TestId "iss-1.1" -TestName "Create dev cert signed by CA (PFX issuer)" -FilePrefix "iss-chain" -TestScript {
     # SETUP: Create CA certificate using PowerShell (NOT certz)
     $caParams = @{
-        Subject = "CN=Test Issuer CA"
+        Subject = "CN=certz-certz-Test Issuer CA"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -633,8 +633,8 @@ Invoke-Test -TestId "iss-1.1" -TestName "Create dev cert signed by CA (PFX issue
         # ASSERTION 3: Certificate has correct issuer (PowerShell verification)
         $devCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
             (Resolve-Path "iss-chain-dev.pfx").Path, "DevPass123")
-        if ($devCert.Issuer -notmatch "Test Issuer CA") {
-            throw "Certificate issuer should be 'Test Issuer CA', got: $($devCert.Issuer)"
+        if ($devCert.Issuer -notmatch "certz-Test Issuer CA") {
+            throw "Certificate issuer should be 'certz-Test Issuer CA', got: $($devCert.Issuer)"
         }
         $devCert.Dispose()
 
@@ -652,7 +652,7 @@ Invoke-Test -TestId "iss-1.1" -TestName "Create dev cert signed by CA (PFX issue
 Invoke-Test -TestId "iss-1.2" -TestName "Create dev cert signed by CA (PEM issuer)" -FilePrefix "iss-pem" -TestScript {
     # SETUP: Create CA certificate using PowerShell and export to PEM
     $caParams = @{
-        Subject = "CN=Test PEM Issuer CA"
+        Subject = "CN=certz-certz-Test PEM Issuer CA"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -692,8 +692,8 @@ Invoke-Test -TestId "iss-1.2" -TestName "Create dev cert signed by CA (PEM issue
         # ASSERTION 3: Certificate has correct issuer (PowerShell verification)
         $devCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
             (Resolve-Path "iss-pem-dev.pfx").Path, "DevPass123")
-        if ($devCert.Issuer -notmatch "Test PEM Issuer CA") {
-            throw "Certificate issuer should be 'Test PEM Issuer CA', got: $($devCert.Issuer)"
+        if ($devCert.Issuer -notmatch "certz-Test PEM Issuer CA") {
+            throw "Certificate issuer should be 'certz-Test PEM Issuer CA', got: $($devCert.Issuer)"
         }
         $devCert.Dispose()
 
@@ -715,7 +715,7 @@ Write-TestHeader "Testing Trust Flag"
 
 # Test tru-1.1: Dev cert with --trust flag
 Invoke-Test -TestId "tru-1.1" -TestName "Create dev cert with --trust flag" -FilePrefix "dev-trust" -TestScript {
-    $uniqueDomain = "trusttest-$([guid]::NewGuid().ToString().Substring(0,8)).local"
+    $uniqueDomain = "certz-trusttest-$([guid]::NewGuid().ToString().Substring(0,8)).local"
 
     try {
         # ACTION: Single certz.exe call
@@ -743,7 +743,7 @@ Invoke-Test -TestId "tru-1.1" -TestName "Create dev cert with --trust flag" -Fil
 
 # Test tru-1.2: CA cert with --trust flag
 Invoke-Test -TestId "tru-1.2" -TestName "Create CA cert with --trust flag" -FilePrefix "ca-trust" -TestScript {
-    $uniqueName = "TrustedCA-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueName = "certz-TrustedCA-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     try {
         # ACTION: Single certz.exe call

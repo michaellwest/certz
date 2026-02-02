@@ -309,7 +309,7 @@ Write-TestHeader "Testing INSPECT FILE Command"
 Invoke-Test -TestId "ins-1.1" -TestName "Inspect PFX file" -FilePrefix "ins-pfx" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=ins-test.local"
+        Subject = "CN=certz-ins-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -329,7 +329,7 @@ Invoke-Test -TestId "ins-1.1" -TestName "Inspect PFX file" -FilePrefix "ins-pfx"
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Output contains certificate info
-        if ($outputStr -notmatch "ins-test\.local") {
+        if ($outputStr -notmatch "certz-ins-test\.local") {
             throw "Output should contain subject name 'ins-test.local'"
         }
 
@@ -345,7 +345,7 @@ Invoke-Test -TestId "ins-1.1" -TestName "Inspect PFX file" -FilePrefix "ins-pfx"
 Invoke-Test -TestId "ins-1.2" -TestName "Inspect PEM certificate" -FilePrefix "ins-pem" -TestScript {
     # SETUP: Create a test certificate and export to PEM using PowerShell
     $certParams = @{
-        Subject = "CN=ins-pem-test.local"
+        Subject = "CN=certz-ins-pem-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -369,7 +369,7 @@ Invoke-Test -TestId "ins-1.2" -TestName "Inspect PEM certificate" -FilePrefix "i
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Output contains certificate info
-        if ($outputStr -notmatch "ins-pem-test\.local") {
+        if ($outputStr -notmatch "certz-ins-pem-test\.local") {
             throw "Output should contain subject name 'ins-pem-test.local'"
         }
 
@@ -385,7 +385,7 @@ Invoke-Test -TestId "ins-1.2" -TestName "Inspect PEM certificate" -FilePrefix "i
 Invoke-Test -TestId "ins-1.3" -TestName "Inspect DER certificate" -FilePrefix "ins-der" -TestScript {
     # SETUP: Create a test certificate and export to DER using PowerShell
     $certParams = @{
-        Subject = "CN=ins-der-test.local"
+        Subject = "CN=certz-ins-der-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -408,7 +408,7 @@ Invoke-Test -TestId "ins-1.3" -TestName "Inspect DER certificate" -FilePrefix "i
         Assert-ExitCode -Expected 0
         
         # ASSERTION 2: Output contains certificate info
-        if ($outputStr -notmatch "ins-der-test\.local") {
+        if ($outputStr -notmatch "certz-ins-der-test\.local") {
             throw "Output should contain subject name 'ins-der-test.local'"
         }
 
@@ -424,7 +424,7 @@ Invoke-Test -TestId "ins-1.3" -TestName "Inspect DER certificate" -FilePrefix "i
 Invoke-Test -TestId "ins-1.4" -TestName "Inspect PEM with private key" -FilePrefix "ins-pem-key" -TestScript {
     # SETUP: Create a test certificate and export cert+key to PEM using PowerShell
     $certParams = @{
-        Subject = "CN=ins-pem-key-test.local"
+        Subject = "CN=certz-ins-pem-key-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -457,7 +457,7 @@ Invoke-Test -TestId "ins-1.4" -TestName "Inspect PEM with private key" -FilePref
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Output contains certificate info and indicates private key
-        if ($outputStr -notmatch "ins-pem-key-test\.local") {
+        if ($outputStr -notmatch "certz-ins-pem-key-test\.local") {
             throw "Output should contain subject name 'ins-pem-key-test.local'"
         }
         if ($outputStr -notmatch "Private Key.*Yes|HasPrivateKey.*True|Has Private Key") {
@@ -476,7 +476,7 @@ Invoke-Test -TestId "ins-1.4" -TestName "Inspect PEM with private key" -FilePref
 Invoke-Test -TestId "ins-1.5" -TestName "Inspect with expiration warning" -FilePrefix "ins-warn" -TestScript {
     # SETUP: Create a test certificate expiring in 20 days using PowerShell
     $certParams = @{
-        Subject = "CN=ins-warn-test.local"
+        Subject = "CN=certz-ins-warn-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -594,7 +594,7 @@ Write-TestHeader "Testing INSPECT STORE Command"
 # Test ins-3.1: Inspect by thumbprint
 Invoke-Test -TestId "ins-3.1" -TestName "Inspect certificate by thumbprint" -FilePrefix "ins-store" -TestScript {
     # SETUP: Create and install a test certificate using PowerShell
-    $uniqueCN = "ins-store-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-ins-store-test-$([guid]::NewGuid().ToString().Substring(0,8))"
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -629,7 +629,7 @@ Invoke-Test -TestId "ins-3.1" -TestName "Inspect certificate by thumbprint" -Fil
 # Test ins-3.2: Inspect by thumbprint with store option
 Invoke-Test -TestId "ins-3.2" -TestName "Inspect by thumbprint with --store option" -FilePrefix "ins-store-opt" -TestScript {
     # SETUP: Create and install a test certificate using PowerShell
-    $uniqueCN = "ins-store-opt-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-ins-store-opt-test-$([guid]::NewGuid().ToString().Substring(0,8))"
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -670,7 +670,7 @@ Write-TestHeader "Testing CHAIN Visualization"
 Invoke-Test -TestId "chn-1.1" -TestName "Display certificate chain tree" -FilePrefix "chn-tree" -TestScript {
     # SETUP: Create a CA and signed certificate chain using PowerShell
     $caParams = @{
-        Subject = "CN=Chain Test CA"
+        Subject = "CN=certz-certz-Chain Test CA"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -681,7 +681,7 @@ Invoke-Test -TestId "chn-1.1" -TestName "Display certificate chain tree" -FilePr
     $caCert = New-SelfSignedCertificate @caParams
 
     $endParams = @{
-        Subject = "CN=chain-end.local"
+        Subject = "CN=certz-chain-end.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -702,10 +702,10 @@ Invoke-Test -TestId "chn-1.1" -TestName "Display certificate chain tree" -FilePr
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Output shows chain structure (tree format)
-        if ($outputStr -notmatch "Chain Test CA") {
+        if ($outputStr -notmatch "certz-Chain Test CA") {
             throw "Chain output should show issuer CA"
         }
-        if ($outputStr -notmatch "chain-end\.local") {
+        if ($outputStr -notmatch "certz-chain-end\.local") {
             throw "Chain output should show end entity certificate"
         }
 
@@ -723,7 +723,7 @@ Invoke-Test -TestId "chn-1.1" -TestName "Display certificate chain tree" -FilePr
 Invoke-Test -TestId "chn-1.2" -TestName "Chain with revocation check" -FilePrefix "chn-crl" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=chn-crl-test.local"
+        Subject = "CN=certz-chn-crl-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -741,7 +741,7 @@ Invoke-Test -TestId "chn-1.2" -TestName "Chain with revocation check" -FilePrefi
 
         # ASSERTION: Exit code (may fail revocation check for self-signed)
         # Just check that the command ran and produced output
-        if ($outputStr -notmatch "chn-crl-test\.local|Chain|revocation") {
+        if ($outputStr -notmatch "certz-chn-crl-test\.local|Chain|revocation") {
             throw "Output should contain certificate or revocation information"
         }
 
@@ -762,7 +762,7 @@ Write-TestHeader "Testing SAVE Options"
 Invoke-Test -TestId "sav-1.1" -TestName "Save certificate to PEM" -FilePrefix "sav-pem" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=save-test.local"
+        Subject = "CN=certz-save-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -802,7 +802,7 @@ Invoke-Test -TestId "sav-1.1" -TestName "Save certificate to PEM" -FilePrefix "s
 Invoke-Test -TestId "sav-1.2" -TestName "Save certificate and key to PEM" -FilePrefix "sav-both" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=save-both-test.local"
+        Subject = "CN=certz-save-both-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -878,7 +878,7 @@ Invoke-Test -TestId "sav-1.3" -TestName "Save remote certificate" -FilePrefix "s
 Invoke-Test -TestId "sav-1.4" -TestName "Save certificate to DER format" -FilePrefix "sav-der" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=save-der-test.local"
+        Subject = "CN=certz-save-der-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -908,7 +908,7 @@ Invoke-Test -TestId "sav-1.4" -TestName "Save certificate to DER format" -FilePr
         # ASSERTION 4: File can be loaded as DER certificate
         $derCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
             (Resolve-Path "sav-der-out.der").Path)
-        if ($derCert.Subject -notmatch "save-der-test\.local") {
+        if ($derCert.Subject -notmatch "certz-save-der-test\.local") {
             throw "DER certificate subject mismatch"
         }
 
@@ -925,7 +925,7 @@ Invoke-Test -TestId "sav-1.4" -TestName "Save certificate to DER format" -FilePr
 Invoke-Test -TestId "sav-1.5" -TestName "Save certificate and key to DER" -FilePrefix "sav-der-both" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=save-der-both-test.local"
+        Subject = "CN=certz-save-der-both-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -972,7 +972,7 @@ Write-TestHeader "Testing FORMAT Output"
 Invoke-Test -TestId "fmt-2.1" -TestName "Inspect with JSON output" -FilePrefix "fmt-json" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=fmt-json-test.local"
+        Subject = "CN=certz-fmt-json-test.local"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"

@@ -133,6 +133,59 @@ function Remove-TestFiles {
     } | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
+function Import-CertificateToStoreNoUI {
+    <#
+    .SYNOPSIS
+        Imports a certificate to a store without UI prompts.
+    .DESCRIPTION
+        Uses direct registry manipulation to import certificates silently,
+        completely bypassing the Windows certificate UI that appears
+        when importing to Root or other protected stores.
+        Only works for CurrentUser stores.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+        [Parameter(Mandatory)]
+        [string]$StoreName,
+        [string]$StoreLocation = "CurrentUser"
+    )
+
+    if ($StoreLocation -ne "CurrentUser") {
+        throw "Import-CertificateToStoreNoUI only supports CurrentUser store location"
+    }
+
+    # Resolve to absolute path
+    $absolutePath = (Resolve-Path $FilePath).Path
+
+    # Load the certificate to get its thumbprint and raw data
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($absolutePath)
+    $thumbprint = $cert.Thumbprint
+    $certData = $cert.RawData
+
+    # Build the certificate blob in Windows registry format
+    # Format: Each property has: PropID (4 bytes) + Reserved (4 bytes) + Length (4 bytes) + Data
+    # Property ID 32 (0x20) = CERT_KEY_CONTEXT_PROP_ID contains the certificate
+    $propId = 32
+    $dataLen = $certData.Length
+
+    # Create blob: PropID + Reserved(0) + DataLength + CertData
+    $blob = New-Object byte[] (12 + $dataLen)
+    [BitConverter]::GetBytes([uint32]$propId).CopyTo($blob, 0)
+    [BitConverter]::GetBytes([uint32]0).CopyTo($blob, 4)
+    [BitConverter]::GetBytes([uint32]$dataLen).CopyTo($blob, 8)
+    $certData.CopyTo($blob, 12)
+
+    # Registry path for CurrentUser certificate stores
+    $regPath = "HKCU:\Software\Microsoft\SystemCertificates\$StoreName\Certificates\$thumbprint"
+
+    # Create the registry key and set the certificate blob
+    if (-not (Test-Path $regPath)) {
+        New-Item -Path $regPath -Force | Out-Null
+    }
+    Set-ItemProperty -Path $regPath -Name "Blob" -Value $blob -Type Binary
+}
+
 # ============================================================================
 # ASSERTION FUNCTIONS
 # ============================================================================
@@ -320,7 +373,7 @@ Write-TestHeader "Testing TRUST ADD Command"
 
 # Test tru-1.1: Add certificate to Root store
 Invoke-Test -TestId "tru-1.1" -TestName "Add certificate to Root store" -FilePrefix "tru-add" -TestScript {
-    $uniqueCN = "trust-add-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-trust-add-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
@@ -368,7 +421,7 @@ Invoke-Test -TestId "tru-1.1" -TestName "Add certificate to Root store" -FilePre
 
 # Test tru-1.2: Add PFX to Root store
 Invoke-Test -TestId "tru-1.2" -TestName "Add PFX to Root store" -FilePrefix "tru-add-pfx" -TestScript {
-    $uniqueCN = "trust-add-pfx-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-trust-add-pfx-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
@@ -415,7 +468,7 @@ Invoke-Test -TestId "tru-1.2" -TestName "Add PFX to Root store" -FilePrefix "tru
 
 # Test tru-1.3: Add to CA store
 Invoke-Test -TestId "tru-1.3" -TestName "Add certificate to CA store" -FilePrefix "tru-add-ca" -TestScript {
-    $uniqueCN = "trust-add-ca-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-trust-add-ca-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
@@ -459,7 +512,7 @@ Invoke-Test -TestId "tru-1.3" -TestName "Add certificate to CA store" -FilePrefi
 Invoke-Test -TestId "tru-1.4" -TestName "LocalMachine without admin fails" -FilePrefix "tru-noadmin" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
-        Subject = "CN=noadmin-test"
+        Subject = "CN=certz-noadmin-test"
         KeyAlgorithm = "ECDSA_nistP256"
         KeyExportPolicy = "Exportable"
         CertStoreLocation = "Cert:\CurrentUser\My"
@@ -504,7 +557,7 @@ Write-TestHeader "Testing TRUST REMOVE Command"
 
 # Test trm-1.1: Remove by thumbprint with --force
 Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -FilePrefix "trm-thumb" -TestScript {
-    $uniqueCN = "trust-remove-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-trust-remove-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create certificate in My store, then move to Root store
     # (New-SelfSignedCertificate can only create certs in My store)
@@ -518,10 +571,10 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to Root store
+    # Export and import to Root store (using helper to avoid UI prompt)
     $tempCerFile = "trm-thumb-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
@@ -553,7 +606,7 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
 
 # Test trm-1.2: Remove by subject pattern with --force
 Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force" -FilePrefix "trm-subject" -TestScript {
-    $uniquePrefix = "remove-subj-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniquePrefix = "certz-remove-subj-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create certificate in My store, then move to Root store
     # (New-SelfSignedCertificate can only create certs in My store)
@@ -567,10 +620,10 @@ Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force"
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to Root store
+    # Export and import to Root store (using helper to avoid UI prompt)
     $tempCerFile = "trm-subject-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
@@ -600,7 +653,7 @@ Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force"
 
 # Test trm-1.3: Remove from specific store
 Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix "trm-store" -TestScript {
-    $uniqueCN = "remove-store-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-remove-store-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create certificate in My store, then move to CA store
     # (New-SelfSignedCertificate can only create certs in My store)
@@ -614,10 +667,10 @@ Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to CA store
+    # Export and import to CA store (using helper to avoid UI prompt)
     $tempCerFile = "trm-store-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\CA" | Out-Null
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "CA"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
@@ -647,18 +700,18 @@ Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix
 
 # Test trm-1.4: Multiple matches without --force fails
 Invoke-Test -TestId "trm-1.4" -TestName "Multiple matches without --force fails" -FilePrefix "trm-multi" -TestScript {
-    $uniquePrefix = "multi-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniquePrefix = "certz-multi-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create TWO certificates with similar subjects in My store, then move to Root store
     # (New-SelfSignedCertificate can only create certs in My store)
     $cert1 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-1" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
     $cert2 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-2" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
 
-    # Export and import both to Root store
+    # Export and import both to Root store (using helper to avoid UI prompt)
     Export-Certificate -Cert $cert1 -FilePath "trm-multi-1.cer" -Type CERT | Out-Null
     Export-Certificate -Cert $cert2 -FilePath "trm-multi-2.cer" -Type CERT | Out-Null
-    Import-Certificate -FilePath "trm-multi-1.cer" -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
-    Import-Certificate -FilePath "trm-multi-2.cer" -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Import-CertificateToStoreNoUI -FilePath "trm-multi-1.cer" -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath "trm-multi-2.cer" -StoreName "Root"
     Remove-Item "trm-multi-1.cer", "trm-multi-2.cer" -Force
     Remove-Item $cert1.PSPath, $cert2.PSPath -Force
 
@@ -696,7 +749,7 @@ Write-TestHeader "Testing STORE LIST Command"
 # Test sto-1.1: List certificates in My store
 Invoke-Test -TestId "sto-1.1" -TestName "List certificates in My store" -FilePrefix "sto-list" -TestScript {
     # SETUP: Ensure at least one certificate exists
-    $uniqueCN = "store-list-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-store-list-test-$([guid]::NewGuid().ToString().Substring(0,8))"
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -732,7 +785,7 @@ Invoke-Test -TestId "sto-1.1" -TestName "List certificates in My store" -FilePre
 Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FilePrefix "sto-list-root" -TestScript {
     # SETUP: Create certificate in My store, then move to Root store
     # (New-SelfSignedCertificate can only create certs in My store)
-    $uniqueCN = "store-list-root-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-store-list-root-test-$([guid]::NewGuid().ToString().Substring(0,8))"
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -743,10 +796,10 @@ Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FileP
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to Root store
+    # Export and import to Root store (using helper to avoid UI prompt)
     $tempCerFile = "sto-list-root-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-Certificate -FilePath $tempCerFile -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
@@ -776,7 +829,7 @@ Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FileP
 # Test sto-1.3: List with JSON output
 Invoke-Test -TestId "sto-1.3" -TestName "List with JSON output" -FilePrefix "sto-list-json" -TestScript {
     # SETUP: Ensure at least one certificate exists
-    $uniqueCN = "store-list-json-test-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $uniqueCN = "certz-store-list-json-test-$([guid]::NewGuid().ToString().Substring(0,8))"
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
