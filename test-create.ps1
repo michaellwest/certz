@@ -259,11 +259,11 @@ function Invoke-Test {
             return $result
         } else {
             Write-TestResult $TestId $TestName $true ""
-            return [PSCustomObject]@{ Success = $true; Result = $result }
+            return [PSCustomObject]@{ Success = $true; Result = $result } | Out-String
         }
     } catch {
         Write-TestResult $TestId $TestName $false $_.Exception.Message
-        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message }
+        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message } | Out-String
     }
 }
 

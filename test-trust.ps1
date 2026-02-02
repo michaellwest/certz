@@ -252,11 +252,11 @@ function Invoke-Test {
             return $result
         } else {
             Write-TestResult $TestId $TestName $true ""
-            return [PSCustomObject]@{ Success = $true; Result = $result }
+            return [PSCustomObject]@{ Success = $true; Result = $result } | Out-String
         }
     } catch {
         Write-TestResult $TestId $TestName $false $_.Exception.Message
-        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message }
+        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message } | Out-String
     }
 }
 
@@ -357,9 +357,11 @@ Invoke-Test -TestId "tru-1.1" -TestName "Add certificate to Root store" -FilePre
     }
     finally {
         # CLEANUP: PowerShell only
-        Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint }
+        foreach ($c in $matchingCerts) {
+            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
+        }
         Remove-Item "tru-add.cer" -Force -ErrorAction SilentlyContinue
     }
 }
@@ -402,9 +404,11 @@ Invoke-Test -TestId "tru-1.2" -TestName "Add PFX to Root store" -FilePrefix "tru
     }
     finally {
         # CLEANUP: PowerShell only
-        Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint }
+        foreach ($c in $matchingCerts) {
+            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
+        }
         Remove-Item "tru-add-pfx.pfx" -Force -ErrorAction SilentlyContinue
     }
 }
@@ -531,9 +535,11 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
     }
     finally {
         # CLEANUP: PowerShell only (in case test failed)
-        Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint }
+        foreach ($c in $matchingCerts) {
+            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
+        }
     }
 }
 

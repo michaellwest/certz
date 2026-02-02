@@ -243,7 +243,7 @@ function Invoke-Test {
         }
     } catch {
         Write-TestResult $TestId $TestName $false $_.Exception.Message
-        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message }
+        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message } | Out-String
     }
 }
 
