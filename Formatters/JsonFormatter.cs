@@ -117,7 +117,7 @@ internal record MultipleMatchesOutput(
 
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
-    WriteIndented = true,
+    WriteIndented = false,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(CertificateCreatedOutput))]

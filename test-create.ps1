@@ -259,11 +259,11 @@ function Invoke-Test {
             return $result
         } else {
             Write-TestResult $TestId $TestName $true ""
-            return @{ Success = $true; Result = $result }
+            return [PSCustomObject]@{ Success = $true; Result = $result }
         }
     } catch {
         Write-TestResult $TestId $TestName $false $_.Exception.Message
-        return @{ Success = $false; Error = $_.Exception.Message }
+        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message }
     }
 }
 
@@ -345,7 +345,7 @@ Invoke-Test -TestId "dev-1.1" -TestName "Create dev cert with domain argument" -
     }
     $cert.Dispose()
 
-    @{ Success = $true; Details = "Dev cert created with correct subject" }
+    [PSCustomObject]@{ Success = $true; Details = "Dev cert created with correct subject" }
 }
 
 # Test dev-1.2: Dev cert with custom SANs
@@ -370,7 +370,7 @@ Invoke-Test -TestId "dev-1.2" -TestName "Create dev cert with custom SANs" -File
     }
     $cert.Dispose()
 
-    @{ Success = $true; Details = "Dev cert created with custom SANs" }
+    [PSCustomObject]@{ Success = $true; Details = "Dev cert created with custom SANs" }
 }
 
 # Test dev-1.3: Dev cert with ECDSA-P384 key
@@ -394,7 +394,7 @@ Invoke-Test -TestId "dev-1.3" -TestName "Create dev cert with ECDSA-P384 key" -F
     }
     $cert.Dispose()
 
-    @{ Success = $true; Details = "Dev cert created with ECDSA-P384 key" }
+    [PSCustomObject]@{ Success = $true; Details = "Dev cert created with ECDSA-P384 key" }
 }
 
 # Test dev-1.4: Dev cert with RSA-3072 key
@@ -421,7 +421,7 @@ Invoke-Test -TestId "dev-1.4" -TestName "Create dev cert with RSA-3072 key" -Fil
     }
     $cert.Dispose()
 
-    @{ Success = $true; Details = "Dev cert created with RSA-3072 key" }
+    [PSCustomObject]@{ Success = $true; Details = "Dev cert created with RSA-3072 key" }
 }
 
 # Test dev-1.5: Dev cert with custom validity
@@ -447,7 +447,7 @@ Invoke-Test -TestId "dev-1.5" -TestName "Create dev cert with custom validity" -
     }
     $cert.Dispose()
 
-    @{ Success = $true; Details = "Dev cert created with 30-day validity" }
+    [PSCustomObject]@{ Success = $true; Details = "Dev cert created with 30-day validity" }
 }
 
 # ============================================================================
@@ -481,7 +481,7 @@ Invoke-Test -TestId "ca-1.1" -TestName "Create CA cert with name" -FilePrefix "c
     }
     $cert.Dispose()
 
-    @{ Success = $true; Details = "CA cert created with correct subject" }
+    [PSCustomObject]@{ Success = $true; Details = "CA cert created with correct subject" }
 }
 
 # Test ca-1.2: CA cert with path length 1
@@ -506,7 +506,7 @@ Invoke-Test -TestId "ca-1.2" -TestName "Create CA cert with path length 1" -File
     # The path length is encoded in the extension - just verify it exists
     $cert.Dispose()
 
-    @{ Success = $true; Details = "CA cert created with path length constraint" }
+    [PSCustomObject]@{ Success = $true; Details = "CA cert created with path length constraint" }
 }
 
 # Test ca-1.3: CA cert with 10-year validity
@@ -533,7 +533,7 @@ Invoke-Test -TestId "ca-1.3" -TestName "Create CA cert with 10-year validity" -F
     }
     $cert.Dispose()
 
-    @{ Success = $true; Details = "CA cert created with 10-year validity" }
+    [PSCustomObject]@{ Success = $true; Details = "CA cert created with 10-year validity" }
 }
 
 # ============================================================================
@@ -566,7 +566,7 @@ Invoke-Test -TestId "fmt-1.1" -TestName "Create dev cert with JSON output" -File
         throw $_
     }
 
-    @{ Success = $true; Details = "Valid JSON output with certificate info" }
+    [PSCustomObject]@{ Success = $true; Details = "Valid JSON output with certificate info" }
 }
 
 # Test fmt-1.2: CA cert with JSON output
@@ -594,7 +594,7 @@ Invoke-Test -TestId "fmt-1.2" -TestName "Create CA cert with JSON output" -FileP
         throw $_
     }
 
-    @{ Success = $true; Details = "Valid JSON output for CA cert" }
+    [PSCustomObject]@{ Success = $true; Details = "Valid JSON output for CA cert" }
 }
 
 # ============================================================================
@@ -638,7 +638,7 @@ Invoke-Test -TestId "iss-1.1" -TestName "Create dev cert signed by CA (PFX issue
         }
         $devCert.Dispose()
 
-        @{ Success = $true; Details = "Dev cert correctly signed by CA" }
+        [PSCustomObject]@{ Success = $true; Details = "Dev cert correctly signed by CA" }
     }
     finally {
         # CLEANUP: PowerShell only
@@ -697,7 +697,7 @@ Invoke-Test -TestId "iss-1.2" -TestName "Create dev cert signed by CA (PEM issue
         }
         $devCert.Dispose()
 
-        @{ Success = $true; Details = "Dev cert correctly signed by CA (PEM)" }
+        [PSCustomObject]@{ Success = $true; Details = "Dev cert correctly signed by CA (PEM)" }
     }
     finally {
         # CLEANUP: PowerShell only
@@ -730,7 +730,7 @@ Invoke-Test -TestId "tru-1.1" -TestName "Create dev cert with --trust flag" -Fil
         # ASSERTION 3: Certificate in trust store (PowerShell verification)
         $cert = Assert-CertificateInStore -SubjectPattern "*$uniqueDomain*" -StoreName "Root" -StoreLocation "CurrentUser"
 
-        @{ Success = $true; Details = "Dev cert created and trusted" }
+        [PSCustomObject]@{ Success = $true; Details = "Dev cert created and trusted" }
     }
     finally {
         # CLEANUP: Remove from store and file (PowerShell only)
@@ -758,7 +758,7 @@ Invoke-Test -TestId "tru-1.2" -TestName "Create CA cert with --trust flag" -File
         # ASSERTION 3: Certificate in trust store (PowerShell verification)
         $cert = Assert-CertificateInStore -SubjectPattern "*$uniqueName*" -StoreName "Root" -StoreLocation "CurrentUser"
 
-        @{ Success = $true; Details = "CA cert created and trusted" }
+        [PSCustomObject]@{ Success = $true; Details = "CA cert created and trusted" }
     }
     finally {
         # CLEANUP: Remove from store and file (PowerShell only)
@@ -779,7 +779,7 @@ Invoke-Test -TestId "gui-1.1" -TestName "Interactive wizard (manual test)" -Test
     Write-Host "  This test requires manual interaction." -ForegroundColor Yellow
     Write-Host "  Run: .\certz.exe create dev --guided" -ForegroundColor Yellow
     Write-Host "  The wizard should prompt for domain, SANs, days, key type, and trust." -ForegroundColor Yellow
-    @{ Success = $true; Details = "Manual test - run interactively" }
+    [PSCustomObject]@{ Success = $true; Details = "Manual test - run interactively" }
 }
 
 # ============================================================================

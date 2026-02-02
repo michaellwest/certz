@@ -24,8 +24,8 @@ The following decisions were made for Phase 2 (documented in feature-plan-recomm
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create test-inspect.ps1 Test Script | [ ] | |
-| 2 | Create test-trust.ps1 Test Script | [ ] | |
+| 1 | Create test-inspect.ps1 Test Script | [x] | test-inspect.ps1 |
+| 2 | Create test-trust.ps1 Test Script | [x] | test-trust.ps1 |
 | 3 | Add Certificate Chain Validation Service | [x] | Services/Validation/ChainValidator.cs |
 | 4 | Add Chain Visualization Service | [x] | Services/Validation/ChainVisualizer.cs |
 | 5 | Add Inspect Result Models | [x] | Models/CertificateInspectResult.cs, InspectSource.cs, ChainElementInfo.cs, InspectOptions.cs |
