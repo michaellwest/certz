@@ -1,7 +1,7 @@
 # Phase 2: Inspect + Trust Commands
 
-**Status:** Not Started
-**Last Updated:** 2026-02-01
+**Status:** In Progress
+**Last Updated:** 2026-02-02
 
 ## Overview
 Implement Phase 2 of the certz v2.0 migration: add the `inspect` command suite (file, URL, thumbprint inspection with chain visualization), `store list` command, and `trust add/remove` commands for trust store management.
@@ -26,18 +26,18 @@ The following decisions were made for Phase 2 (documented in feature-plan-recomm
 |---|------|--------|-------|
 | 1 | Create test-inspect.ps1 Test Script | [ ] | |
 | 2 | Create test-trust.ps1 Test Script | [ ] | |
-| 3 | Add Certificate Chain Validation Service | [ ] | |
-| 4 | Add Chain Visualization Service | [ ] | |
-| 5 | Add Inspect Result Models | [ ] | |
-| 6 | Create Inspect Command Structure | [ ] | |
-| 7 | Implement File Inspection | [ ] | |
-| 8 | Implement URL Inspection | [ ] | |
-| 9 | Implement Thumbprint/Store Inspection | [ ] | |
-| 10 | Add --save and --save-key Export Options | [ ] | |
+| 3 | Add Certificate Chain Validation Service | [x] | Services/Validation/ChainValidator.cs |
+| 4 | Add Chain Visualization Service | [x] | Services/Validation/ChainVisualizer.cs |
+| 5 | Add Inspect Result Models | [x] | Models/CertificateInspectResult.cs, InspectSource.cs, ChainElementInfo.cs, InspectOptions.cs |
+| 6 | Create Inspect Command Structure | [x] | Commands/Inspect/InspectCommand.cs |
+| 7 | Implement File Inspection | [x] | Services/CertificateInspector.cs - InspectFile() |
+| 8 | Implement URL Inspection | [x] | Services/CertificateInspector.cs - InspectUrlAsync() |
+| 9 | Implement Thumbprint/Store Inspection | [x] | Services/CertificateInspector.cs - InspectFromStore() |
+| 10 | Add --save and --save-key Export Options | [x] | Services/CertificateInspector.cs - SaveCertificate(), SavePrivateKey() |
 | 11 | Create Store List Command | [ ] | |
 | 12 | Create Trust Add Command | [ ] | |
 | 13 | Create Trust Remove Command | [ ] | |
-| 14 | Update Formatters for Inspect Output | [ ] | |
+| 14 | Update Formatters for Inspect Output | [x] | IOutputFormatter, TextFormatter, JsonFormatter |
 
 ---
 

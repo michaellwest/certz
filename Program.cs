@@ -1,4 +1,5 @@
 using certz.Commands;
+using certz.Commands.Inspect;
 using certz.Options;
 
 var rootCommand = new RootCommand("Certz: A Simple Certificate Utility");
@@ -15,6 +16,7 @@ rootCommand.AddExportCommand();
 rootCommand.AddConvertCommand();
 rootCommand.AddInfoCommand();
 rootCommand.AddVerifyCommand();
+rootCommand.AddInspectCommand();
 
 try
 {
