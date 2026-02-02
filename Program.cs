@@ -1,6 +1,11 @@
 using certz.Commands;
+using certz.Options;
 
 var rootCommand = new RootCommand("Certz: A Simple Certificate Utility");
+
+// Add global --format option
+var formatOption = OptionBuilders.CreateFormatOption();
+rootCommand.Options.Add(formatOption);
 
 rootCommand.AddListCommand();
 rootCommand.AddInstallCommand();

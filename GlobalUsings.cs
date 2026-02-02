@@ -11,3 +11,4 @@ global using System.Security.Cryptography.X509Certificates;
 global using System.Threading.Tasks;
 global using certz.Exceptions;
 global using certz.Models;
+global using Spectre.Console;

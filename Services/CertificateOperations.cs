@@ -73,7 +73,7 @@ internal static class CertificateOperations
         return flags;
     }
 
-    internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation, bool exportable = true)
+    internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation, bool exportable = true, bool quiet = false)
     {
         if (!file.Exists)
         {
@@ -83,14 +83,17 @@ internal static class CertificateOperations
         var flags = GetKeyStorageFlags(storeLocation, persist: true, exportable: exportable);
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
         using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, flags);
-        Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
+        if (!quiet)
+        {
+            Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
+        }
         store.Add(certificate);
         store.Close();
 
         await Task.Delay(10);
     }
 
-    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false, FileInfo? passwordFile = null, string pfxEncryption = "modern")
+    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false, FileInfo? passwordFile = null, string pfxEncryption = "modern", bool quiet = false)
     {
         // Ensure output directory exists
         var directory = Path.GetDirectoryName(path);
@@ -122,7 +125,10 @@ internal static class CertificateOperations
 
             await File.WriteAllBytesAsync(path, certData);
 
-            Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
+            if (!quiet)
+            {
+                Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
+            }
 
             if (displayPassword)
             {
@@ -133,7 +139,10 @@ internal static class CertificateOperations
         {
             var certificatePem = PemEncoding.Write("CERTIFICATE", certificate.RawData);
             await File.WriteAllTextAsync(path, new string(certificatePem));
-            Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
+            if (!quiet)
+            {
+                Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
+            }
         }
         else if (certificateFileType == CertificateFileType.PemKey)
         {
@@ -156,7 +165,10 @@ internal static class CertificateOperations
                 }
             }
             await File.WriteAllTextAsync(path, privateKeyPem);
-            Console.WriteLine(" - certificate private key '{0}'", Path.GetFileName(path));
+            if (!quiet)
+            {
+                Console.WriteLine(" - certificate private key '{0}'", Path.GetFileName(path));
+            }
         }
     }
 
