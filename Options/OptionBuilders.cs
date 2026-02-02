@@ -384,4 +384,91 @@ internal static class OptionBuilders
         };
         return exportableOption;
     }
+
+    internal static Option<string> CreateFormatOption()
+    {
+        var formatOption = new Option<string>("--format", "--fmt")
+        {
+            Description = "Output format: text (default) or json",
+            DefaultValueFactory = _ => "text"
+        };
+
+        formatOption.Validators.Add(result =>
+        {
+            var format = result.GetValueOrDefault<string>();
+            var normalizedFormat = format?.ToLowerInvariant();
+            if (normalizedFormat != "text" && normalizedFormat != "json")
+            {
+                result.AddError("Output format must be 'text' or 'json'.");
+            }
+        });
+
+        return formatOption;
+    }
+
+    internal static Option<bool> CreateTrustOption()
+    {
+        var trustOption = new Option<bool>("--trust", "-t")
+        {
+            Description = "Install certificate to Root trust store after creation (use --trust-location to specify CurrentUser or LocalMachine).",
+            DefaultValueFactory = _ => false
+        };
+        return trustOption;
+    }
+
+    internal static Option<StoreLocation> CreateTrustLocationOption()
+    {
+        var trustLocationOption = new Option<StoreLocation>("--trust-location", "--tl")
+        {
+            Description = "Trust store location: CurrentUser (default, no admin required) or LocalMachine (requires admin, system-wide).",
+            DefaultValueFactory = _ => StoreLocation.CurrentUser
+        };
+        return trustLocationOption;
+    }
+
+    internal static Option<bool> CreateGuidedOption()
+    {
+        var guidedOption = new Option<bool>("--guided", "-g")
+        {
+            Description = "Launch interactive wizard mode.",
+            DefaultValueFactory = _ => false
+        };
+        return guidedOption;
+    }
+
+    internal static Option<FileInfo?> CreateIssuerCertOption()
+    {
+        var issuerCertOption = new Option<FileInfo?>("--issuer-cert")
+        {
+            Description = "Path to issuing CA certificate (PFX or PEM format)."
+        };
+        return issuerCertOption;
+    }
+
+    internal static Option<FileInfo?> CreateIssuerKeyOption()
+    {
+        var issuerKeyOption = new Option<FileInfo?>("--issuer-key")
+        {
+            Description = "Path to issuing CA private key (required for PEM issuer)."
+        };
+        return issuerKeyOption;
+    }
+
+    internal static Option<string?> CreateIssuerPasswordOption()
+    {
+        var issuerPasswordOption = new Option<string?>("--issuer-password")
+        {
+            Description = "Password for issuer PFX file."
+        };
+        return issuerPasswordOption;
+    }
+
+    internal static Option<string?> CreateNameOption()
+    {
+        var nameOption = new Option<string?>("--name")
+        {
+            Description = "CA certificate name (Common Name)."
+        };
+        return nameOption;
+    }
 }

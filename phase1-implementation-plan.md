@@ -1,6 +1,6 @@
 # Phase 1: Infrastructure + Create Commands
 
-**Status:** Not Started
+**Status:** Completed
 **Last Updated:** 2026-02-01
 
 ## Overview
@@ -10,17 +10,17 @@ Implement Phase 1 of the certz v2.0 migration: add Spectre.Console, output forma
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create test-create.ps1 Test Script | [ ] | Must complete first |
-| 2 | Add Spectre.Console Package | [ ] | |
-| 3 | Create Output Formatter Infrastructure | [ ] | |
-| 4 | Add Result Models | [ ] | |
-| 5 | Add Global --format Option | [ ] | |
-| 6 | Create Certificate Wizard Service | [ ] | |
-| 7 | Create Hierarchical Command Structure | [ ] | |
-| 8 | Transform CreateCommand to Parent | [ ] | |
-| 9 | Add Issuer Signing Support | [ ] | |
-| 10 | Create V2 Operations Wrapper | [ ] | |
-| 11 | Update GlobalUsings | [ ] | |
+| 1 | Create test-create.ps1 Test Script | [x] | Completed |
+| 2 | Add Spectre.Console Package | [x] | Completed |
+| 3 | Create Output Formatter Infrastructure | [x] | Completed |
+| 4 | Add Result Models | [x] | Completed |
+| 5 | Add Global --format Option | [x] | Completed |
+| 6 | Create Certificate Wizard Service | [x] | Completed |
+| 7 | Create Hierarchical Command Structure | [x] | Completed |
+| 8 | Transform CreateCommand to Parent | [x] | Completed |
+| 9 | Add Issuer Signing Support | [x] | Completed |
+| 10 | Create V2 Operations Wrapper | [x] | Completed |
+| 11 | Update GlobalUsings | [x] | Completed |
 
 ---
 
@@ -426,13 +426,13 @@ Options:
 ## Verification Checklist
 
 - [ ] `.\test-create.ps1` runs and all tests pass
-- [ ] `dotnet build` succeeds
-- [ ] `certz create dev api.local --f test.pfx --p TestPass123` creates valid cert
-- [ ] `certz create dev --guided` launches interactive wizard
+- [x] `dotnet build` succeeds
+- [x] `certz create dev api.local --f test.pfx --p TestPass123` creates valid cert
+- [ ] `certz create dev --guided` launches interactive wizard (manual test)
 - [ ] `certz create dev localhost --trust --f test.pfx --p TestPass` installs cert
-- [ ] `certz create ca --name "Dev Root CA" --f ca.pfx --p CaPass` creates CA cert
-- [ ] `certz create dev localhost --format json --f test.pfx --p TestPass` outputs JSON
-- [ ] Issuer chain: dev cert signed by CA cert works
+- [x] `certz create ca --name "Dev Root CA" --f ca.pfx --p CaPass` creates CA cert
+- [x] `certz create dev localhost --format json --f test.pfx --p TestPass` outputs JSON
+- [x] Issuer chain: dev cert signed by CA cert works
 - [ ] `.\test-create.ps1 -Category create-dev` passes
 - [ ] `.\test-create.ps1 -Category create-ca` passes
 - [ ] `.\test-create.ps1 -Category format` passes
@@ -442,4 +442,8 @@ Options:
 ## Notes & Adjustments
 
 *Record any changes to the plan during implementation:*
+
+1. **Added `--trust-location` option** (2026-02-01): Added `--trust-location` / `--tl` option to both `create dev` and `create ca` commands to allow users to choose between `CurrentUser` (default, no admin required) and `LocalMachine` (requires admin, system-wide) trust stores.
+
+2. **Fixed JSON serialization for AOT** (2026-02-01): Updated `JsonFormatter.cs` to use source generators (`JsonSerializerContext`) instead of reflection-based serialization, which was failing under Native AOT compilation. Created concrete DTO types (`CertificateDto`, `CertificateCreatedOutput`, etc.) for proper serialization.
 

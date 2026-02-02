@@ -1,3 +1,4 @@
+using certz.Commands.Create;
 using certz.Options;
 using certz.Services;
 
@@ -7,11 +8,19 @@ internal static class CreateCommand
 {
     internal static void AddCreateCommand(this RootCommand rootCommand)
     {
-        var command = BuildCreateCommand();
-        rootCommand.Add(command);
+        var createCommand = new Command("create", "Certificate creation commands");
+
+        // Add subcommands
+        createCommand.Subcommands.Add(CreateDevCommand.BuildCreateDevCommand());
+        createCommand.Subcommands.Add(CreateCaCommand.BuildCreateCaCommand());
+
+        // Legacy behavior: when 'create' is called directly with options, use the old behavior
+        AddLegacyCreateOptions(createCommand);
+
+        rootCommand.Add(createCommand);
     }
 
-    private static Command BuildCreateCommand()
+    private static void AddLegacyCreateOptions(Command createCommand)
     {
         var pfxOption = OptionBuilders.CreateFileOption(false, new[] { "--file", "--f", "--pkcs12" });
         var certOption = OptionBuilders.CreateFileOption(false, new[] { "--cert", "--c" });
@@ -41,7 +50,6 @@ internal static class CreateCommand
         var subjectSTOption = OptionBuilders.CreateSubjectSTOption();
         var subjectLOption = OptionBuilders.CreateSubjectLOption();
 
-        var createCommand = new Command("create", "Creates a certificate.");
         createCommand.Options.Add(pfxOption);
         createCommand.Options.Add(passwordOption);
         createCommand.Options.Add(passwordFileOption);
@@ -97,7 +105,5 @@ internal static class CreateCommand
                 subjectO, subjectOU, subjectC, subjectST, subjectL,
                 passwordFile, pfxEncryption!);
         });
-
-        return createCommand;
     }
 }

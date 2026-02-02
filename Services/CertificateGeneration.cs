@@ -300,4 +300,217 @@ internal static class CertificateGeneration
 
         return new X509Extension("1.3.6.1.5.5.7.1.1", asnWriter.Encode(), critical: false);
     }
+
+    internal static X509Certificate2 GenerateSignedCertificate(
+        string[] dnsNames,
+        DateTimeOffset notBefore,
+        DateTimeOffset notAfter,
+        int keySize = 2048,
+        string hashAlgorithm = "auto",
+        string keyType = "RSA",
+        string rsaPadding = "pkcs1",
+        bool isCA = false,
+        int pathLength = -1,
+        string? crlUrl = null,
+        string? ocspUrl = null,
+        string? caIssuersUrl = null,
+        string? subjectO = null,
+        string? subjectOU = null,
+        string? subjectC = null,
+        string? subjectST = null,
+        string? subjectL = null,
+        X509Certificate2 issuerCertificate = null!)
+    {
+        // Build full Distinguished Name
+        var subjectBuilder = new System.Text.StringBuilder();
+        subjectBuilder.Append($"CN={dnsNames[0]}");
+        if (!string.IsNullOrEmpty(subjectOU)) subjectBuilder.Append($", OU={subjectOU}");
+        if (!string.IsNullOrEmpty(subjectO)) subjectBuilder.Append($", O={subjectO}");
+        if (!string.IsNullOrEmpty(subjectL)) subjectBuilder.Append($", L={subjectL}");
+        if (!string.IsNullOrEmpty(subjectST)) subjectBuilder.Append($", ST={subjectST}");
+        if (!string.IsNullOrEmpty(subjectC)) subjectBuilder.Append($", C={subjectC}");
+
+        var subject = new X500DistinguishedName(subjectBuilder.ToString());
+        var extensions = new List<X509Extension>();
+        var sanBuilder = new SubjectAlternativeNameBuilder();
+        foreach (var dnsName in dnsNames)
+        {
+            if (IPAddress.TryParse(dnsName, out var ipAddress))
+            {
+                sanBuilder.AddIpAddress(ipAddress);
+            }
+            else
+            {
+                sanBuilder.AddDnsName(dnsName);
+            }
+        }
+
+        // Determine hash algorithm
+        var hashName = SelectHashAlgorithm(hashAlgorithm, keySize, keyType);
+
+        // Create key material and certificate request based on key type
+        CertificateRequest request;
+        X509SubjectKeyIdentifierExtension subjectKeyIdentifier;
+        AsymmetricAlgorithm keyMaterial;
+
+        keyType = keyType.ToUpperInvariant();
+        if (keyType == "RSA")
+        {
+            var rsaKey = CreateRSAKeyMaterial(keySize);
+            keyMaterial = rsaKey;
+            var padding = rsaPadding.ToUpperInvariant() == "PSS"
+                ? RSASignaturePadding.Pss
+                : RSASignaturePadding.Pkcs1;
+            request = new CertificateRequest(subject, rsaKey, hashName, padding);
+            subjectKeyIdentifier = new X509SubjectKeyIdentifierExtension(request.PublicKey, false);
+        }
+        else if (keyType.StartsWith("ECDSA-"))
+        {
+            var curveName = keyType.Substring(6);
+            var ecdsaKey = CreateECDSAKeyMaterial(curveName);
+            keyMaterial = ecdsaKey;
+            request = new CertificateRequest(subject, ecdsaKey, hashName);
+            subjectKeyIdentifier = new X509SubjectKeyIdentifierExtension(request.PublicKey, false);
+        }
+        else
+        {
+            throw new ArgumentException($"Unsupported key type: {keyType}. Use RSA, ECDSA-P256, ECDSA-P384, or ECDSA-P521.");
+        }
+
+        // Authority Key Identifier from issuer
+        var issuerSubjectKeyId = issuerCertificate.Extensions
+            .OfType<X509SubjectKeyIdentifierExtension>()
+            .FirstOrDefault();
+
+        X509AuthorityKeyIdentifierExtension authorityKeyIdentifier;
+        if (issuerSubjectKeyId != null)
+        {
+            authorityKeyIdentifier = X509AuthorityKeyIdentifierExtension.CreateFromSubjectKeyIdentifier(issuerSubjectKeyId);
+        }
+        else
+        {
+            // Fallback: create from issuer certificate
+            authorityKeyIdentifier = X509AuthorityKeyIdentifierExtension.CreateFromCertificate(
+                issuerCertificate, true, true);
+        }
+
+        // Key Usage
+        X509KeyUsageExtension keyUsage;
+        if (isCA)
+        {
+            keyUsage = new X509KeyUsageExtension(
+                X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign | X509KeyUsageFlags.DigitalSignature,
+                critical: true);
+        }
+        else
+        {
+            keyUsage = new X509KeyUsageExtension(
+                X509KeyUsageFlags.KeyEncipherment | X509KeyUsageFlags.DigitalSignature,
+                critical: true);
+        }
+
+        // Enhanced Key Usage for end-entity only
+        X509EnhancedKeyUsageExtension? enhancedKeyUsage = null;
+        if (!isCA)
+        {
+            enhancedKeyUsage = new X509EnhancedKeyUsageExtension(
+                new OidCollection()
+                {
+                    new Oid(ServerAuthenticationEnhancedKeyUsageOid, ServerAuthenticationEnhancedKeyUsageOidFriendlyName)
+                }, critical: false);
+        }
+
+        // Basic Constraints
+        var basicConstraints = new X509BasicConstraintsExtension(
+            isCA,
+            pathLength >= 0,
+            pathLength,
+            true);
+
+        bool subjectIsMinimal = string.IsNullOrEmpty(dnsNames[0]) || dnsNames[0].Length < 3;
+
+        extensions.Add(basicConstraints);
+        extensions.Add(keyUsage);
+        if (enhancedKeyUsage != null)
+        {
+            extensions.Add(enhancedKeyUsage);
+        }
+        extensions.Add(subjectKeyIdentifier);
+        extensions.Add(authorityKeyIdentifier);
+        extensions.Add(sanBuilder.Build(subjectIsMinimal));
+
+        // CRL Distribution Points
+        if (!string.IsNullOrEmpty(crlUrl))
+        {
+            extensions.Add(BuildCRLDistributionPointsExtension(crlUrl));
+        }
+
+        // Authority Information Access
+        if (!string.IsNullOrEmpty(ocspUrl) || !string.IsNullOrEmpty(caIssuersUrl))
+        {
+            extensions.Add(BuildAuthorityInformationAccessExtension(ocspUrl, caIssuersUrl));
+        }
+
+        foreach (var extension in extensions)
+        {
+            request.CertificateExtensions.Add(extension);
+        }
+
+        // Generate serial number
+        byte[] serialNumber = new byte[16];
+        RandomNumberGenerator.Fill(serialNumber);
+        serialNumber[0] &= 0x7F; // Ensure positive
+
+        // Sign with issuer's private key
+        X509Certificate2 signedCert;
+        var issuerRsa = issuerCertificate.GetRSAPrivateKey();
+        var issuerEcdsa = issuerCertificate.GetECDsaPrivateKey();
+
+        if (issuerRsa != null)
+        {
+            var generator = X509SignatureGenerator.CreateForRSA(issuerRsa, RSASignaturePadding.Pkcs1);
+            signedCert = request.Create(
+                issuerCertificate.SubjectName,
+                generator,
+                notBefore,
+                notAfter,
+                serialNumber);
+        }
+        else if (issuerEcdsa != null)
+        {
+            var generator = X509SignatureGenerator.CreateForECDsa(issuerEcdsa);
+            signedCert = request.Create(
+                issuerCertificate.SubjectName,
+                generator,
+                notBefore,
+                notAfter,
+                serialNumber);
+        }
+        else
+        {
+            throw new CertificateException("Issuer certificate must have RSA or ECDSA private key.");
+        }
+
+        // Attach the private key to the certificate
+        X509Certificate2 certWithKey;
+        if (keyMaterial is RSA rsa)
+        {
+            certWithKey = signedCert.CopyWithPrivateKey(rsa);
+        }
+        else if (keyMaterial is ECDsa ecdsa)
+        {
+            certWithKey = signedCert.CopyWithPrivateKey(ecdsa);
+        }
+        else
+        {
+            throw new CertificateException("Unexpected key type.");
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            certWithKey.FriendlyName = "certz";
+        }
+
+        return certWithKey;
+    }
 }
