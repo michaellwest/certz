@@ -26,6 +26,12 @@ Based on clarifying questions, the following decisions have been made:
 | **Auto-trust** | Yes, to Root store | CA certs → Trusted Root, end-entity → Personal |
 | **JSON Scope** | Global option | `--format json` available on all commands |
 | **Export Design** | `inspect --save` | Unified export via inspect for all sources |
+| **Revocation Checking** | OCSP preferred, CRL fallback | `--crl` flag checks OCSP first, falls back to CRL if unavailable |
+| **Trust Remove Confirmation** | Interactive unless `--force` | Prompt for confirmation; `--force` skips prompt |
+| **Multiple Subject Matches** | List + require `--force` | Show matching certs; require `--force` to delete multiple |
+| **Inspect Source Detection** | File exists first | Check if file exists; use `--store` flag to force thumbprint lookup |
+| **LocalMachine Permissions** | Fail with clear error | No silent fallback or auto-elevation; clear error message |
+| **Export Format** | PEM default + `--save-format` | `--save` defaults to PEM; use `--save-format` for DER |
 
 ---
 

@@ -84,6 +84,7 @@ Split tests instead.
 
 Do not assert against certz console output.  
 Assert against system state instead.
+Tests output `[PSCustomObject]` instead of `[hashtable]`
 
 ```powershell
 if (-not (Test-Path $expectedPath)) {
@@ -134,5 +135,3 @@ function Run-Certz($args) {
 > **PowerShell controls the environment**
 
 This rule should be documented and enforced consistently.
-
-

@@ -1,4 +1,5 @@
 using certz.Models;
+using certz.Services.Validation;
 using Spectre.Console;
 
 namespace certz.Formatters;
@@ -69,6 +70,309 @@ internal class TextFormatter : IOutputFormatter
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[green]Certificate installed to CurrentUser\\Root trust store.[/]");
         }
+    }
+
+    public void WriteCertificateInspected(CertificateInspectResult result)
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Property[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Value[/]"));
+
+        table.AddRow("[green]Subject[/]", Markup.Escape(result.Subject));
+        table.AddRow("[green]Issuer[/]", Markup.Escape(result.Issuer));
+        table.AddRow("[green]Thumbprint[/]", result.Thumbprint);
+        table.AddRow("[green]Serial Number[/]", result.SerialNumber);
+        table.AddRow("[green]Valid From[/]", result.NotBefore.ToString("yyyy-MM-dd HH:mm:ss"));
+        table.AddRow("[green]Valid To[/]", result.NotAfter.ToString("yyyy-MM-dd HH:mm:ss"));
+
+        // Days remaining with color coding
+        var daysColor = result.DaysRemaining switch
+        {
+            < 0 => "red",
+            < 30 => "yellow",
+            _ => "green"
+        };
+        table.AddRow("[green]Days Remaining[/]", $"[{daysColor}]{result.DaysRemaining}[/]");
+
+        table.AddRow("[green]Key Algorithm[/]", $"{result.KeyAlgorithm} ({result.KeySize} bits)");
+        table.AddRow("[green]Signature Algorithm[/]", result.SignatureAlgorithm);
+        table.AddRow("[green]Is CA[/]", result.IsCa ? "[cyan]Yes[/]" : "No");
+
+        if (result.IsCa && result.PathLengthConstraint.HasValue)
+        {
+            table.AddRow("[green]Path Length[/]", result.PathLengthConstraint.Value.ToString());
+        }
+
+        table.AddRow("[green]Has Private Key[/]", result.HasPrivateKey ? "[cyan]Yes[/]" : "No");
+
+        if (result.SubjectAlternativeNames.Count > 0)
+        {
+            table.AddRow("[green]SANs[/]", string.Join("\n", result.SubjectAlternativeNames.Select(Markup.Escape)));
+        }
+
+        if (result.KeyUsages.Count > 0)
+        {
+            table.AddRow("[green]Key Usage[/]", string.Join(", ", result.KeyUsages));
+        }
+
+        if (result.EnhancedKeyUsages.Count > 0)
+        {
+            table.AddRow("[green]Enhanced Key Usage[/]", string.Join(", ", result.EnhancedKeyUsages));
+        }
+
+        table.AddRow("[green]Source[/]", $"{result.Source}: {Markup.Escape(result.SourcePath ?? "")}");
+
+        var header = result.Warnings.Count == 0
+            ? "[bold green]Certificate Details[/]"
+            : "[bold yellow]Certificate Details[/]";
+
+        AnsiConsole.Write(new Panel(table)
+            .Header(header)
+            .Border(BoxBorder.Rounded));
+
+        // Show warnings
+        if (result.Warnings.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold yellow]Warnings:[/]");
+            foreach (var warning in result.Warnings)
+            {
+                AnsiConsole.MarkupLine($"  [yellow]-[/] {Markup.Escape(warning)}");
+            }
+        }
+
+        // Show chain if present
+        if (result.Chain != null && result.Chain.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            RenderChainFromInfo(result.Chain, result.ChainIsValid);
+        }
+    }
+
+    /// <summary>
+    /// Renders a certificate chain using ChainElementInfo (serializable chain data).
+    /// </summary>
+    private static void RenderChainFromInfo(List<ChainElementInfo> chain, bool isValid)
+    {
+        var root = new Tree("[bold]Certificate Chain[/]");
+
+        // Build tree from root CA down to end entity
+        // Chain is ordered from end-entity (index 0) to root CA (last index)
+        TreeNode? currentNode = null;
+        for (int i = chain.Count - 1; i >= 0; i--)
+        {
+            var element = chain[i];
+            var nodeText = BuildChainNodeText(element, i == 0);
+
+            if (currentNode == null)
+            {
+                currentNode = root.AddNode(nodeText);
+            }
+            else
+            {
+                currentNode = currentNode.AddNode(nodeText);
+            }
+        }
+
+        AnsiConsole.Write(root);
+
+        // Show overall chain status
+        if (!isValid)
+        {
+            AnsiConsole.MarkupLine("");
+            AnsiConsole.MarkupLine("[red]Chain validation failed[/]");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("");
+            AnsiConsole.MarkupLine("[green]Chain validation successful[/]");
+        }
+    }
+
+    /// <summary>
+    /// Builds the display text for a chain element node.
+    /// </summary>
+    private static string BuildChainNodeText(ChainElementInfo element, bool isEndEntity)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        // Certificate type indicator
+        string typeLabel;
+        if (isEndEntity)
+        {
+            typeLabel = "[blue]End Entity[/]";
+        }
+        else if (element.IsCa)
+        {
+            typeLabel = element.IsSelfSigned ? "[green]Root CA[/]" : "[cyan]Intermediate CA[/]";
+        }
+        else
+        {
+            typeLabel = "[grey]Certificate[/]";
+        }
+
+        // Subject name - extract CN from the subject
+        var subject = element.Subject;
+        if (subject.Contains("CN="))
+        {
+            var cnStart = subject.IndexOf("CN=") + 3;
+            var cnEnd = subject.IndexOf(',', cnStart);
+            subject = cnEnd > 0 ? subject.Substring(cnStart, cnEnd - cnStart) : subject.Substring(cnStart);
+        }
+        sb.Append($"{typeLabel}: [bold]{Markup.Escape(subject)}[/]");
+
+        // Validity indicator
+        var now = DateTime.Now;
+        if (element.NotAfter < now)
+        {
+            sb.Append(" [red](EXPIRED)[/]");
+        }
+        else if (element.NotBefore > now)
+        {
+            sb.Append(" [yellow](NOT YET VALID)[/]");
+        }
+        else
+        {
+            var daysRemaining = (element.NotAfter - now).Days;
+            if (daysRemaining < 30)
+            {
+                sb.Append($" [yellow]({daysRemaining} days remaining)[/]");
+            }
+        }
+
+        // Thumbprint (abbreviated for display)
+        sb.Append($"\n  Thumbprint: [dim]{element.Thumbprint[..Math.Min(16, element.Thumbprint.Length)]}...[/]");
+
+        // Expiration date
+        sb.Append($"\n  Expires: [dim]{element.NotAfter:yyyy-MM-dd}[/]");
+
+        // Validation errors
+        foreach (var error in element.ValidationErrors)
+        {
+            sb.Append($"\n  [red]- {Markup.Escape(error)}[/]");
+        }
+
+        return sb.ToString();
+    }
+
+    public void WriteStoreList(StoreListResult result)
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Subject[/]"))
+            .AddColumn(new TableColumn("[bold]Thumbprint[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Expires[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Days[/]").Centered())
+            .AddColumn(new TableColumn("[bold]Key[/]").Centered())
+            .AddColumn(new TableColumn("[bold]CA[/]").Centered());
+
+        foreach (var cert in result.Certificates)
+        {
+            // Color code expiration
+            var daysColor = cert.DaysRemaining switch
+            {
+                < 0 => "red",
+                < 30 => "yellow",
+                _ => "green"
+            };
+
+            // Extract CN from subject
+            var subject = GetSimpleName(cert.Subject);
+
+            table.AddRow(
+                Markup.Escape(subject.Length > 40 ? subject[..37] + "..." : subject),
+                $"[dim]{cert.Thumbprint[..16]}...[/]",
+                cert.NotAfter.ToString("yyyy-MM-dd"),
+                $"[{daysColor}]{cert.DaysRemaining}[/]",
+                cert.HasPrivateKey ? "[cyan]Yes[/]" : "[dim]No[/]",
+                cert.IsCa ? "[cyan]Yes[/]" : "[dim]No[/]"
+            );
+        }
+
+        var headerText = $"[bold]{result.StoreLocation}\\{result.StoreName}[/] ({result.FilteredCount} of {result.TotalCount} certificates)";
+        AnsiConsole.Write(new Panel(table)
+            .Header(headerText)
+            .Border(BoxBorder.Rounded));
+    }
+
+    public void WriteTrustAdded(TrustOperationResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError(result.ErrorMessage ?? "Unknown error");
+            return;
+        }
+
+        foreach (var cert in result.Certificates)
+        {
+            var subject = GetSimpleName(cert.Subject);
+            AnsiConsole.MarkupLine($"[green]Certificate added to {result.StoreLocation}\\{result.StoreName}:[/]");
+            AnsiConsole.MarkupLine($"  Subject: [bold]{Markup.Escape(subject)}[/]");
+            AnsiConsole.MarkupLine($"  Thumbprint: [dim]{cert.Thumbprint}[/]");
+            AnsiConsole.MarkupLine($"  Expires: {cert.NotAfter:yyyy-MM-dd}");
+        }
+    }
+
+    public void WriteTrustRemoved(TrustOperationResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError(result.ErrorMessage ?? "Unknown error");
+            return;
+        }
+
+        foreach (var cert in result.Certificates)
+        {
+            var subject = GetSimpleName(cert.Subject);
+            AnsiConsole.MarkupLine($"[green]Certificate removed from {result.StoreLocation}\\{result.StoreName}:[/]");
+            AnsiConsole.MarkupLine($"  Subject: [bold]{Markup.Escape(subject)}[/]");
+            AnsiConsole.MarkupLine($"  Thumbprint: [dim]{cert.Thumbprint}[/]");
+        }
+
+        if (result.Certificates.Count > 1)
+        {
+            AnsiConsole.MarkupLine($"[green]Total: {result.Certificates.Count} certificates removed.[/]");
+        }
+    }
+
+    public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
+    {
+        AnsiConsole.MarkupLine($"[yellow]Multiple certificates match ({matchingCerts.Count}).[/]");
+        AnsiConsole.MarkupLine("[yellow]Use --force to remove all matching certificates, or specify a thumbprint for single removal.[/]");
+        AnsiConsole.WriteLine();
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Subject[/]"))
+            .AddColumn(new TableColumn("[bold]Thumbprint[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Expires[/]").NoWrap());
+
+        foreach (var cert in matchingCerts)
+        {
+            var subject = GetSimpleName(cert.Subject);
+            table.AddRow(
+                Markup.Escape(subject.Length > 50 ? subject[..47] + "..." : subject),
+                cert.Thumbprint,
+                cert.NotAfter.ToString("yyyy-MM-dd")
+            );
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    /// <summary>
+    /// Extracts the CN (Common Name) from a subject string.
+    /// </summary>
+    private static string GetSimpleName(string subject)
+    {
+        if (subject.Contains("CN="))
+        {
+            var cnStart = subject.IndexOf("CN=") + 3;
+            var cnEnd = subject.IndexOf(',', cnStart);
+            return cnEnd > 0 ? subject.Substring(cnStart, cnEnd - cnStart) : subject.Substring(cnStart);
+        }
+        return subject;
     }
 
     public void WriteError(string message)

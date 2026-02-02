@@ -5,6 +5,11 @@ namespace certz.Formatters;
 internal interface IOutputFormatter
 {
     void WriteCertificateCreated(CertificateCreationResult result);
+    void WriteCertificateInspected(CertificateInspectResult result);
+    void WriteStoreList(StoreListResult result);
+    void WriteTrustAdded(TrustOperationResult result);
+    void WriteTrustRemoved(TrustOperationResult result);
+    void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts);
     void WriteError(string message);
     void WriteWarning(string message);
     void WriteSuccess(string message);
