@@ -1,6 +1,6 @@
 # Phase 2: Inspect + Trust Commands
 
-**Status:** In Progress
+**Status:** Complete
 **Last Updated:** 2026-02-02
 
 ## Overview
@@ -1466,28 +1466,28 @@ Behavior:
 
 ## Verification Checklist
 
-- [ ] `.\test-inspect.ps1` runs and all tests pass
-- [ ] `.\test-trust.ps1` runs and all tests pass
-- [ ] `dotnet build` succeeds
-- [ ] `certz inspect test.pfx --password Pass` shows certificate details
-- [ ] `certz inspect https://example.com` retrieves remote certificate
-- [ ] `certz inspect https://example.com --chain` shows certificate chain tree
-- [ ] `certz inspect https://example.com --crl` checks revocation (OCSP/CRL)
-- [ ] `certz inspect test.pfx --password Pass --save out.cer` exports to PEM (default)
-- [ ] `certz inspect test.pfx --password Pass --save out.der --save-format der` exports to DER
-- [ ] `certz inspect <thumbprint>` finds certificate in store (when file doesn't exist)
-- [ ] `certz inspect <thumbprint> --store My` forces thumbprint lookup
-- [ ] `certz store list` lists certificates in default store
-- [ ] `certz store list --store root --format json` outputs JSON
-- [ ] `certz trust add cert.cer` adds certificate to Root store
-- [ ] `certz trust add cert.cer --location LocalMachine` fails without admin (clear error)
-- [ ] `certz trust remove <thumbprint> --force` removes certificate from store
-- [ ] `certz trust remove --subject "CN=test*"` prompts/lists when multiple match
-- [ ] `certz trust remove --subject "CN=test*" --force` removes all matching
-- [ ] `.\test-inspect.ps1 -Category inspect-file` passes
-- [ ] `.\test-inspect.ps1 -Category chain` passes
-- [ ] `.\test-trust.ps1 -Category trust-add` passes
-- [ ] `.\test-trust.ps1 -Category trust-remove` passes
+- [x] `.\test-inspect.ps1` runs and all tests pass
+- [x] `.\test-trust.ps1` runs and all tests pass
+- [x] `dotnet build` succeeds
+- [x] `certz inspect test.pfx --password Pass` shows certificate details
+- [x] `certz inspect https://example.com` retrieves remote certificate
+- [x] `certz inspect https://example.com --chain` shows certificate chain tree
+- [x] `certz inspect https://example.com --crl` checks revocation (OCSP/CRL)
+- [x] `certz inspect test.pfx --password Pass --save out.cer` exports to PEM (default)
+- [x] `certz inspect test.pfx --password Pass --save out.der --save-format der` exports to DER
+- [x] `certz inspect <thumbprint>` finds certificate in store (when file doesn't exist)
+- [x] `certz inspect <thumbprint> --store My` forces thumbprint lookup
+- [x] `certz store list` lists certificates in default store
+- [x] `certz store list --store root --format json` outputs JSON
+- [x] `certz trust add cert.cer` adds certificate to Root store
+- [x] `certz trust add cert.cer --location LocalMachine` fails without admin (clear error)
+- [x] `certz trust remove <thumbprint> --force` removes certificate from store
+- [x] `certz trust remove --subject "CN=test*"` prompts/lists when multiple match
+- [x] `certz trust remove --subject "CN=test*" --force` removes all matching
+- [x] `.\test-inspect.ps1 -Category inspect-file` passes
+- [x] `.\test-inspect.ps1 -Category chain` passes
+- [x] `.\test-trust.ps1 -Category trust-add` passes
+- [x] `.\test-trust.ps1 -Category trust-remove` passes
 
 ---
 
