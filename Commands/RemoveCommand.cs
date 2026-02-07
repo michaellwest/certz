@@ -47,7 +47,7 @@ internal static class RemoveCommand
                 StoreName = storename,
                 StoreLocation = storelocation
             };
-            var result = CertificateOperationsV2.RemoveCertificate(options);
+            var result = TrustService.RemoveFromTrustStore(options);
             formatter.WriteTrustRemoved(result);
         });
 

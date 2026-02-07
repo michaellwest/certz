@@ -36,7 +36,7 @@ internal static class ListCommand
                 StoreName = storename,
                 StoreLocation = storelocation
             };
-            var result = CertificateOperationsV2.ListCertificates(options);
+            var result = TrustService.ListCertificates(options);
             formatter.WriteStoreList(result);
         });
 
