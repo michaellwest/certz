@@ -141,6 +141,48 @@ internal record ExportOutput(
     bool PasswordWasGenerated
 );
 
+// Verification result DTO
+internal record VerificationOutput(
+    bool Success,
+    string Subject,
+    string Thumbprint,
+    VerificationExpirationCheckDto ExpirationCheck,
+    VerificationChainCheckDto ChainValidation,
+    VerificationTrustCheckDto TrustCheck,
+    VerificationRevocationCheckDto? RevocationCheck
+);
+
+internal record VerificationExpirationCheckDto(
+    bool Passed,
+    string NotAfter,
+    int DaysRemaining,
+    bool IsExpired,
+    bool IsNotYetValid,
+    bool IsExpiringSoon,
+    int WarningThreshold,
+    string? Message
+);
+
+internal record VerificationChainCheckDto(
+    bool Passed,
+    string[] ChainElements,
+    string[]? Errors
+);
+
+internal record VerificationTrustCheckDto(
+    bool Passed,
+    bool IsTrusted,
+    string? RootSubject,
+    string? Message
+);
+
+internal record VerificationRevocationCheckDto(
+    bool Passed,
+    bool IsRevoked,
+    bool IsOffline,
+    string? Message
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -153,6 +195,7 @@ internal record ExportOutput(
 [JsonSerializable(typeof(MultipleMatchesOutput))]
 [JsonSerializable(typeof(ConversionOutput))]
 [JsonSerializable(typeof(ExportOutput))]
+[JsonSerializable(typeof(VerificationOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -334,6 +377,56 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.ExportOutput));
+    }
+
+    public void WriteVerificationResult(CertificateVerificationResult result)
+    {
+        var expirationCheck = new VerificationExpirationCheckDto(
+            Passed: result.ExpirationCheck.Passed,
+            NotAfter: result.ExpirationCheck.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            DaysRemaining: result.ExpirationCheck.DaysRemaining,
+            IsExpired: result.ExpirationCheck.IsExpired,
+            IsNotYetValid: result.ExpirationCheck.IsNotYetValid,
+            IsExpiringSoon: result.ExpirationCheck.IsExpiringSoon,
+            WarningThreshold: result.ExpirationCheck.WarningThreshold,
+            Message: result.ExpirationCheck.Message
+        );
+
+        var chainValidation = new VerificationChainCheckDto(
+            Passed: result.ChainValidation.Passed,
+            ChainElements: result.ChainValidation.ChainElements.ToArray(),
+            Errors: result.ChainValidation.Errors.Count > 0 ? result.ChainValidation.Errors.ToArray() : null
+        );
+
+        var trustCheck = new VerificationTrustCheckDto(
+            Passed: result.TrustCheck.Passed,
+            IsTrusted: result.TrustCheck.IsTrusted,
+            RootSubject: result.TrustCheck.RootSubject,
+            Message: result.TrustCheck.Message
+        );
+
+        VerificationRevocationCheckDto? revocationCheck = null;
+        if (result.RevocationCheck != null)
+        {
+            revocationCheck = new VerificationRevocationCheckDto(
+                Passed: result.RevocationCheck.Passed,
+                IsRevoked: result.RevocationCheck.IsRevoked,
+                IsOffline: result.RevocationCheck.IsOffline,
+                Message: result.RevocationCheck.Message
+            );
+        }
+
+        var output = new VerificationOutput(
+            Success: result.Success,
+            Subject: result.Subject,
+            Thumbprint: result.Thumbprint,
+            ExpirationCheck: expirationCheck,
+            ChainValidation: chainValidation,
+            TrustCheck: trustCheck,
+            RevocationCheck: revocationCheck
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.VerificationOutput));
     }
 
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)

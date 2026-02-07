@@ -11,6 +11,7 @@ internal interface IOutputFormatter
     void WriteTrustRemoved(TrustOperationResult result);
     void WriteConversionResult(ConversionResult result);
     void WriteExportResult(ExportResult result);
+    void WriteVerificationResult(CertificateVerificationResult result);
     void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts);
     void WriteError(string message);
     void WriteWarning(string message);
