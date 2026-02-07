@@ -631,6 +631,52 @@ internal static class CertificateOperationsV2
         return StoreListHandler.ListCertificates(storeListOptions);
     }
 
+    /// <summary>
+    /// Removes a certificate from a certificate store.
+    /// </summary>
+    /// <param name="options">Options for removing the certificate.</param>
+    /// <returns>Result containing information about removed certificates.</returns>
+    internal static TrustOperationResult RemoveCertificate(RemoveCertificateOptions options)
+    {
+        var subject = options.Subject;
+        var thumbprint = options.Thumbprint;
+
+        // Normalize subject to include CN= prefix if needed
+        if (!string.IsNullOrEmpty(subject) && !subject.StartsWith("CN="))
+        {
+            subject = $"CN={subject}";
+        }
+
+        // Build predicate for matching certificates
+        bool predicate(X509Certificate2 c) =>
+            (!string.IsNullOrEmpty(thumbprint) && c.Thumbprint.Equals(thumbprint, StringComparison.InvariantCultureIgnoreCase)) ||
+            (!string.IsNullOrEmpty(subject) && c.Subject.Equals(subject, StringComparison.InvariantCultureIgnoreCase));
+
+        var removedCertificates = new List<TrustCertificateInfo>();
+
+        using var store = new X509Store(options.StoreName, options.StoreLocation, OpenFlags.ReadWrite);
+        foreach (var certificate in store.Certificates.Where(predicate))
+        {
+            removedCertificates.Add(new TrustCertificateInfo
+            {
+                Subject = certificate.Subject,
+                Thumbprint = certificate.Thumbprint,
+                NotAfter = certificate.NotAfter
+            });
+            store.Remove(certificate);
+        }
+        store.Close();
+
+        return new TrustOperationResult
+        {
+            Success = true,
+            Operation = TrustOperationType.Remove,
+            StoreName = options.StoreName.ToString(),
+            StoreLocation = options.StoreLocation.ToString(),
+            Certificates = removedCertificates
+        };
+    }
+
     private static async Task<X509Certificate2> GenerateSignedCertificate(
         string[] dnsNames,
         DateTimeOffset notBefore,

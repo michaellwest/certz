@@ -1,3 +1,5 @@
+using certz.Formatters;
+using certz.Models;
 using certz.Options;
 using certz.Services;
 
@@ -20,20 +22,33 @@ internal static class RemoveCommand
         var thumbprintOption = OptionBuilders.CreateThumbprintOption();
         var storeNameOption = OptionBuilders.CreateStoreNameOption();
         var storeLocationOption = OptionBuilders.CreateStoreLocationOption();
+        var formatOption = OptionBuilders.CreateFormatOption();
 
         var removeCommand = new Command("remove", "Removes the specified certificate.");
         removeCommand.Options.Add(subjectOption);
         removeCommand.Options.Add(thumbprintOption);
         removeCommand.Options.Add(storeNameOption);
         removeCommand.Options.Add(storeLocationOption);
+        removeCommand.Options.Add(formatOption);
 
-        removeCommand.SetAction(async (parseResult) =>
+        removeCommand.SetAction((parseResult) =>
         {
             var subject = parseResult.GetValue(subjectOption);
             var thumbprint = parseResult.GetValue(thumbprintOption);
             var storename = parseResult.GetValue(storeNameOption);
             var storelocation = parseResult.GetValue(storeLocationOption);
-            await CertificateOperations.RemoveCertificate(subject, thumbprint, storename, storelocation);
+            var format = parseResult.GetValue(formatOption) ?? "text";
+            var formatter = FormatterFactory.Create(format);
+
+            var options = new RemoveCertificateOptions
+            {
+                Subject = subject,
+                Thumbprint = thumbprint,
+                StoreName = storename,
+                StoreLocation = storelocation
+            };
+            var result = CertificateOperationsV2.RemoveCertificate(options);
+            formatter.WriteTrustRemoved(result);
         });
 
         return removeCommand;
