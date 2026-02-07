@@ -1,7 +1,8 @@
 # Certificate Operations Refactoring Plan
 
-**Status:** In Progress
+**Status:** Completed
 **Started:** 2026-02-06
+**Completed:** 2026-02-06
 **Goal:** Consolidate CertificateOperations.cs and CertificateOperationsV2.cs to eliminate duplication and establish modern patterns.
 
 ## Overview
@@ -16,7 +17,7 @@ Currently, we have two certificate operation classes:
 
 ## Refactoring Strategy
 
-### Phase 1: Extract Shared Utilities ✅
+### Phase 1: Extract Shared Utilities ✅ COMPLETED
 Create `Services/CertificateUtilities.cs` with reusable helper methods.
 
 **Methods to Extract:**
@@ -36,49 +37,50 @@ Compile and test after each extraction to ensure nothing breaks.
 
 ## Detailed Steps
 
-### Step 1: Create CertificateUtilities.cs
-- [ ] Create new file `Services/CertificateUtilities.cs`
-- [ ] Add namespace and class declaration
-- [ ] Make class `internal static`
+### Step 1: Create CertificateUtilities.cs ✅
+- [x] Create new file `Services/CertificateUtilities.cs`
+- [x] Add namespace and class declaration
+- [x] Make class `internal static`
 
-### Step 2: Extract GenerateSecurePassword()
-- [ ] Copy method to CertificateUtilities.cs
-- [ ] Update CertificateOperations.cs to call CertificateUtilities.GenerateSecurePassword()
-- [ ] Update CertificateOperationsV2.cs to call CertificateUtilities.GenerateSecurePassword()
-- [ ] Compile and verify
-- [ ] Commit changes
+### Step 2: Extract GenerateSecurePassword() ✅
+- [x] Copy method to CertificateUtilities.cs
+- [x] Update CertificateOperations.cs to call CertificateUtilities.GenerateSecurePassword()
+- [x] Update CertificateOperationsV2.cs to call CertificateUtilities.GenerateSecurePassword()
+- [x] Compile and verify
+- [x] Commit changes (commit: 75124cc)
 
-### Step 3: Extract DisplayPasswordWarning()
-- [ ] Copy method to CertificateUtilities.cs
-- [ ] Update CertificateOperations.cs references
-- [ ] Compile and verify
-- [ ] Commit changes
+### Step 3: Extract DisplayPasswordWarning() ✅
+- [x] Copy method to CertificateUtilities.cs
+- [x] Update CertificateOperations.cs references
+- [x] Compile and verify
+- [x] Commit changes (commit: 75124cc)
 
-### Step 4: Extract GetKeyStorageFlags()
-- [ ] Copy method to CertificateUtilities.cs
-- [ ] Update CertificateOperations.cs references
-- [ ] Compile and verify
-- [ ] Commit changes
+### Step 4: Extract GetKeyStorageFlags() ✅
+- [x] Copy method to CertificateUtilities.cs
+- [x] Update CertificateOperations.cs references
+- [x] Compile and verify
+- [x] Commit changes (commit: 75124cc)
 
-### Step 5: Extract WriteCertificateToFile()
-- [ ] Copy method to CertificateUtilities.cs
-- [ ] Update CertificateOperations.cs references
-- [ ] Update CertificateOperationsV2.cs references
-- [ ] Compile and verify
-- [ ] Commit changes
+### Step 5: Extract WriteCertificateToFile() ✅
+- [x] Copy method to CertificateUtilities.cs
+- [x] Update CertificateOperations.cs references
+- [x] Update CertificateOperationsV2.cs references
+- [x] Compile and verify
+- [x] Commit changes (commit: 6755cd4)
 
-### Step 6: Extract InstallCertificate()
-- [ ] Copy method to CertificateUtilities.cs
-- [ ] Update CertificateOperations.cs references
-- [ ] Update CertificateOperationsV2.cs references
-- [ ] Compile and verify
-- [ ] Commit changes
+### Step 6: Extract InstallCertificate() ✅
+- [x] Copy method to CertificateUtilities.cs
+- [x] Update CertificateOperations.cs references
+- [x] Update CertificateOperationsV2.cs references
+- [x] Update InstallCommand.cs references
+- [x] Compile and verify
+- [x] Commit changes (commit: 6755cd4)
 
-### Step 7: Final Cleanup
-- [ ] Remove extracted methods from CertificateOperations.cs
-- [ ] Compile and verify all tests pass
-- [ ] Update documentation
-- [ ] Final commit
+### Step 7: Final Cleanup ✅
+- [x] Remove extracted methods from CertificateOperations.cs
+- [x] Compile and verify all tests pass
+- [x] Update documentation
+- [x] Final commit
 
 ---
 
@@ -98,10 +100,10 @@ Services/
 ## Verification Checklist
 
 After each step:
-- [ ] Code compiles without errors
-- [ ] No new warnings introduced
-- [ ] Git commit created with clear message
-- [ ] Progress tracker updated
+- [x] Code compiles without errors
+- [x] No new warnings introduced
+- [x] Git commit created with clear message
+- [x] Progress tracker updated
 
 ---
 
@@ -120,3 +122,36 @@ Once utilities are extracted:
 - Each commit should compile successfully
 - Use descriptive commit messages following project conventions
 - Update this document as we progress
+
+---
+
+## Summary of Completed Work
+
+### Commits Created
+1. **75124cc** - "Refactor: Extract utility methods to CertificateUtilities"
+   - Created CertificateUtilities.cs
+   - Extracted GenerateSecurePassword(), DisplayPasswordWarning(), GetKeyStorageFlags()
+   - Updated both CertificateOperations.cs and CertificateOperationsV2.cs
+
+2. **6755cd4** - "Refactor: Move WriteCertificateToFile and InstallCertificate to CertificateUtilities"
+   - Extracted WriteCertificateToFile() and InstallCertificate()
+   - Removed duplicate implementations from CertificateOperations.cs
+   - Updated all references across the codebase
+
+### Metrics
+- **Files Modified:** 5 (CertificateUtilities.cs, CertificateOperations.cs, CertificateOperationsV2.cs, InstallCommand.cs, refactoring-plan.md)
+- **Methods Extracted:** 5 (GenerateSecurePassword, DisplayPasswordWarning, GetKeyStorageFlags, WriteCertificateToFile, InstallCertificate)
+- **Lines of Code Consolidated:** ~200 lines of duplicate code eliminated
+- **Build Status:** ✅ Successful (0 errors, 17 pre-existing warnings)
+
+### Benefits Achieved
+1. **Eliminated Duplication** - Shared utility methods now exist in a single location
+2. **Improved Maintainability** - Changes to utilities only need to be made once
+3. **Better Separation of Concerns** - Utilities are separated from business logic
+4. **Easier Testing** - Utility methods can be tested independently
+5. **Foundation for Future Work** - Cleaner codebase ready for Phase 3 implementation
+
+### Next Steps
+- Consider extracting more CertificateOperations methods to the options pattern
+- Implement Phase 3 (Interactive/Guided Mode) using the clean foundation
+- Eventually migrate all operations to use structured options and results
