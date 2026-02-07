@@ -75,8 +75,26 @@ internal static class ExportCommand
             }
             else
             {
-                // Export from store (still using legacy API - will migrate next)
-                await CertificateOperations.ExportCertificate(file!, password, cert!, key!, thumbprint, storename, storelocation, passwordFile);
+                // Export from store (using modern V2 API)
+                if (string.IsNullOrEmpty(thumbprint))
+                {
+                    formatter.WriteError("Thumbprint is required for store export. Use --thumbprint to specify it.");
+                    return;
+                }
+
+                var options = new ExportFromStoreOptions
+                {
+                    Thumbprint = thumbprint,
+                    StoreName = storename,
+                    StoreLocation = storelocation,
+                    PfxFile = file,
+                    CertFile = cert,
+                    KeyFile = key,
+                    Password = password,
+                    PasswordFile = passwordFile
+                };
+                var result = await CertificateOperationsV2.ExportFromStore(options);
+                formatter.WriteExportResult(result);
             }
         });
 
