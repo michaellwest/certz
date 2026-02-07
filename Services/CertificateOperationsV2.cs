@@ -677,6 +677,60 @@ internal static class CertificateOperationsV2
         };
     }
 
+    /// <summary>
+    /// Shows certificate information from a file.
+    /// </summary>
+    /// <param name="options">Options for showing certificate information.</param>
+    /// <returns>Result containing the certificate details.</returns>
+    internal static CertificateInspectResult ShowCertificateInfoFromFile(ShowCertificateInfoFromFileOptions options)
+    {
+        var inspectOptions = new InspectOptions
+        {
+            Source = options.File.FullName,
+            Password = options.Password,
+            ShowChain = false,
+            CheckCrl = false
+        };
+
+        return CertificateInspector.InspectFile(inspectOptions);
+    }
+
+    /// <summary>
+    /// Shows certificate information from a URL.
+    /// </summary>
+    /// <param name="options">Options for showing certificate information.</param>
+    /// <returns>Result containing the certificate details.</returns>
+    internal static async Task<CertificateInspectResult> ShowCertificateInfoFromUrl(ShowCertificateInfoFromUrlOptions options)
+    {
+        var inspectOptions = new InspectOptions
+        {
+            Source = options.Url.ToString(),
+            ShowChain = false,
+            CheckCrl = false
+        };
+
+        return await CertificateInspector.InspectUrlAsync(inspectOptions);
+    }
+
+    /// <summary>
+    /// Shows certificate information from a certificate store.
+    /// </summary>
+    /// <param name="options">Options for showing certificate information.</param>
+    /// <returns>Result containing the certificate details.</returns>
+    internal static CertificateInspectResult ShowCertificateInfoFromStore(ShowCertificateInfoFromStoreOptions options)
+    {
+        var inspectOptions = new InspectOptions
+        {
+            Source = options.Thumbprint,
+            StoreName = options.StoreName.ToString(),
+            StoreLocation = options.StoreLocation.ToString(),
+            ShowChain = false,
+            CheckCrl = false
+        };
+
+        return CertificateInspector.InspectFromStore(inspectOptions);
+    }
+
     private static async Task<X509Certificate2> GenerateSignedCertificate(
         string[] dnsNames,
         DateTimeOffset notBefore,
