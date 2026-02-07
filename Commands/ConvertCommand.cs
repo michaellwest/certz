@@ -62,7 +62,7 @@ internal static class ConvertCommand
                     PasswordFile = passwordFile,
                     PfxEncryption = pfxEncryption ?? "modern"
                 };
-                var result = await CertificateOperationsV2.ConvertToPfx(options);
+                var result = await ConvertService.ConvertToPfx(options);
                 formatter.WriteConversionResult(result);
             }
             else if (pfx != null && (outCert != null || outKey != null))
@@ -81,7 +81,7 @@ internal static class ConvertCommand
                     OutputCert = outCert,
                     OutputKey = outKey
                 };
-                var result = await CertificateOperationsV2.ConvertFromPfx(options);
+                var result = await ConvertService.ConvertFromPfx(options);
                 formatter.WriteConversionResult(result);
             }
             else

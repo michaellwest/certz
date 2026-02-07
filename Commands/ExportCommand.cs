@@ -70,7 +70,7 @@ internal static class ExportCommand
                     Password = password,
                     PasswordFile = passwordFile
                 };
-                var result = await CertificateOperationsV2.ExportFromUrl(options);
+                var result = await ExportService.ExportFromUrl(options);
                 formatter.WriteExportResult(result);
             }
             else
@@ -93,7 +93,7 @@ internal static class ExportCommand
                     Password = password,
                     PasswordFile = passwordFile
                 };
-                var result = await CertificateOperationsV2.ExportFromStore(options);
+                var result = await ExportService.ExportFromStore(options);
                 formatter.WriteExportResult(result);
             }
         });

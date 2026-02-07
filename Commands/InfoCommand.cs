@@ -54,7 +54,7 @@ internal static class InfoCommand
                 {
                     Url = uri
                 };
-                var result = await CertificateOperationsV2.ShowCertificateInfoFromUrl(options);
+                var result = await InspectService.InspectUrl(options);
                 formatter.WriteCertificateInspected(result);
             }
             else if (!string.IsNullOrEmpty(thumbprint))
@@ -65,7 +65,7 @@ internal static class InfoCommand
                     StoreName = storename,
                     StoreLocation = storelocation
                 };
-                var result = CertificateOperationsV2.ShowCertificateInfoFromStore(options);
+                var result = InspectService.InspectStore(options);
                 formatter.WriteCertificateInspected(result);
             }
             else if (file != null)
@@ -75,7 +75,7 @@ internal static class InfoCommand
                     File = file,
                     Password = password
                 };
-                var result = CertificateOperationsV2.ShowCertificateInfoFromFile(options);
+                var result = InspectService.InspectFile(options);
                 formatter.WriteCertificateInspected(result);
             }
             else

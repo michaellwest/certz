@@ -64,7 +64,7 @@ internal static class VerifyCommand
                     CheckRevocation = checkRevocation,
                     WarningDays = warningDays
                 };
-                var result = CertificateOperationsV2.VerifyFromStore(options);
+                var result = InspectService.VerifyStore(options);
                 formatter.WriteVerificationResult(result);
             }
             else if (file != null)
@@ -76,7 +76,7 @@ internal static class VerifyCommand
                     CheckRevocation = checkRevocation,
                     WarningDays = warningDays
                 };
-                var result = await CertificateOperationsV2.VerifyFromFile(options);
+                var result = await InspectService.VerifyFile(options);
                 formatter.WriteVerificationResult(result);
             }
             else
