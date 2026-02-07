@@ -1,3 +1,5 @@
+using certz.Formatters;
+using certz.Models;
 using certz.Options;
 using certz.Services;
 
@@ -19,6 +21,7 @@ internal static class InfoCommand
         var passwordOption = OptionBuilders.CreatePasswordOption();
         var storeNameOption = OptionBuilders.CreateStoreNameOption();
         var storeLocationOption = OptionBuilders.CreateStoreLocationOption();
+        var formatOption = OptionBuilders.CreateFormatOption();
 
         var infoCommand = new Command("info", "Displays detailed information about a certificate.");
         infoCommand.Options.Add(fileOption);
@@ -27,6 +30,7 @@ internal static class InfoCommand
         infoCommand.Options.Add(passwordOption);
         infoCommand.Options.Add(storeNameOption);
         infoCommand.Options.Add(storeLocationOption);
+        infoCommand.Options.Add(formatOption);
 
         infoCommand.SetAction(async (parseResult) =>
         {
@@ -36,26 +40,47 @@ internal static class InfoCommand
             var password = parseResult.GetValue(passwordOption);
             var storename = parseResult.GetValue(storeNameOption);
             var storelocation = parseResult.GetValue(storeLocationOption);
+            var format = parseResult.GetValue(formatOption) ?? "text";
+            var formatter = FormatterFactory.Create(format);
 
             if (urlString != null)
             {
                 if (!Uri.TryCreate(urlString, UriKind.Absolute, out var uri))
                 {
-                    throw new ArgumentException($"Invalid URL format: {urlString}");
+                    formatter.WriteError($"Invalid URL format: {urlString}");
+                    return;
                 }
-                await CertificateOperations.ShowCertificateInfo(uri);
+                var options = new ShowCertificateInfoFromUrlOptions
+                {
+                    Url = uri
+                };
+                var result = await CertificateOperationsV2.ShowCertificateInfoFromUrl(options);
+                formatter.WriteCertificateInspected(result);
             }
             else if (!string.IsNullOrEmpty(thumbprint))
             {
-                await CertificateOperations.ShowCertificateInfo(thumbprint, storename, storelocation);
+                var options = new ShowCertificateInfoFromStoreOptions
+                {
+                    Thumbprint = thumbprint,
+                    StoreName = storename,
+                    StoreLocation = storelocation
+                };
+                var result = CertificateOperationsV2.ShowCertificateInfoFromStore(options);
+                formatter.WriteCertificateInspected(result);
             }
             else if (file != null)
             {
-                await CertificateOperations.ShowCertificateInfo(file, password);
+                var options = new ShowCertificateInfoFromFileOptions
+                {
+                    File = file,
+                    Password = password
+                };
+                var result = CertificateOperationsV2.ShowCertificateInfoFromFile(options);
+                formatter.WriteCertificateInspected(result);
             }
             else
             {
-                throw new ArgumentException("Please specify a certificate source: --file, --thumbprint, or --url");
+                formatter.WriteError("Please specify a certificate source: --file, --thumbprint, or --url");
             }
         });
 

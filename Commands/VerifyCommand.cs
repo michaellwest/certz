@@ -1,3 +1,5 @@
+using certz.Formatters;
+using certz.Models;
 using certz.Options;
 using certz.Services;
 
@@ -28,6 +30,7 @@ internal static class VerifyCommand
             Description = "Number of days before expiration to show warning.",
             DefaultValueFactory = _ => 30
         };
+        var formatOption = OptionBuilders.CreateFormatOption();
 
         var verifyCommand = new Command("verify", "Validates a certificate and checks its trust chain.");
         verifyCommand.Options.Add(fileOption);
@@ -37,6 +40,7 @@ internal static class VerifyCommand
         verifyCommand.Options.Add(storeLocationOption);
         verifyCommand.Options.Add(checkRevocationOption);
         verifyCommand.Options.Add(warningDaysOption);
+        verifyCommand.Options.Add(formatOption);
 
         verifyCommand.SetAction(async (parseResult) =>
         {
@@ -47,18 +51,37 @@ internal static class VerifyCommand
             var storelocation = parseResult.GetValue(storeLocationOption);
             var checkRevocation = parseResult.GetValue(checkRevocationOption);
             var warningDays = parseResult.GetValue(warningDaysOption);
+            var format = parseResult.GetValue(formatOption) ?? "text";
+            var formatter = FormatterFactory.Create(format);
 
             if (!string.IsNullOrEmpty(thumbprint))
             {
-                await CertificateOperations.VerifyCertificate(thumbprint, storename, storelocation, checkRevocation, warningDays);
+                var options = new VerifyFromStoreOptions
+                {
+                    Thumbprint = thumbprint,
+                    StoreName = storename,
+                    StoreLocation = storelocation,
+                    CheckRevocation = checkRevocation,
+                    WarningDays = warningDays
+                };
+                var result = CertificateOperationsV2.VerifyFromStore(options);
+                formatter.WriteVerificationResult(result);
             }
             else if (file != null)
             {
-                await CertificateOperations.VerifyCertificate(file, password, checkRevocation, warningDays);
+                var options = new VerifyFromFileOptions
+                {
+                    File = file,
+                    Password = password,
+                    CheckRevocation = checkRevocation,
+                    WarningDays = warningDays
+                };
+                var result = await CertificateOperationsV2.VerifyFromFile(options);
+                formatter.WriteVerificationResult(result);
             }
             else
             {
-                throw new ArgumentException("Please specify a certificate source: --file or --thumbprint");
+                formatter.WriteError("Please specify a certificate source: --file or --thumbprint");
             }
         });
 

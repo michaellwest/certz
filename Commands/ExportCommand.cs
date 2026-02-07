@@ -1,3 +1,5 @@
+using certz.Formatters;
+using certz.Models;
 using certz.Options;
 using certz.Services;
 
@@ -22,6 +24,7 @@ internal static class ExportCommand
         var thumbprintOption = OptionBuilders.CreateThumbprintOption();
         var storeNameOption = OptionBuilders.CreateStoreNameOption();
         var storeLocationOption = OptionBuilders.CreateStoreLocationOption();
+        var formatOption = OptionBuilders.CreateFormatOption();
 
         var exportCommand = new Command("export", "Exports the specified certificate.");
         exportCommand.Options.Add(pfxOption);
@@ -33,6 +36,7 @@ internal static class ExportCommand
         exportCommand.Options.Add(thumbprintOption);
         exportCommand.Options.Add(storeNameOption);
         exportCommand.Options.Add(storeLocationOption);
+        exportCommand.Options.Add(formatOption);
 
         exportCommand.SetAction(async (parseResult) =>
         {
@@ -45,18 +49,52 @@ internal static class ExportCommand
             var thumbprint = parseResult.GetValue(thumbprintOption);
             var storename = parseResult.GetValue(storeNameOption);
             var storelocation = parseResult.GetValue(storeLocationOption);
+            var format = parseResult.GetValue(formatOption) ?? "text";
+            var formatter = FormatterFactory.Create(format);
 
             if (urlString != null)
             {
+                // Export from URL (using modern V2 API)
                 if (!Uri.TryCreate(urlString, UriKind.Absolute, out var uri))
                 {
-                    throw new ArgumentException($"Invalid URL format: {urlString}");
+                    formatter.WriteError($"Invalid URL format: {urlString}");
+                    return;
                 }
-                await CertificateOperations.ExportCertificate(file!, password, cert!, key!, uri, passwordFile);
+
+                var options = new ExportFromUrlOptions
+                {
+                    Url = uri,
+                    PfxFile = file,
+                    CertFile = cert,
+                    KeyFile = key,
+                    Password = password,
+                    PasswordFile = passwordFile
+                };
+                var result = await CertificateOperationsV2.ExportFromUrl(options);
+                formatter.WriteExportResult(result);
             }
             else
             {
-                await CertificateOperations.ExportCertificate(file!, password, cert!, key!, thumbprint, storename, storelocation, passwordFile);
+                // Export from store (using modern V2 API)
+                if (string.IsNullOrEmpty(thumbprint))
+                {
+                    formatter.WriteError("Thumbprint is required for store export. Use --thumbprint to specify it.");
+                    return;
+                }
+
+                var options = new ExportFromStoreOptions
+                {
+                    Thumbprint = thumbprint,
+                    StoreName = storename,
+                    StoreLocation = storelocation,
+                    PfxFile = file,
+                    CertFile = cert,
+                    KeyFile = key,
+                    Password = password,
+                    PasswordFile = passwordFile
+                };
+                var result = await CertificateOperationsV2.ExportFromStore(options);
+                formatter.WriteExportResult(result);
             }
         });
 

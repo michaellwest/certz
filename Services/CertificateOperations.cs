@@ -2,175 +2,6 @@ namespace certz.Services;
 
 internal static class CertificateOperations
 {
-    private static string GenerateSecurePassword()
-    {
-        // 32 bytes = 256 bits = 64 hex characters
-        byte[] data = RandomNumberGenerator.GetBytes(32);
-        return Convert.ToHexString(data);
-    }
-
-    private static void DisplayPasswordWarning(string password, string purpose, FileInfo? passwordFile = null)
-    {
-        if (passwordFile != null)
-        {
-            passwordFile.Directory?.Create();
-            File.WriteAllText(passwordFile.FullName, password.TrimEnd());
-            Console.WriteLine();
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Password for {purpose} written to: {passwordFile.FullName}");
-            Console.ResetColor();
-            Console.WriteLine();
-            return;
-        }
-
-        Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine("=".PadRight(80, '='));
-        Console.WriteLine("IMPORTANT: Certificate Password");
-        Console.WriteLine("=".PadRight(80, '='));
-        Console.ResetColor();
-        Console.WriteLine();
-        Console.WriteLine($"Password for {purpose}:");
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine($"  {password}");
-        Console.ResetColor();
-        Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine("WARNING: Store this password securely!");
-        Console.WriteLine("This is your only chance to see it. Without this password,");
-        Console.WriteLine("you will NOT be able to use the certificate.");
-        Console.WriteLine("=".PadRight(80, '='));
-        Console.ResetColor();
-        Console.WriteLine();
-    }
-
-    private static X509KeyStorageFlags GetKeyStorageFlags(
-        StoreLocation? storeLocation = null,
-        bool persist = false,
-        bool exportable = true,
-        bool ephemeral = false)
-    {
-        if (ephemeral)
-        {
-            return X509KeyStorageFlags.EphemeralKeySet;
-        }
-
-        var flags = (X509KeyStorageFlags)0;
-
-        if (exportable)
-            flags |= X509KeyStorageFlags.Exportable;
-
-        if (persist)
-            flags |= X509KeyStorageFlags.PersistKeySet;
-
-        // Use MachineKeySet for LocalMachine, UserKeySet for CurrentUser
-        // This ensures keys are stored with the correct provider context
-        if (storeLocation == StoreLocation.LocalMachine)
-            flags |= X509KeyStorageFlags.MachineKeySet;
-        else if (storeLocation == StoreLocation.CurrentUser)
-            flags |= X509KeyStorageFlags.UserKeySet;
-
-        return flags;
-    }
-
-    internal static async Task InstallCertificate(FileInfo file, string password, StoreName storeName, StoreLocation storeLocation, bool exportable = true, bool quiet = false)
-    {
-        if (!file.Exists)
-        {
-            throw new FileNotFoundException($"Certificate file not found: {file.FullName}");
-        }
-
-        var flags = GetKeyStorageFlags(storeLocation, persist: true, exportable: exportable);
-        using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
-        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, flags);
-        if (!quiet)
-        {
-            Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
-        }
-        store.Add(certificate);
-        store.Close();
-
-        await Task.Delay(10);
-    }
-
-    internal static async Task WriteCertificateToFile(X509Certificate2 certificate, string path, string password, CertificateFileType certificateFileType, bool displayPassword = false, FileInfo? passwordFile = null, string pfxEncryption = "modern", bool quiet = false)
-    {
-        // Ensure output directory exists
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        if (certificateFileType == CertificateFileType.Pfx)
-        {
-            byte[] certData;
-
-            if (pfxEncryption.ToUpperInvariant() == "MODERN")
-            {
-                // Modern encryption: AES-256-CBC with SHA-256 and high iteration count
-                // Recommended for Windows Server 2019+, Windows 11
-                var pbeParams = new PbeParameters(
-                    PbeEncryptionAlgorithm.Aes256Cbc,
-                    HashAlgorithmName.SHA256,
-                    iterationCount: 100000);
-
-                certData = certificate.ExportPkcs12(pbeParams, password);
-            }
-            else
-            {
-                // Legacy encryption: 3DES for compatibility with older systems
-                certData = certificate.Export(X509ContentType.Pfx, password);
-            }
-
-            await File.WriteAllBytesAsync(path, certData);
-
-            if (!quiet)
-            {
-                Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
-            }
-
-            if (displayPassword)
-            {
-                DisplayPasswordWarning(password, Path.GetFileName(path), passwordFile);
-            }
-        }
-        else if (certificateFileType == CertificateFileType.PemCer)
-        {
-            var certificatePem = PemEncoding.Write("CERTIFICATE", certificate.RawData);
-            await File.WriteAllTextAsync(path, new string(certificatePem));
-            if (!quiet)
-            {
-                Console.WriteLine(" - certificate '{0}'", Path.GetFileName(path));
-            }
-        }
-        else if (certificateFileType == CertificateFileType.PemKey)
-        {
-            string privateKeyPem;
-            var rsaKey = certificate.GetRSAPrivateKey();
-            if (rsaKey != null)
-            {
-                privateKeyPem = rsaKey.ExportPkcs8PrivateKeyPem();
-            }
-            else
-            {
-                var ecdsaKey = certificate.GetECDsaPrivateKey();
-                if (ecdsaKey != null)
-                {
-                    privateKeyPem = ecdsaKey.ExportPkcs8PrivateKeyPem();
-                }
-                else
-                {
-                    throw new CertificateException("Unable to extract private key (unsupported key type - only RSA and ECDSA are supported)");
-                }
-            }
-            await File.WriteAllTextAsync(path, privateKeyPem);
-            if (!quiet)
-            {
-                Console.WriteLine(" - certificate private key '{0}'", Path.GetFileName(path));
-            }
-        }
-    }
 
     internal static async Task CreateCertificate(
         FileInfo pfx, string? password, FileInfo cert, FileInfo key, string[] dnsNames, int days,
@@ -194,7 +25,7 @@ internal static class CertificateOperations
         bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password))
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
@@ -224,16 +55,16 @@ internal static class CertificateOperations
         Console.WriteLine("Saved the following certificate files:");
         if (pfx != null)
         {
-            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile, pfxEncryption);
+            await CertificateUtilities.WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile, pfxEncryption);
         }
 
         if (cert != null)
         {
-            await WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
+            await CertificateUtilities.WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
 
             if (key != null)
             {
-                await WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
+                await CertificateUtilities.WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
             }
         }
     }
@@ -283,22 +114,22 @@ internal static class CertificateOperations
         bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password))
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
         CertificateDisplay.WriteRow(certificate);
         if (pfx != null)
         {
-            await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
+            await CertificateUtilities.WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
         }
         if (cert != null)
         {
-            await WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
+            await CertificateUtilities.WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
         }
         if (key != null)
         {
-            await WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
+            await CertificateUtilities.WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
         }
     }
 
@@ -307,7 +138,7 @@ internal static class CertificateOperations
         bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password) && pfx != null)
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
@@ -317,15 +148,15 @@ internal static class CertificateOperations
             CertificateDisplay.WriteRow(certificate);
             if (pfx != null)
             {
-                await WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
+                await CertificateUtilities.WriteCertificateToFile(certificate, pfx.FullName, password, CertificateFileType.Pfx, passwordWasGenerated, passwordFile);
             }
             if (cert != null)
             {
-                await WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
+                await CertificateUtilities.WriteCertificateToFile(certificate, cert.FullName, password, CertificateFileType.PemCer);
             }
             if (key != null)
             {
-                await WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
+                await CertificateUtilities.WriteCertificateToFile(certificate, key.FullName, password, CertificateFileType.PemKey);
             }
         }
         store.Close();
@@ -348,7 +179,7 @@ internal static class CertificateOperations
         bool passwordWasGenerated = false;
         if (string.IsNullOrEmpty(password))
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
@@ -409,7 +240,7 @@ internal static class CertificateOperations
 
         if (passwordWasGenerated)
         {
-            DisplayPasswordWarning(password, pfxFile.Name, passwordFile);
+            CertificateUtilities.DisplayPasswordWarning(password, pfxFile.Name, passwordFile);
         }
     }
 

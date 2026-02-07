@@ -4,12 +4,6 @@ namespace certz.Services;
 
 internal static class CertificateOperationsV2
 {
-    private static string GenerateSecurePassword()
-    {
-        byte[] data = RandomNumberGenerator.GetBytes(32);
-        return Convert.ToHexString(data);
-    }
-
     internal static async Task<CertificateCreationResult> CreateDevCertificate(DevCertificateOptions options)
     {
         // Build SANs list: domain first, then additional SANs
@@ -21,7 +15,7 @@ internal static class CertificateOperationsV2
         var password = options.Password;
         if (string.IsNullOrEmpty(password))
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
@@ -82,7 +76,7 @@ internal static class CertificateOperationsV2
         // Save certificate files
         if (options.PfxFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.PfxFile.FullName,
                 password,
@@ -96,7 +90,7 @@ internal static class CertificateOperationsV2
 
         if (options.CertFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.CertFile.FullName,
                 password,
@@ -107,7 +101,7 @@ internal static class CertificateOperationsV2
 
         if (options.KeyFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.KeyFile.FullName,
                 password,
@@ -127,7 +121,7 @@ internal static class CertificateOperationsV2
         bool wasTrusted = false;
         if (options.Trust && options.PfxFile != null)
         {
-            await CertificateOperations.InstallCertificate(
+            await CertificateUtilities.InstallCertificate(
                 options.PfxFile,
                 password,
                 StoreName.Root,
@@ -164,7 +158,7 @@ internal static class CertificateOperationsV2
         var password = options.Password;
         if (string.IsNullOrEmpty(password))
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
@@ -195,7 +189,7 @@ internal static class CertificateOperationsV2
         // Save certificate files
         if (options.PfxFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.PfxFile.FullName,
                 password,
@@ -209,7 +203,7 @@ internal static class CertificateOperationsV2
 
         if (options.CertFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.CertFile.FullName,
                 password,
@@ -220,7 +214,7 @@ internal static class CertificateOperationsV2
 
         if (options.KeyFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.KeyFile.FullName,
                 password,
@@ -240,7 +234,7 @@ internal static class CertificateOperationsV2
         bool wasTrusted = false;
         if (options.Trust && options.PfxFile != null)
         {
-            await CertificateOperations.InstallCertificate(
+            await CertificateUtilities.InstallCertificate(
                 options.PfxFile,
                 password,
                 StoreName.Root,
@@ -264,6 +258,744 @@ internal static class CertificateOperationsV2
             WasTrusted = wasTrusted,
             IsCA = true,
             PathLength = options.PathLength
+        };
+    }
+
+    /// <summary>
+    /// Converts a PEM certificate and private key to PFX format.
+    /// </summary>
+    /// <param name="options">The conversion options.</param>
+    /// <returns>The conversion result.</returns>
+    internal static async Task<ConversionResult> ConvertToPfx(ConvertToPfxOptions options)
+    {
+        if (!options.CertFile.Exists)
+        {
+            throw new FileNotFoundException($"Certificate file not found: {options.CertFile.FullName}");
+        }
+
+        if (!options.KeyFile.Exists)
+        {
+            throw new FileNotFoundException($"Key file not found: {options.KeyFile.FullName}");
+        }
+
+        // Handle password
+        bool passwordWasGenerated = false;
+        var password = options.Password;
+        if (string.IsNullOrEmpty(password))
+        {
+            password = CertificateUtilities.GenerateSecurePassword();
+            passwordWasGenerated = true;
+        }
+
+        // Load the certificate
+        var certificateText = await File.ReadAllTextAsync(options.CertFile.FullName);
+        var certificate = X509Certificate2.CreateFromPem(certificateText);
+
+        // Load the private key - try RSA first, then ECDSA
+        var privateKeyText = await File.ReadAllTextAsync(options.KeyFile.FullName);
+        X509Certificate2 certificateWithKey;
+
+        try
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(privateKeyText);
+            certificateWithKey = certificate.CopyWithPrivateKey(rsa);
+        }
+        catch
+        {
+            // Try ECDSA
+            try
+            {
+                using var ecdsa = ECDsa.Create();
+                ecdsa.ImportFromPem(privateKeyText);
+                certificateWithKey = certificate.CopyWithPrivateKey(ecdsa);
+            }
+            catch
+            {
+                throw new CertificateException("Unable to import private key. Only RSA and ECDSA keys are supported.");
+            }
+        }
+
+        // Export as PFX
+        options.OutputFile.Directory?.Create();
+        byte[] pfxData;
+        if (options.PfxEncryption.ToUpperInvariant() == "MODERN")
+        {
+            // Modern encryption: AES-256-CBC with SHA-256 and high iteration count
+            var pbeParams = new PbeParameters(
+                PbeEncryptionAlgorithm.Aes256Cbc,
+                HashAlgorithmName.SHA256,
+                iterationCount: 100000);
+            pfxData = certificateWithKey.ExportPkcs12(pbeParams, password);
+        }
+        else
+        {
+            // Legacy encryption: 3DES for compatibility with older systems
+            pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
+        }
+        await File.WriteAllBytesAsync(options.OutputFile.FullName, pfxData);
+
+        // Write password to file if generated and file specified
+        if (passwordWasGenerated && options.PasswordFile != null)
+        {
+            options.PasswordFile.Directory?.Create();
+            await File.WriteAllTextAsync(options.PasswordFile.FullName, password);
+        }
+
+        return new ConversionResult
+        {
+            Success = true,
+            OutputFile = options.OutputFile.FullName,
+            InputCertificate = options.CertFile.FullName,
+            InputKey = options.KeyFile.FullName,
+            GeneratedPassword = passwordWasGenerated ? password : null,
+            PasswordWasGenerated = passwordWasGenerated,
+            Subject = certificate.SubjectName.Format(false)
+        };
+    }
+
+    /// <summary>
+    /// Converts a PFX file to PEM format.
+    /// </summary>
+    /// <param name="options">The conversion options.</param>
+    /// <returns>The conversion result.</returns>
+    internal static async Task<ConversionResult> ConvertFromPfx(ConvertFromPfxOptions options)
+    {
+        if (!options.PfxFile.Exists)
+        {
+            throw new FileNotFoundException($"PFX file not found: {options.PfxFile.FullName}");
+        }
+
+        if (options.OutputCert == null && options.OutputKey == null)
+        {
+            throw new ArgumentException("Please specify at least one output: --out-cert or --out-key");
+        }
+
+        if (string.IsNullOrEmpty(options.Password))
+        {
+            throw new ArgumentException("Password is required to load PFX file. Use --password to specify the password.");
+        }
+
+        // Load PFX file
+        var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            options.PfxFile.FullName,
+            options.Password,
+            X509KeyStorageFlags.Exportable
+        );
+
+        var additionalOutputFiles = new List<string>();
+
+        // Export certificate to PEM
+        if (options.OutputCert != null)
+        {
+            options.OutputCert.Directory?.Create();
+            var certificatePem = PemEncoding.Write("CERTIFICATE", certificate.RawData);
+            await File.WriteAllTextAsync(options.OutputCert.FullName, new string(certificatePem));
+            additionalOutputFiles.Add(options.OutputCert.FullName);
+        }
+
+        // Export private key to PEM (if present)
+        if (options.OutputKey != null)
+        {
+            if (!certificate.HasPrivateKey)
+            {
+                throw new CertificateException("PFX file does not contain a private key");
+            }
+
+            string privateKeyPem;
+            var rsaKey = certificate.GetRSAPrivateKey();
+            if (rsaKey != null)
+            {
+                privateKeyPem = rsaKey.ExportPkcs8PrivateKeyPem();
+            }
+            else
+            {
+                var ecdsaKey = certificate.GetECDsaPrivateKey();
+                if (ecdsaKey != null)
+                {
+                    privateKeyPem = ecdsaKey.ExportPkcs8PrivateKeyPem();
+                }
+                else
+                {
+                    throw new CertificateException("Unable to extract private key (unsupported key type - only RSA and ECDSA are supported)");
+                }
+            }
+
+            options.OutputKey.Directory?.Create();
+            await File.WriteAllTextAsync(options.OutputKey.FullName, privateKeyPem);
+        }
+
+        // Determine primary output file
+        var primaryOutput = options.OutputCert?.FullName ?? options.OutputKey?.FullName ?? "";
+
+        // Build additional outputs list (excluding primary)
+        var additionalOutputs = additionalOutputFiles.Where(f => f != primaryOutput).ToArray();
+
+        certificate.Dispose();
+
+        return new ConversionResult
+        {
+            Success = true,
+            OutputFile = primaryOutput,
+            InputPfx = options.PfxFile.FullName,
+            AdditionalOutputFiles = additionalOutputs,
+            Subject = certificate.SubjectName.Format(false)
+        };
+    }
+
+    /// <summary>
+    /// Exports a certificate from a remote URL.
+    /// </summary>
+    /// <param name="options">The export options.</param>
+    /// <returns>The export result.</returns>
+    internal static async Task<ExportResult> ExportFromUrl(ExportFromUrlOptions options)
+    {
+        // Connect to remote host and retrieve certificate
+        RemoteCertificateValidationCallback certCallback = (_, _, _, _) => true;
+        using var client = new TcpClient(options.Url.Host, 443);
+        using var sslStream = new SslStream(client.GetStream(), true, certCallback);
+        await sslStream.AuthenticateAsClientAsync(options.Url.Host);
+        var serverCertificate = sslStream.RemoteCertificate;
+        var certificate = new X509Certificate2(serverCertificate);
+
+        // Handle password for PFX
+        bool passwordWasGenerated = false;
+        string? password = options.Password;
+        if (options.PfxFile != null && string.IsNullOrEmpty(password))
+        {
+            password = CertificateUtilities.GenerateSecurePassword();
+            passwordWasGenerated = true;
+        }
+
+        var outputFiles = new List<string>();
+
+        // Save certificate files
+        if (options.PfxFile != null)
+        {
+            await CertificateUtilities.WriteCertificateToFile(
+                certificate,
+                options.PfxFile.FullName,
+                password!,
+                CertificateFileType.Pfx,
+                displayPassword: false,
+                passwordFile: options.PasswordFile,
+                quiet: true);
+            outputFiles.Add(options.PfxFile.FullName);
+        }
+
+        if (options.CertFile != null)
+        {
+            await CertificateUtilities.WriteCertificateToFile(
+                certificate,
+                options.CertFile.FullName,
+                password ?? string.Empty,
+                CertificateFileType.PemCer,
+                quiet: true);
+            outputFiles.Add(options.CertFile.FullName);
+        }
+
+        if (options.KeyFile != null)
+        {
+            await CertificateUtilities.WriteCertificateToFile(
+                certificate,
+                options.KeyFile.FullName,
+                password ?? string.Empty,
+                CertificateFileType.PemKey,
+                quiet: true);
+            outputFiles.Add(options.KeyFile.FullName);
+        }
+
+        // Write password to file if generated and file specified
+        if (passwordWasGenerated && options.PasswordFile != null)
+        {
+            options.PasswordFile.Directory?.Create();
+            await File.WriteAllTextAsync(options.PasswordFile.FullName, password);
+        }
+
+        return new ExportResult
+        {
+            Success = true,
+            Subject = certificate.SubjectName.Format(false),
+            Issuer = certificate.IssuerName.Format(false),
+            Thumbprint = certificate.Thumbprint,
+            NotAfter = certificate.NotAfter,
+            Source = $"URL: {options.Url}",
+            OutputFiles = outputFiles.ToArray(),
+            GeneratedPassword = passwordWasGenerated ? password : null,
+            PasswordWasGenerated = passwordWasGenerated
+        };
+    }
+
+    /// <summary>
+    /// Exports a certificate from a certificate store.
+    /// </summary>
+    /// <param name="options">The export options.</param>
+    /// <returns>The export result.</returns>
+    internal static async Task<ExportResult> ExportFromStore(ExportFromStoreOptions options)
+    {
+        // Handle password for PFX
+        bool passwordWasGenerated = false;
+        string? password = options.Password;
+        if (options.PfxFile != null && string.IsNullOrEmpty(password))
+        {
+            password = CertificateUtilities.GenerateSecurePassword();
+            passwordWasGenerated = true;
+        }
+
+        // Open store and find certificate
+        using var store = new X509Store(options.StoreName, options.StoreLocation, OpenFlags.ReadOnly);
+        var certificate = store.Certificates
+            .FirstOrDefault(c => c.Thumbprint.Equals(options.Thumbprint, StringComparison.InvariantCultureIgnoreCase));
+
+        if (certificate == null)
+        {
+            throw new CertificateException($"Certificate with thumbprint {options.Thumbprint} not found in {options.StoreLocation}\\{options.StoreName}");
+        }
+
+        var outputFiles = new List<string>();
+
+        // Save certificate files
+        if (options.PfxFile != null)
+        {
+            await CertificateUtilities.WriteCertificateToFile(
+                certificate,
+                options.PfxFile.FullName,
+                password!,
+                CertificateFileType.Pfx,
+                displayPassword: false,
+                passwordFile: options.PasswordFile,
+                quiet: true);
+            outputFiles.Add(options.PfxFile.FullName);
+        }
+
+        if (options.CertFile != null)
+        {
+            await CertificateUtilities.WriteCertificateToFile(
+                certificate,
+                options.CertFile.FullName,
+                password ?? string.Empty,
+                CertificateFileType.PemCer,
+                quiet: true);
+            outputFiles.Add(options.CertFile.FullName);
+        }
+
+        if (options.KeyFile != null)
+        {
+            await CertificateUtilities.WriteCertificateToFile(
+                certificate,
+                options.KeyFile.FullName,
+                password ?? string.Empty,
+                CertificateFileType.PemKey,
+                quiet: true);
+            outputFiles.Add(options.KeyFile.FullName);
+        }
+
+        // Write password to file if generated and file specified
+        if (passwordWasGenerated && options.PasswordFile != null)
+        {
+            options.PasswordFile.Directory?.Create();
+            await File.WriteAllTextAsync(options.PasswordFile.FullName, password);
+        }
+
+        store.Close();
+
+        return new ExportResult
+        {
+            Success = true,
+            Subject = certificate.SubjectName.Format(false),
+            Issuer = certificate.IssuerName.Format(false),
+            Thumbprint = certificate.Thumbprint,
+            NotAfter = certificate.NotAfter,
+            Source = $"Store: {options.StoreLocation}\\{options.StoreName}",
+            OutputFiles = outputFiles.ToArray(),
+            GeneratedPassword = passwordWasGenerated ? password : null,
+            PasswordWasGenerated = passwordWasGenerated
+        };
+    }
+
+    /// <summary>
+    /// Lists certificates from a certificate store.
+    /// </summary>
+    /// <param name="options">Options for listing certificates.</param>
+    /// <returns>Result containing the list of certificates.</returns>
+    internal static StoreListResult ListCertificates(ListCertificatesOptions options)
+    {
+        var storeListOptions = new StoreListOptions
+        {
+            StoreName = options.StoreName.ToString(),
+            StoreLocation = options.StoreLocation.ToString(),
+            ShowExpired = false,
+            ExpiringDays = null
+        };
+
+        return StoreListHandler.ListCertificates(storeListOptions);
+    }
+
+    /// <summary>
+    /// Removes a certificate from a certificate store.
+    /// </summary>
+    /// <param name="options">Options for removing the certificate.</param>
+    /// <returns>Result containing information about removed certificates.</returns>
+    internal static TrustOperationResult RemoveCertificate(RemoveCertificateOptions options)
+    {
+        var subject = options.Subject;
+        var thumbprint = options.Thumbprint;
+
+        // Normalize subject to include CN= prefix if needed
+        if (!string.IsNullOrEmpty(subject) && !subject.StartsWith("CN="))
+        {
+            subject = $"CN={subject}";
+        }
+
+        // Build predicate for matching certificates
+        bool predicate(X509Certificate2 c) =>
+            (!string.IsNullOrEmpty(thumbprint) && c.Thumbprint.Equals(thumbprint, StringComparison.InvariantCultureIgnoreCase)) ||
+            (!string.IsNullOrEmpty(subject) && c.Subject.Equals(subject, StringComparison.InvariantCultureIgnoreCase));
+
+        var removedCertificates = new List<TrustCertificateInfo>();
+
+        using var store = new X509Store(options.StoreName, options.StoreLocation, OpenFlags.ReadWrite);
+        foreach (var certificate in store.Certificates.Where(predicate))
+        {
+            removedCertificates.Add(new TrustCertificateInfo
+            {
+                Subject = certificate.Subject,
+                Thumbprint = certificate.Thumbprint,
+                NotAfter = certificate.NotAfter
+            });
+            store.Remove(certificate);
+        }
+        store.Close();
+
+        return new TrustOperationResult
+        {
+            Success = true,
+            Operation = TrustOperationType.Remove,
+            StoreName = options.StoreName.ToString(),
+            StoreLocation = options.StoreLocation.ToString(),
+            Certificates = removedCertificates
+        };
+    }
+
+    /// <summary>
+    /// Shows certificate information from a file.
+    /// </summary>
+    /// <param name="options">Options for showing certificate information.</param>
+    /// <returns>Result containing the certificate details.</returns>
+    internal static CertificateInspectResult ShowCertificateInfoFromFile(ShowCertificateInfoFromFileOptions options)
+    {
+        var inspectOptions = new InspectOptions
+        {
+            Source = options.File.FullName,
+            Password = options.Password,
+            ShowChain = false,
+            CheckCrl = false
+        };
+
+        return CertificateInspector.InspectFile(inspectOptions);
+    }
+
+    /// <summary>
+    /// Shows certificate information from a URL.
+    /// </summary>
+    /// <param name="options">Options for showing certificate information.</param>
+    /// <returns>Result containing the certificate details.</returns>
+    internal static async Task<CertificateInspectResult> ShowCertificateInfoFromUrl(ShowCertificateInfoFromUrlOptions options)
+    {
+        var inspectOptions = new InspectOptions
+        {
+            Source = options.Url.ToString(),
+            ShowChain = false,
+            CheckCrl = false
+        };
+
+        return await CertificateInspector.InspectUrlAsync(inspectOptions);
+    }
+
+    /// <summary>
+    /// Shows certificate information from a certificate store.
+    /// </summary>
+    /// <param name="options">Options for showing certificate information.</param>
+    /// <returns>Result containing the certificate details.</returns>
+    internal static CertificateInspectResult ShowCertificateInfoFromStore(ShowCertificateInfoFromStoreOptions options)
+    {
+        var inspectOptions = new InspectOptions
+        {
+            Source = options.Thumbprint,
+            StoreName = options.StoreName.ToString(),
+            StoreLocation = options.StoreLocation.ToString(),
+            ShowChain = false,
+            CheckCrl = false
+        };
+
+        return CertificateInspector.InspectFromStore(inspectOptions);
+    }
+
+    /// <summary>
+    /// Verifies a certificate from a file.
+    /// </summary>
+    /// <param name="options">Options for verifying the certificate.</param>
+    /// <returns>Result containing the verification details.</returns>
+    internal static async Task<CertificateVerificationResult> VerifyFromFile(VerifyFromFileOptions options)
+    {
+        if (!options.File.Exists)
+        {
+            throw new FileNotFoundException($"Certificate file not found: {options.File.FullName}");
+        }
+
+        X509Certificate2? certificate = null;
+
+        if (options.File.Extension.Equals(".pfx", StringComparison.OrdinalIgnoreCase) ||
+            options.File.Extension.Equals(".p12", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(options.Password))
+            {
+                throw new ArgumentException("Password is required to load PFX file. Use --password to specify the password.");
+            }
+            certificate = X509CertificateLoader.LoadPkcs12FromFile(
+                options.File.FullName,
+                options.Password,
+                X509KeyStorageFlags.Exportable
+            );
+        }
+        else
+        {
+            var certificateText = await File.ReadAllTextAsync(options.File.FullName);
+            certificate = X509Certificate2.CreateFromPem(certificateText);
+        }
+
+        try
+        {
+            return PerformVerification(certificate, options.CheckRevocation, options.WarningDays);
+        }
+        finally
+        {
+            certificate.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Verifies a certificate from a certificate store.
+    /// </summary>
+    /// <param name="options">Options for verifying the certificate.</param>
+    /// <returns>Result containing the verification details.</returns>
+    internal static CertificateVerificationResult VerifyFromStore(VerifyFromStoreOptions options)
+    {
+        using var store = new X509Store(options.StoreName, options.StoreLocation, OpenFlags.ReadOnly);
+        var certificate = store.Certificates
+            .FirstOrDefault(c => c.Thumbprint.Equals(options.Thumbprint, StringComparison.InvariantCultureIgnoreCase));
+
+        if (certificate == null)
+        {
+            throw new CertificateException($"Certificate with thumbprint {options.Thumbprint} not found in {options.StoreLocation}\\{options.StoreName}");
+        }
+
+        try
+        {
+            return PerformVerification(certificate, options.CheckRevocation, options.WarningDays);
+        }
+        finally
+        {
+            store.Close();
+        }
+    }
+
+    private static CertificateVerificationResult PerformVerification(X509Certificate2 certificate, bool checkRevocation, int warningDays)
+    {
+        var now = DateTime.Now;
+        var allChecksPassed = true;
+
+        // 1. Expiration Check
+        var expirationCheck = CheckExpiration(certificate, now, warningDays, ref allChecksPassed);
+
+        // 2. Chain Validation
+        var chainValidation = ValidateChain(certificate, checkRevocation, ref allChecksPassed);
+
+        // 3. Trust Check
+        var trustCheck = CheckTrust(chainValidation, ref allChecksPassed);
+
+        // 4. Revocation Check (if requested)
+        RevocationCheckResult? revocationCheck = null;
+        if (checkRevocation)
+        {
+            revocationCheck = CheckRevocation(chainValidation, ref allChecksPassed);
+        }
+
+        return new CertificateVerificationResult
+        {
+            Success = allChecksPassed,
+            Subject = certificate.SubjectName.Format(false),
+            Thumbprint = certificate.Thumbprint,
+            ExpirationCheck = expirationCheck,
+            ChainValidation = chainValidation,
+            TrustCheck = trustCheck,
+            RevocationCheck = revocationCheck
+        };
+    }
+
+    private static ExpirationCheckResult CheckExpiration(X509Certificate2 certificate, DateTime now, int warningDays, ref bool allChecksPassed)
+    {
+        var daysRemaining = (certificate.NotAfter - now).Days;
+        var isExpired = certificate.NotAfter < now;
+        var isNotYetValid = certificate.NotBefore > now;
+        var isExpiringSoon = !isExpired && !isNotYetValid && daysRemaining <= warningDays;
+        var passed = !isExpired && !isNotYetValid;
+
+        string? message = null;
+        if (isExpired)
+        {
+            message = $"Certificate has EXPIRED on {certificate.NotAfter:yyyy-MM-dd}. Expired {(now - certificate.NotAfter).Days} days ago.";
+            allChecksPassed = false;
+        }
+        else if (isNotYetValid)
+        {
+            message = $"Certificate is NOT YET VALID (starts {certificate.NotBefore:yyyy-MM-dd}).";
+            allChecksPassed = false;
+        }
+        else if (isExpiringSoon)
+        {
+            message = $"Certificate expires SOON on {certificate.NotAfter:yyyy-MM-dd} ({daysRemaining} days remaining). Warning threshold: {warningDays} days.";
+        }
+        else
+        {
+            message = $"Certificate is valid until {certificate.NotAfter:yyyy-MM-dd} ({daysRemaining} days remaining).";
+        }
+
+        return new ExpirationCheckResult
+        {
+            Passed = passed,
+            NotAfter = certificate.NotAfter,
+            DaysRemaining = daysRemaining,
+            IsExpired = isExpired,
+            IsNotYetValid = isNotYetValid,
+            IsExpiringSoon = isExpiringSoon,
+            WarningThreshold = warningDays,
+            Message = message
+        };
+    }
+
+    private static ChainValidationResult ValidateChain(X509Certificate2 certificate, bool checkRevocation, ref bool allChecksPassed)
+    {
+        using var chain = new X509Chain();
+        chain.ChainPolicy.RevocationMode = checkRevocation
+            ? X509RevocationMode.Online
+            : X509RevocationMode.NoCheck;
+        chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
+
+        var chainIsValid = chain.Build(certificate);
+
+        var chainElements = new List<string>();
+        for (int i = 0; i < chain.ChainElements.Count; i++)
+        {
+            var element = chain.ChainElements[i];
+            chainElements.Add(element.Certificate.Subject);
+        }
+
+        var errors = new List<string>();
+        if (!chainIsValid)
+        {
+            allChecksPassed = false;
+            foreach (var status in chain.ChainStatus)
+            {
+                errors.Add($"{status.Status}: {status.StatusInformation}");
+            }
+        }
+
+        return new ChainValidationResult
+        {
+            Passed = chainIsValid,
+            ChainElements = chainElements,
+            Errors = errors
+        };
+    }
+
+    private static TrustCheckResult CheckTrust(ChainValidationResult chainValidation, ref bool allChecksPassed)
+    {
+        if (chainValidation.Passed && chainValidation.ChainElements.Count > 0)
+        {
+            var rootSubject = chainValidation.ChainElements[^1];
+
+            using var rootStore = new X509Store(StoreName.Root, StoreLocation.LocalMachine);
+            rootStore.Open(OpenFlags.ReadOnly);
+
+            var trustedRoot = rootStore.Certificates
+                .Cast<X509Certificate2>()
+                .Any(c => c.Subject.Equals(rootSubject, StringComparison.Ordinal));
+
+            rootStore.Close();
+
+            if (trustedRoot)
+            {
+                return new TrustCheckResult
+                {
+                    Passed = true,
+                    IsTrusted = true,
+                    RootSubject = rootSubject,
+                    Message = "Certificate chains to a trusted root."
+                };
+            }
+            else
+            {
+                return new TrustCheckResult
+                {
+                    Passed = true,
+                    IsTrusted = false,
+                    RootSubject = rootSubject,
+                    Message = $"Root certificate is not in trusted store. Root: {rootSubject}"
+                };
+            }
+        }
+        else
+        {
+            allChecksPassed = false;
+            return new TrustCheckResult
+            {
+                Passed = false,
+                Message = "Cannot verify trust (chain validation failed)."
+            };
+        }
+    }
+
+    private static RevocationCheckResult CheckRevocation(ChainValidationResult chainValidation, ref bool allChecksPassed)
+    {
+        if (!chainValidation.Passed)
+        {
+            return new RevocationCheckResult
+            {
+                Passed = false,
+                Message = "Revocation status cannot be checked (chain validation failed)."
+            };
+        }
+
+        var errors = chainValidation.Errors;
+        var revokedError = errors.FirstOrDefault(e => e.Contains("Revoked"));
+        if (revokedError != null)
+        {
+            allChecksPassed = false;
+            return new RevocationCheckResult
+            {
+                Passed = false,
+                IsRevoked = true,
+                Message = "Certificate has been REVOKED."
+            };
+        }
+
+        var offlineError = errors.FirstOrDefault(e => e.Contains("OfflineRevocation"));
+        if (offlineError != null)
+        {
+            return new RevocationCheckResult
+            {
+                Passed = true,
+                IsOffline = true,
+                Message = "Revocation status could not be checked (offline)."
+            };
+        }
+
+        return new RevocationCheckResult
+        {
+            Passed = true,
+            Message = "Certificate has not been revoked."
         };
     }
 

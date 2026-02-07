@@ -33,7 +33,7 @@ internal static class InstallCommand
             var storename = parseResult.GetValue(storeNameOption);
             var storelocation = parseResult.GetValue(storeLocationOption);
             var exportable = parseResult.GetValue(exportableOption);
-            await CertificateOperations.InstallCertificate(file!, password, storename, storelocation, exportable);
+            await CertificateUtilities.InstallCertificate(file!, password, storename, storelocation, exportable);
         });
 
         return installCommand;

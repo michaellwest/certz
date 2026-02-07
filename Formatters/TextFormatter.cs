@@ -336,6 +336,220 @@ internal class TextFormatter : IOutputFormatter
         }
     }
 
+    public void WriteConversionResult(ConversionResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError("Conversion failed");
+            return;
+        }
+
+        AnsiConsole.MarkupLine("[green]Successfully converted certificate format![/]");
+        AnsiConsole.WriteLine();
+
+        // Show input files
+        if (result.InputCertificate != null && result.InputKey != null)
+        {
+            AnsiConsole.MarkupLine("[bold]Input (PEM):[/]");
+            AnsiConsole.MarkupLine($"  [blue]-[/] Certificate: {Markup.Escape(Path.GetFileName(result.InputCertificate))}");
+            AnsiConsole.MarkupLine($"  [blue]-[/] Private Key: {Markup.Escape(Path.GetFileName(result.InputKey))}");
+        }
+        else if (result.InputPfx != null)
+        {
+            AnsiConsole.MarkupLine("[bold]Input (PFX):[/]");
+            AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.InputPfx))}");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]Output:[/]");
+        AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.OutputFile))}");
+
+        // Show additional output files
+        if (result.AdditionalOutputFiles.Length > 0)
+        {
+            foreach (var file in result.AdditionalOutputFiles)
+            {
+                AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(file))}");
+            }
+        }
+
+        // Show certificate subject if available
+        if (!string.IsNullOrEmpty(result.Subject))
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"[bold]Certificate Subject:[/] {Markup.Escape(result.Subject)}");
+        }
+
+        // Password warning if generated
+        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.GeneratedPassword))
+        {
+            AnsiConsole.WriteLine();
+            var passwordPanel = new Panel(
+                new Rows(
+                    new Markup($"[bold cyan]{Markup.Escape(result.GeneratedPassword)}[/]"),
+                    new Markup(""),
+                    new Markup("[yellow]Store this password securely! This is your only chance to see it.[/]")
+                ))
+                .Header("[bold yellow]Generated Password[/]")
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(passwordPanel);
+        }
+    }
+
+    public void WriteExportResult(ExportResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError("Export failed");
+            return;
+        }
+
+        AnsiConsole.MarkupLine("[green]Successfully exported certificate![/]");
+        AnsiConsole.WriteLine();
+
+        // Certificate details
+        AnsiConsole.MarkupLine($"[bold]Certificate:[/]");
+        AnsiConsole.MarkupLine($"  Subject: {Markup.Escape(result.Subject)}");
+        AnsiConsole.MarkupLine($"  Issuer: {Markup.Escape(result.Issuer)}");
+        AnsiConsole.MarkupLine($"  Thumbprint: [dim]{result.Thumbprint}[/]");
+        AnsiConsole.MarkupLine($"  Expires: {result.NotAfter:yyyy-MM-dd}");
+        AnsiConsole.WriteLine();
+
+        // Source
+        AnsiConsole.MarkupLine($"[bold]Source:[/] {Markup.Escape(result.Source)}");
+        AnsiConsole.WriteLine();
+
+        // Output files
+        AnsiConsole.MarkupLine("[bold]Saved Files:[/]");
+        foreach (var file in result.OutputFiles)
+        {
+            AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(file))}");
+        }
+
+        // Password warning if generated
+        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.GeneratedPassword))
+        {
+            AnsiConsole.WriteLine();
+            var passwordPanel = new Panel(
+                new Rows(
+                    new Markup($"[bold cyan]{Markup.Escape(result.GeneratedPassword)}[/]"),
+                    new Markup(""),
+                    new Markup("[yellow]Store this password securely! This is your only chance to see it.[/]")
+                ))
+                .Header("[bold yellow]Generated Password[/]")
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(passwordPanel);
+        }
+    }
+
+    public void WriteVerificationResult(CertificateVerificationResult result)
+    {
+        AnsiConsole.MarkupLine("[bold]Certificate Validation Report[/]");
+        AnsiConsole.MarkupLine("[dim]========================[/]");
+        AnsiConsole.WriteLine();
+
+        AnsiConsole.MarkupLine($"[bold]Certificate:[/] {Markup.Escape(result.Subject)}");
+        AnsiConsole.MarkupLine($"[bold]Thumbprint:[/] [dim]{result.Thumbprint}[/]");
+        AnsiConsole.WriteLine();
+
+        // 1. Expiration Check
+        AnsiConsole.MarkupLine("[bold][1] Checking Expiration Status...[/]");
+        var expCheck = result.ExpirationCheck;
+        if (expCheck.IsExpired)
+        {
+            AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(expCheck.Message ?? "Certificate expired")}");
+        }
+        else if (expCheck.IsNotYetValid)
+        {
+            AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(expCheck.Message ?? "Certificate not yet valid")}");
+        }
+        else if (expCheck.IsExpiringSoon)
+        {
+            AnsiConsole.MarkupLine($"    [yellow][WARN][/] {Markup.Escape(expCheck.Message ?? "Certificate expiring soon")}");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"    [green][PASS][/] {Markup.Escape(expCheck.Message ?? "Certificate is valid")}");
+        }
+        AnsiConsole.WriteLine();
+
+        // 2. Chain Validation
+        AnsiConsole.MarkupLine("[bold][2] Checking Certificate Chain...[/]");
+        var chainCheck = result.ChainValidation;
+        if (chainCheck.Passed)
+        {
+            AnsiConsole.MarkupLine($"    [green][PASS][/] Chain is valid");
+            AnsiConsole.MarkupLine($"           Chain length: {chainCheck.ChainElements.Count} certificate(s)");
+            for (int i = 0; i < chainCheck.ChainElements.Count; i++)
+            {
+                var indent = new string(' ', 11 + (i * 2));
+                AnsiConsole.MarkupLine($"{indent}{i + 1}. {Markup.Escape(chainCheck.ChainElements[i])}");
+            }
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("    [red][FAIL][/] Chain validation failed");
+            foreach (var error in chainCheck.Errors)
+            {
+                AnsiConsole.MarkupLine($"           - {Markup.Escape(error)}");
+            }
+        }
+        AnsiConsole.WriteLine();
+
+        // 3. Trust Check
+        AnsiConsole.MarkupLine("[bold][3] Checking Trust Status...[/]");
+        var trustCheck = result.TrustCheck;
+        if (trustCheck.Passed && trustCheck.IsTrusted)
+        {
+            AnsiConsole.MarkupLine("    [green][PASS][/] Certificate chains to a trusted root");
+        }
+        else if (trustCheck.Passed && !trustCheck.IsTrusted)
+        {
+            AnsiConsole.MarkupLine($"    [yellow][WARN][/] {Markup.Escape(trustCheck.Message ?? "Root not trusted")}");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(trustCheck.Message ?? "Trust check failed")}");
+        }
+        AnsiConsole.WriteLine();
+
+        // 4. Revocation Check (if requested)
+        if (result.RevocationCheck != null)
+        {
+            AnsiConsole.MarkupLine("[bold][4] Checking Revocation Status...[/]");
+            var revCheck = result.RevocationCheck;
+            if (revCheck.IsRevoked)
+            {
+                AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(revCheck.Message ?? "Certificate revoked")}");
+            }
+            else if (revCheck.IsOffline)
+            {
+                AnsiConsole.MarkupLine($"    [yellow][WARN][/] {Markup.Escape(revCheck.Message ?? "Offline")}");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"    [green][PASS][/] {Markup.Escape(revCheck.Message ?? "Not revoked")}");
+            }
+            AnsiConsole.WriteLine();
+        }
+
+        // Summary
+        AnsiConsole.MarkupLine("[bold]Summary[/]");
+        AnsiConsole.MarkupLine("[dim]-------[/]");
+        if (result.Success)
+        {
+            AnsiConsole.MarkupLine("[green][PASS] Certificate validation SUCCESSFUL[/]");
+            AnsiConsole.MarkupLine("        The certificate passed all validation checks.");
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[red][FAIL] Certificate validation FAILED[/]");
+            AnsiConsole.MarkupLine("        See details above for specific failures.");
+        }
+    }
+
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
     {
         AnsiConsole.MarkupLine($"[yellow]Multiple certificates match ({matchingCerts.Count}).[/]");
