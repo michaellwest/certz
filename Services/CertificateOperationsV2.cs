@@ -354,6 +354,95 @@ internal static class CertificateOperationsV2
         };
     }
 
+    /// <summary>
+    /// Converts a PFX file to PEM format.
+    /// </summary>
+    /// <param name="options">The conversion options.</param>
+    /// <returns>The conversion result.</returns>
+    internal static async Task<ConversionResult> ConvertFromPfx(ConvertFromPfxOptions options)
+    {
+        if (!options.PfxFile.Exists)
+        {
+            throw new FileNotFoundException($"PFX file not found: {options.PfxFile.FullName}");
+        }
+
+        if (options.OutputCert == null && options.OutputKey == null)
+        {
+            throw new ArgumentException("Please specify at least one output: --out-cert or --out-key");
+        }
+
+        if (string.IsNullOrEmpty(options.Password))
+        {
+            throw new ArgumentException("Password is required to load PFX file. Use --password to specify the password.");
+        }
+
+        // Load PFX file
+        var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            options.PfxFile.FullName,
+            options.Password,
+            X509KeyStorageFlags.Exportable
+        );
+
+        var additionalOutputFiles = new List<string>();
+
+        // Export certificate to PEM
+        if (options.OutputCert != null)
+        {
+            options.OutputCert.Directory?.Create();
+            var certificatePem = PemEncoding.Write("CERTIFICATE", certificate.RawData);
+            await File.WriteAllTextAsync(options.OutputCert.FullName, new string(certificatePem));
+            additionalOutputFiles.Add(options.OutputCert.FullName);
+        }
+
+        // Export private key to PEM (if present)
+        if (options.OutputKey != null)
+        {
+            if (!certificate.HasPrivateKey)
+            {
+                throw new CertificateException("PFX file does not contain a private key");
+            }
+
+            string privateKeyPem;
+            var rsaKey = certificate.GetRSAPrivateKey();
+            if (rsaKey != null)
+            {
+                privateKeyPem = rsaKey.ExportPkcs8PrivateKeyPem();
+            }
+            else
+            {
+                var ecdsaKey = certificate.GetECDsaPrivateKey();
+                if (ecdsaKey != null)
+                {
+                    privateKeyPem = ecdsaKey.ExportPkcs8PrivateKeyPem();
+                }
+                else
+                {
+                    throw new CertificateException("Unable to extract private key (unsupported key type - only RSA and ECDSA are supported)");
+                }
+            }
+
+            options.OutputKey.Directory?.Create();
+            await File.WriteAllTextAsync(options.OutputKey.FullName, privateKeyPem);
+        }
+
+        // Determine primary output file
+        var primaryOutput = options.OutputCert?.FullName ?? options.OutputKey?.FullName ?? "";
+
+        // Build additional outputs list (excluding primary)
+        var additionalOutputs = additionalOutputFiles.Where(f => f != primaryOutput).ToArray();
+
+        certificate.Dispose();
+
+        return new ConversionResult
+        {
+            Success = true,
+            OutputFile = primaryOutput,
+            InputPfx = options.PfxFile.FullName,
+            AdditionalOutputFiles = additionalOutputs,
+            Subject = certificate.SubjectName.Format(false)
+        };
+    }
+
     private static async Task<X509Certificate2> GenerateSignedCertificate(
         string[] dnsNames,
         DateTimeOffset notBefore,

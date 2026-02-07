@@ -67,8 +67,22 @@ internal static class ConvertCommand
             }
             else if (pfx != null && (outCert != null || outKey != null))
             {
-                // PFX to PEM (still using legacy API - will migrate next)
-                await CertificateOperations.ConvertFromPfx(pfx, password, outCert, outKey);
+                // PFX to PEM (using modern V2 API)
+                if (string.IsNullOrEmpty(password))
+                {
+                    formatter.WriteError("Password is required for PFX file. Use --password to specify the password.");
+                    return;
+                }
+
+                var options = new ConvertFromPfxOptions
+                {
+                    PfxFile = pfx,
+                    Password = password,
+                    OutputCert = outCert,
+                    OutputKey = outKey
+                };
+                var result = await CertificateOperationsV2.ConvertFromPfx(options);
+                formatter.WriteConversionResult(result);
             }
             else
             {
