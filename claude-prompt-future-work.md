@@ -8,8 +8,27 @@ You are helping complete the modernization of the `certz` certificate management
 
 ### What's Done ✅
 - `CertificateUtilities.cs` - Shared utility methods (password generation, file I/O, trust store installation)
-- `CertificateOperationsV2.cs` - Modern API with options pattern for `CreateDevCertificate` and `CreateCACertificate`
-- `CertificateOperations.cs` - Legacy API still contains parameter-heavy methods for other operations
+- `CertificateOperationsV2.cs` - Modern API with options pattern for all certificate operations
+- `CertificateOperations.cs` - Legacy API (to be deprecated)
+
+### SHORT TERM Complete ✅
+All methods migrated to options pattern in `CertificateOperationsV2.cs`:
+- `ConvertToPfx()`, `ConvertFromPfx()`, `ExportFromUrl()`, `ExportFromStore()`
+- `ListCertificates()`, `RemoveCertificate()`, `ShowCertificateInfo*()`, `Verify*()`
+
+### MEDIUM TERM Complete ✅
+**Service Classes (2026-02-07):**
+- `Services/ConvertService.cs` - PEM/PFX conversion operations
+- `Services/InspectService.cs` - Certificate inspection and verification
+- `Services/TrustService.cs` - Trust store management (add/remove/list)
+- `Services/ExportService.cs` - Certificate export from URLs and stores
+- Commands updated to use new service classes
+
+**Phase 3 Guided Mode (2026-02-07):**
+- `Services/CertificateWizard.cs` - Enhanced with beautiful Spectre.Console UI
+- Step-by-step progression with inline educational help
+- Summary table with confirmation before execution
+- `certz create dev --guided` and `certz create ca --guided` fully functional
 
 ### Architecture Patterns
 
