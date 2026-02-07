@@ -125,7 +125,7 @@ internal static class CreateDevCommand
                 options = options with { PfxFile = new FileInfo($"{options.Domain.Replace("*", "wildcard").Replace(".", "-")}.pfx") };
             }
 
-            var result = await CertificateOperationsV2.CreateDevCertificate(options);
+            var result = await CreateService.CreateDevCertificate(options);
             formatter.WriteCertificateCreated(result);
         });
 

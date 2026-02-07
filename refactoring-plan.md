@@ -2,18 +2,30 @@
 
 **Status:** Completed
 **Started:** 2026-02-06
-**Completed:** 2026-02-06
+**Phase 1 Completed:** 2026-02-06
+**Phase 2 Completed:** 2026-02-07
 **Goal:** Consolidate CertificateOperations.cs and CertificateOperationsV2.cs to eliminate duplication and establish modern patterns.
 
 ## Overview
 
-Currently, we have two certificate operation classes:
-- `CertificateOperations.cs` - Legacy parameter-based API with direct console output
-- `CertificateOperationsV2.cs` - Modern options-based API with structured results
+The refactoring has been completed in two phases:
 
-**Problem:** V2 calls V1 utility methods, creating tight coupling. Shared code is duplicated.
+### Phase 1 (2026-02-06)
+Extracted shared utilities into `CertificateUtilities.cs`.
 
-**Solution:** Extract shared utilities into a new class, then gradually migrate all operations to the modern pattern.
+### Phase 2 (2026-02-07)
+- Removed legacy `CertificateOperations.cs` (parameter-based API)
+- Removed `CertificateOperationsV2.cs` (methods moved to specialized services)
+- Created specialized service classes following the options pattern:
+  - `CreateService.cs` - Certificate creation (dev and CA certificates)
+  - `ConvertService.cs` - Format conversion (PEM/PFX)
+  - `ExportService.cs` - Certificate export (URL and store)
+  - `InspectService.cs` - Certificate inspection and verification
+  - `TrustService.cs` - Trust store operations
+
+**Original Problem:** V2 calls V1 utility methods, creating tight coupling. Shared code is duplicated.
+
+**Solution:** Extract shared utilities into a new class, then migrate all operations to specialized service classes with the modern options pattern.
 
 ## Refactoring Strategy
 
@@ -84,15 +96,22 @@ Compile and test after each extraction to ensure nothing breaks.
 
 ---
 
-## Expected File Structure After Refactoring
+## Final File Structure After Refactoring
 
 ```
 Services/
-├── CertificateUtilities.cs       ✨ NEW - Shared utilities
-├── CertificateOperations.cs      📝 UPDATED - Legacy operations (fewer methods)
-├── CertificateOperationsV2.cs    📝 UPDATED - Modern operations (cleaner)
+├── CertificateUtilities.cs       ✅ Shared utilities
+├── CreateService.cs              ✅ Certificate creation (dev/CA)
+├── ConvertService.cs             ✅ Format conversion (PEM/PFX)
+├── ExportService.cs              ✅ Certificate export (URL/store)
+├── InspectService.cs             ✅ Certificate inspection/verification
+├── TrustService.cs               ✅ Trust store operations
 ├── CertificateGeneration.cs      (unchanged)
 └── CertificateDisplay.cs         (unchanged)
+
+Removed Files:
+├── CertificateOperations.cs      ❌ DELETED - Legacy parameter-based API
+└── CertificateOperationsV2.cs    ❌ DELETED - Methods moved to specialized services
 ```
 
 ---
@@ -107,12 +126,13 @@ After each step:
 
 ---
 
-## Future Work (Post-Refactoring)
+## Completed Future Work
 
-Once utilities are extracted:
-1. Consider migrating remaining CertificateOperations methods to options pattern
-2. Create InspectService, ConvertService, TrustService with structured results
-3. Eventually deprecate parameter-based methods entirely
+All planned work has been completed:
+1. ✅ Migrated all CertificateOperations methods to options pattern
+2. ✅ Created specialized service classes (CreateService, InspectService, ConvertService, TrustService, ExportService)
+3. ✅ Deprecated and removed parameter-based methods entirely
+4. ✅ All commands now use the modern options pattern with structured results
 
 ---
 
@@ -139,19 +159,26 @@ Once utilities are extracted:
    - Updated all references across the codebase
 
 ### Metrics
-- **Files Modified:** 5 (CertificateUtilities.cs, CertificateOperations.cs, CertificateOperationsV2.cs, InstallCommand.cs, refactoring-plan.md)
+- **Phase 1 Files Modified:** 5 (CertificateUtilities.cs, CertificateOperations.cs, CertificateOperationsV2.cs, InstallCommand.cs, refactoring-plan.md)
+- **Phase 2 Files Created:** 1 (CreateService.cs)
+- **Phase 2 Files Deleted:** 2 (CertificateOperations.cs, CertificateOperationsV2.cs)
+- **Phase 2 Files Updated:** 3 (CreateCommand.cs, CreateDevCommand.cs, CreateCaCommand.cs)
 - **Methods Extracted:** 5 (GenerateSecurePassword, DisplayPasswordWarning, GetKeyStorageFlags, WriteCertificateToFile, InstallCertificate)
 - **Lines of Code Consolidated:** ~200 lines of duplicate code eliminated
-- **Build Status:** ✅ Successful (0 errors, 17 pre-existing warnings)
+- **Build Status:** ✅ Successful (0 errors)
 
 ### Benefits Achieved
 1. **Eliminated Duplication** - Shared utility methods now exist in a single location
 2. **Improved Maintainability** - Changes to utilities only need to be made once
 3. **Better Separation of Concerns** - Utilities are separated from business logic
 4. **Easier Testing** - Utility methods can be tested independently
-5. **Foundation for Future Work** - Cleaner codebase ready for Phase 3 implementation
+5. **Modern API Pattern** - All operations now use the options pattern with structured results
+6. **Specialized Services** - Each service class has a clear, single responsibility
+7. **Removed Legacy Code** - No more parameter-based methods; all modern options pattern
 
-### Next Steps
-- Consider extracting more CertificateOperations methods to the options pattern
-- Implement Phase 3 (Interactive/Guided Mode) using the clean foundation
-- Eventually migrate all operations to use structured options and results
+### Architecture Summary
+All certificate operations now follow a consistent pattern:
+- **Options classes** (e.g., `DevCertificateOptions`, `ConvertToPfxOptions`) - Define inputs
+- **Result classes** (e.g., `CertificateCreationResult`, `ConversionResult`) - Define outputs
+- **Service classes** (e.g., `CreateService`, `ConvertService`) - Implement operations
+- **Formatters** (e.g., `TextFormatter`, `JsonFormatter`) - Handle output formatting
