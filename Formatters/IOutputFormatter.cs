@@ -9,6 +9,7 @@ internal interface IOutputFormatter
     void WriteStoreList(StoreListResult result);
     void WriteTrustAdded(TrustOperationResult result);
     void WriteTrustRemoved(TrustOperationResult result);
+    void WriteConversionResult(ConversionResult result);
     void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts);
     void WriteError(string message);
     void WriteWarning(string message);

@@ -115,6 +115,19 @@ internal record MultipleMatchesOutput(
     TrustCertificateDto[] Certificates
 );
 
+// Conversion result DTO
+internal record ConversionOutput(
+    bool Success,
+    string OutputFile,
+    string? InputCertificate,
+    string? InputKey,
+    string? InputPfx,
+    string[]? AdditionalOutputFiles,
+    string? Subject,
+    string? GeneratedPassword,
+    bool PasswordWasGenerated
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -125,6 +138,7 @@ internal record MultipleMatchesOutput(
 [JsonSerializable(typeof(StoreListOutput))]
 [JsonSerializable(typeof(TrustOperationOutput))]
 [JsonSerializable(typeof(MultipleMatchesOutput))]
+[JsonSerializable(typeof(ConversionOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -272,6 +286,23 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.TrustOperationOutput));
+    }
+
+    public void WriteConversionResult(ConversionResult result)
+    {
+        var output = new ConversionOutput(
+            Success: result.Success,
+            OutputFile: result.OutputFile,
+            InputCertificate: result.InputCertificate,
+            InputKey: result.InputKey,
+            InputPfx: result.InputPfx,
+            AdditionalOutputFiles: result.AdditionalOutputFiles.Length > 0 ? result.AdditionalOutputFiles : null,
+            Subject: result.Subject,
+            GeneratedPassword: result.PasswordWasGenerated ? result.GeneratedPassword : null,
+            PasswordWasGenerated: result.PasswordWasGenerated
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.ConversionOutput));
     }
 
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)

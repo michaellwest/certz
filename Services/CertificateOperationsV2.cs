@@ -261,6 +261,99 @@ internal static class CertificateOperationsV2
         };
     }
 
+    /// <summary>
+    /// Converts a PEM certificate and private key to PFX format.
+    /// </summary>
+    /// <param name="options">The conversion options.</param>
+    /// <returns>The conversion result.</returns>
+    internal static async Task<ConversionResult> ConvertToPfx(ConvertToPfxOptions options)
+    {
+        if (!options.CertFile.Exists)
+        {
+            throw new FileNotFoundException($"Certificate file not found: {options.CertFile.FullName}");
+        }
+
+        if (!options.KeyFile.Exists)
+        {
+            throw new FileNotFoundException($"Key file not found: {options.KeyFile.FullName}");
+        }
+
+        // Handle password
+        bool passwordWasGenerated = false;
+        var password = options.Password;
+        if (string.IsNullOrEmpty(password))
+        {
+            password = CertificateUtilities.GenerateSecurePassword();
+            passwordWasGenerated = true;
+        }
+
+        // Load the certificate
+        var certificateText = await File.ReadAllTextAsync(options.CertFile.FullName);
+        var certificate = X509Certificate2.CreateFromPem(certificateText);
+
+        // Load the private key - try RSA first, then ECDSA
+        var privateKeyText = await File.ReadAllTextAsync(options.KeyFile.FullName);
+        X509Certificate2 certificateWithKey;
+
+        try
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(privateKeyText);
+            certificateWithKey = certificate.CopyWithPrivateKey(rsa);
+        }
+        catch
+        {
+            // Try ECDSA
+            try
+            {
+                using var ecdsa = ECDsa.Create();
+                ecdsa.ImportFromPem(privateKeyText);
+                certificateWithKey = certificate.CopyWithPrivateKey(ecdsa);
+            }
+            catch
+            {
+                throw new CertificateException("Unable to import private key. Only RSA and ECDSA keys are supported.");
+            }
+        }
+
+        // Export as PFX
+        options.OutputFile.Directory?.Create();
+        byte[] pfxData;
+        if (options.PfxEncryption.ToUpperInvariant() == "MODERN")
+        {
+            // Modern encryption: AES-256-CBC with SHA-256 and high iteration count
+            var pbeParams = new PbeParameters(
+                PbeEncryptionAlgorithm.Aes256Cbc,
+                HashAlgorithmName.SHA256,
+                iterationCount: 100000);
+            pfxData = certificateWithKey.ExportPkcs12(pbeParams, password);
+        }
+        else
+        {
+            // Legacy encryption: 3DES for compatibility with older systems
+            pfxData = certificateWithKey.Export(X509ContentType.Pfx, password);
+        }
+        await File.WriteAllBytesAsync(options.OutputFile.FullName, pfxData);
+
+        // Write password to file if generated and file specified
+        if (passwordWasGenerated && options.PasswordFile != null)
+        {
+            options.PasswordFile.Directory?.Create();
+            await File.WriteAllTextAsync(options.PasswordFile.FullName, password);
+        }
+
+        return new ConversionResult
+        {
+            Success = true,
+            OutputFile = options.OutputFile.FullName,
+            InputCertificate = options.CertFile.FullName,
+            InputKey = options.KeyFile.FullName,
+            GeneratedPassword = passwordWasGenerated ? password : null,
+            PasswordWasGenerated = passwordWasGenerated,
+            Subject = certificate.SubjectName.Format(false)
+        };
+    }
+
     private static async Task<X509Certificate2> GenerateSignedCertificate(
         string[] dnsNames,
         DateTimeOffset notBefore,

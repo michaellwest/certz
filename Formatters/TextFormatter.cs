@@ -336,6 +336,67 @@ internal class TextFormatter : IOutputFormatter
         }
     }
 
+    public void WriteConversionResult(ConversionResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError("Conversion failed");
+            return;
+        }
+
+        AnsiConsole.MarkupLine("[green]Successfully converted certificate format![/]");
+        AnsiConsole.WriteLine();
+
+        // Show input files
+        if (result.InputCertificate != null && result.InputKey != null)
+        {
+            AnsiConsole.MarkupLine("[bold]Input (PEM):[/]");
+            AnsiConsole.MarkupLine($"  [blue]-[/] Certificate: {Markup.Escape(Path.GetFileName(result.InputCertificate))}");
+            AnsiConsole.MarkupLine($"  [blue]-[/] Private Key: {Markup.Escape(Path.GetFileName(result.InputKey))}");
+        }
+        else if (result.InputPfx != null)
+        {
+            AnsiConsole.MarkupLine("[bold]Input (PFX):[/]");
+            AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.InputPfx))}");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]Output:[/]");
+        AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.OutputFile))}");
+
+        // Show additional output files
+        if (result.AdditionalOutputFiles.Length > 0)
+        {
+            foreach (var file in result.AdditionalOutputFiles)
+            {
+                AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(file))}");
+            }
+        }
+
+        // Show certificate subject if available
+        if (!string.IsNullOrEmpty(result.Subject))
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine($"[bold]Certificate Subject:[/] {Markup.Escape(result.Subject)}");
+        }
+
+        // Password warning if generated
+        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.GeneratedPassword))
+        {
+            AnsiConsole.WriteLine();
+            var passwordPanel = new Panel(
+                new Rows(
+                    new Markup($"[bold cyan]{Markup.Escape(result.GeneratedPassword)}[/]"),
+                    new Markup(""),
+                    new Markup("[yellow]Store this password securely! This is your only chance to see it.[/]")
+                ))
+                .Header("[bold yellow]Generated Password[/]")
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(passwordPanel);
+        }
+    }
+
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
     {
         AnsiConsole.MarkupLine($"[yellow]Multiple certificates match ({matchingCerts.Count}).[/]");
