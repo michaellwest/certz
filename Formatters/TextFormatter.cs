@@ -397,6 +397,53 @@ internal class TextFormatter : IOutputFormatter
         }
     }
 
+    public void WriteExportResult(ExportResult result)
+    {
+        if (!result.Success)
+        {
+            WriteError("Export failed");
+            return;
+        }
+
+        AnsiConsole.MarkupLine("[green]Successfully exported certificate![/]");
+        AnsiConsole.WriteLine();
+
+        // Certificate details
+        AnsiConsole.MarkupLine($"[bold]Certificate:[/]");
+        AnsiConsole.MarkupLine($"  Subject: {Markup.Escape(result.Subject)}");
+        AnsiConsole.MarkupLine($"  Issuer: {Markup.Escape(result.Issuer)}");
+        AnsiConsole.MarkupLine($"  Thumbprint: [dim]{result.Thumbprint}[/]");
+        AnsiConsole.MarkupLine($"  Expires: {result.NotAfter:yyyy-MM-dd}");
+        AnsiConsole.WriteLine();
+
+        // Source
+        AnsiConsole.MarkupLine($"[bold]Source:[/] {Markup.Escape(result.Source)}");
+        AnsiConsole.WriteLine();
+
+        // Output files
+        AnsiConsole.MarkupLine("[bold]Saved Files:[/]");
+        foreach (var file in result.OutputFiles)
+        {
+            AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(file))}");
+        }
+
+        // Password warning if generated
+        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.GeneratedPassword))
+        {
+            AnsiConsole.WriteLine();
+            var passwordPanel = new Panel(
+                new Rows(
+                    new Markup($"[bold cyan]{Markup.Escape(result.GeneratedPassword)}[/]"),
+                    new Markup(""),
+                    new Markup("[yellow]Store this password securely! This is your only chance to see it.[/]")
+                ))
+                .Header("[bold yellow]Generated Password[/]")
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(passwordPanel);
+        }
+    }
+
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
     {
         AnsiConsole.MarkupLine($"[yellow]Multiple certificates match ({matchingCerts.Count}).[/]");

@@ -128,6 +128,19 @@ internal record ConversionOutput(
     bool PasswordWasGenerated
 );
 
+// Export result DTO
+internal record ExportOutput(
+    bool Success,
+    string Subject,
+    string Issuer,
+    string Thumbprint,
+    string NotAfter,
+    string Source,
+    string[] OutputFiles,
+    string? GeneratedPassword,
+    bool PasswordWasGenerated
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -139,6 +152,7 @@ internal record ConversionOutput(
 [JsonSerializable(typeof(TrustOperationOutput))]
 [JsonSerializable(typeof(MultipleMatchesOutput))]
 [JsonSerializable(typeof(ConversionOutput))]
+[JsonSerializable(typeof(ExportOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -303,6 +317,23 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.ConversionOutput));
+    }
+
+    public void WriteExportResult(ExportResult result)
+    {
+        var output = new ExportOutput(
+            Success: result.Success,
+            Subject: result.Subject,
+            Issuer: result.Issuer,
+            Thumbprint: result.Thumbprint,
+            NotAfter: result.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            Source: result.Source,
+            OutputFiles: result.OutputFiles,
+            GeneratedPassword: result.PasswordWasGenerated ? result.GeneratedPassword : null,
+            PasswordWasGenerated: result.PasswordWasGenerated
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.ExportOutput));
     }
 
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
