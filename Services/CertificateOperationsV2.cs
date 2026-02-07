@@ -76,7 +76,7 @@ internal static class CertificateOperationsV2
         // Save certificate files
         if (options.PfxFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.PfxFile.FullName,
                 password,
@@ -90,7 +90,7 @@ internal static class CertificateOperationsV2
 
         if (options.CertFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.CertFile.FullName,
                 password,
@@ -101,7 +101,7 @@ internal static class CertificateOperationsV2
 
         if (options.KeyFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.KeyFile.FullName,
                 password,
@@ -121,7 +121,7 @@ internal static class CertificateOperationsV2
         bool wasTrusted = false;
         if (options.Trust && options.PfxFile != null)
         {
-            await CertificateOperations.InstallCertificate(
+            await CertificateUtilities.InstallCertificate(
                 options.PfxFile,
                 password,
                 StoreName.Root,
@@ -189,7 +189,7 @@ internal static class CertificateOperationsV2
         // Save certificate files
         if (options.PfxFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.PfxFile.FullName,
                 password,
@@ -203,7 +203,7 @@ internal static class CertificateOperationsV2
 
         if (options.CertFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.CertFile.FullName,
                 password,
@@ -214,7 +214,7 @@ internal static class CertificateOperationsV2
 
         if (options.KeyFile != null)
         {
-            await CertificateOperations.WriteCertificateToFile(
+            await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.KeyFile.FullName,
                 password,
@@ -234,7 +234,7 @@ internal static class CertificateOperationsV2
         bool wasTrusted = false;
         if (options.Trust && options.PfxFile != null)
         {
-            await CertificateOperations.InstallCertificate(
+            await CertificateUtilities.InstallCertificate(
                 options.PfxFile,
                 password,
                 StoreName.Root,
