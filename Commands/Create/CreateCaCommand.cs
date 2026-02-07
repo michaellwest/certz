@@ -73,7 +73,14 @@ internal static class CreateCaCommand
 
             if (guided)
             {
-                options = CertificateWizard.RunCACertificateWizard();
+                try
+                {
+                    options = CertificateWizard.RunCACertificateWizard();
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
             else
             {

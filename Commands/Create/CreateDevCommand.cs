@@ -78,7 +78,14 @@ internal static class CreateDevCommand
 
             if (guided)
             {
-                options = CertificateWizard.RunDevCertificateWizard();
+                try
+                {
+                    options = CertificateWizard.RunDevCertificateWizard();
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
             }
             else
             {
