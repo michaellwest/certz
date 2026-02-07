@@ -613,6 +613,24 @@ internal static class CertificateOperationsV2
         };
     }
 
+    /// <summary>
+    /// Lists certificates from a certificate store.
+    /// </summary>
+    /// <param name="options">Options for listing certificates.</param>
+    /// <returns>Result containing the list of certificates.</returns>
+    internal static StoreListResult ListCertificates(ListCertificatesOptions options)
+    {
+        var storeListOptions = new StoreListOptions
+        {
+            StoreName = options.StoreName.ToString(),
+            StoreLocation = options.StoreLocation.ToString(),
+            ShowExpired = false,
+            ExpiringDays = null
+        };
+
+        return StoreListHandler.ListCertificates(storeListOptions);
+    }
+
     private static async Task<X509Certificate2> GenerateSignedCertificate(
         string[] dnsNames,
         DateTimeOffset notBefore,
