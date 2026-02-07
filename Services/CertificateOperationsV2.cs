@@ -4,12 +4,6 @@ namespace certz.Services;
 
 internal static class CertificateOperationsV2
 {
-    private static string GenerateSecurePassword()
-    {
-        byte[] data = RandomNumberGenerator.GetBytes(32);
-        return Convert.ToHexString(data);
-    }
-
     internal static async Task<CertificateCreationResult> CreateDevCertificate(DevCertificateOptions options)
     {
         // Build SANs list: domain first, then additional SANs
@@ -21,7 +15,7 @@ internal static class CertificateOperationsV2
         var password = options.Password;
         if (string.IsNullOrEmpty(password))
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
@@ -164,7 +158,7 @@ internal static class CertificateOperationsV2
         var password = options.Password;
         if (string.IsNullOrEmpty(password))
         {
-            password = GenerateSecurePassword();
+            password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
         }
 
