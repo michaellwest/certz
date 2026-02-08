@@ -1,35 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet build:*)",
-      "Bash(git stash:*)",
-      "Bash(dotnet run:*)",
-      "Bash(dotnet restore:*)",
-      "WebFetch(domain:www.nuget.org)",
-      "Bash(./certz.exe export:*)",
-      "Bash(echo:*)",
-      "Bash(dotnet publish:*)",
-      "Bash(ls:*)",
-      "Bash(pwsh:*)",
-      "Bash(./certz.exe create:*)",
-      "Bash(./certz.exe info:*)",
-      "Bash(powershell -ExecutionPolicy Bypass -File test-all.ps1)",
-      "Bash(powershell -Command:*)",
-      "Bash(powershell -NoProfile -Command:*)",
-      "Bash(.certz.exe create:*)",
-      "Bash(dotnet test:*)",
-      "Bash(powershell:*)",
-      "Bash(xxd:*)",
-      "Bash(grep:*)",
-      "Bash(./certz.exe convert:*)",
-      "Bash(git -C \"c:/Projects/github/michaellwest/certz\" tag --sort=-version:refname)",
+      "Bash(dotnet:*)",
+      "Bash(git:*)",
+      "Bash(./certz.exe:*)",
+      "Bash(./bin/Debug/net10.0/win-x64/certz.exe:*)",
       "Bash(certutil:*)",
-      "Bash(./bin/Debug/net10.0/win-x64/certz.exe create:*)",
-      "Bash(./bin/Debug/net10.0/win-x64/certz.exe inspect:*)",
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate ExportCertificate \\(URI overload\\) to options pattern\n\n- Created ExportFromUrlOptions and ExportResult models\n- Added ExportFromUrl method to CertificateOperationsV2\n- Updated ExportCommand to use V2 API for URL exports\n- Added WriteExportResult to formatters \\(text and JSON\\)\n- URL export now supports --format json\n- Follows modern pattern: options object, structured result, quiet operation\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git mv:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdded phase 6 implementation plan for certificate expiration monitoring.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(echo:*)",
+      "Bash(ls:*)",
+      "Bash(xxd:*)",
+      "Bash(grep:*)"
     ]
   }
 }
