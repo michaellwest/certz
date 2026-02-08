@@ -27,7 +27,8 @@
       "Bash(./bin/Debug/net10.0/win-x64/certz.exe create:*)",
       "Bash(./bin/Debug/net10.0/win-x64/certz.exe inspect:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate ExportCertificate \\(URI overload\\) to options pattern\n\n- Created ExportFromUrlOptions and ExportResult models\n- Added ExportFromUrl method to CertificateOperationsV2\n- Updated ExportCommand to use V2 API for URL exports\n- Added WriteExportResult to formatters \\(text and JSON\\)\n- URL export now supports --format json\n- Follows modern pattern: options object, structured result, quiet operation\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate ExportCertificate \\(URI overload\\) to options pattern\n\n- Created ExportFromUrlOptions and ExportResult models\n- Added ExportFromUrl method to CertificateOperationsV2\n- Updated ExportCommand to use V2 API for URL exports\n- Added WriteExportResult to formatters \\(text and JSON\\)\n- URL export now supports --format json\n- Follows modern pattern: options object, structured result, quiet operation\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git mv:*)"
     ]
   }
 }

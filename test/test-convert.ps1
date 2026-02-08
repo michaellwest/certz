@@ -43,229 +43,34 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$script:FailedTests = @()
-$script:PassedTests = @()
-$script:TestCount = 0
 
-# Store parameters in script-scoped variables for use in functions
-$script:FilterTestId = $TestId
-$script:FilterCategory = $Category
+# Load shared test helper functions
+. "$PSScriptRoot\test-helper.ps1"
 
 # Test categories
-$script:TestCategories = @{
+$TestCategories = @{
     "pem-to-pfx" = @("cnv-1.1", "cnv-1.2", "cnv-1.3")
     "pfx-to-pem" = @("cnv-2.1", "cnv-2.2", "cnv-2.3")
     "encryption" = @("cnv-3.1", "cnv-3.2")
     "format" = @("fmt-1.1")
 }
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-function Test-ShouldRun {
-    param([string]$Id)
-
-    # If no filters specified, run all tests
-    if (-not $script:FilterTestId -and -not $script:FilterCategory) {
-        return $true
-    }
-
-    # Check if test ID matches
-    if ($script:FilterTestId -and $script:FilterTestId -contains $Id) {
-        return $true
-    }
-
-    # Check if test belongs to any selected category
-    if ($script:FilterCategory) {
-        foreach ($cat in $script:FilterCategory) {
-            if ($script:TestCategories.ContainsKey($cat) -and $script:TestCategories[$cat] -contains $Id) {
-                return $true
-            }
-        }
-    }
-
-    return $false
-}
-
-function Write-TestHeader {
-    param([string]$Message)
-    Write-Host "`n========================================" -ForegroundColor Cyan
-    Write-Host " $Message" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
-}
-
-function Write-TestResult {
-    param(
-        [string]$TestId,
-        [string]$TestName,
-        [bool]$Success,
-        [string]$Details = ""
-    )
-
-    $script:TestCount++
-
-    if ($Success) {
-        Write-Host "[PASS] $TestName" -ForegroundColor Green
-        $script:PassedTests += $TestName
-        if ($Details -and $Verbose) {
-            Write-Host "       $Details" -ForegroundColor Gray
-        }
-    } else {
-        Write-Host "[FAIL] $TestName" -ForegroundColor Red
-        $script:FailedTests += "$TestId : $TestName"
-        if ($Details) {
-            Write-Host "       ERROR: $Details" -ForegroundColor Yellow
-        }
-    }
-}
-
-function Remove-TestFiles {
-    param([string]$Pattern = "*")
-
-    Get-ChildItem -Path . -File -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -like "$Pattern*.pfx" -or
-        $_.Name -like "$Pattern*.cer" -or
-        $_.Name -like "$Pattern*.crt" -or
-        $_.Name -like "$Pattern*.key" -or
-        $_.Name -like "$Pattern*.pem" -or
-        $_.Name -like "$Pattern*.der" -or
-        $_.Name -like "$Pattern*.password.txt"
-    } | Remove-Item -Force -ErrorAction SilentlyContinue
-}
-
-# ============================================================================
-# ASSERTION FUNCTIONS
-# ============================================================================
-
-function Assert-FileExists {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Path,
-        [string]$Message = "File should exist"
-    )
-    $exists = Test-Path -Path $Path -PathType Leaf
-    if (-not $exists) {
-        throw "Assertion failed: $Message - File not found: $Path"
-    }
-    return $true
-}
-
-function Assert-FileNotExists {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Path,
-        [string]$Message = "File should not exist"
-    )
-    $exists = Test-Path -Path $Path -PathType Leaf
-    if ($exists) {
-        throw "Assertion failed: $Message - File exists: $Path"
-    }
-    return $true
-}
-
-function Assert-ExitCode {
-    param(
-        [int]$Expected = 0,
-        [string]$Message = "Exit code should match"
-    )
-    if ($LASTEXITCODE -ne $Expected) {
-        throw "Assertion failed: $Message - Expected exit code $Expected but got $LASTEXITCODE"
-    }
-    return $true
-}
-
-function Assert-Match {
-    param(
-        [Parameter(Mandatory)]
-        [string]$Actual,
-        [Parameter(Mandatory)]
-        [string]$Pattern,
-        [string]$Message = "Output should match pattern"
-    )
-    if ($Actual -notmatch $Pattern) {
-        throw "Assertion failed: $Message - Pattern '$Pattern' not found in output"
-    }
-    return $true
-}
-
-function Invoke-Test {
-    param(
-        [Parameter(Mandatory)]
-        [string]$TestId,
-        [Parameter(Mandatory)]
-        [string]$TestName,
-        [Parameter(Mandatory)]
-        [scriptblock]$TestScript,
-        [string]$FilePrefix = ""
-    )
-
-    # Check if this test should run based on filters
-    if (-not (Test-ShouldRun -Id $TestId)) {
-        return $null
-    }
-
-    # Clean up files if prefix specified
-    if ($FilePrefix) {
-        Remove-TestFiles $FilePrefix
-    }
-
-    Write-Host "[TEST $TestId] $TestName" -ForegroundColor Cyan
-
-    try {
-        $result = & $TestScript
-        if ($result -is [hashtable] -and $result.ContainsKey("Success")) {
-            Write-TestResult $TestId $TestName $result.Success $result.Details
-            return $result
-        } else {
-            Write-TestResult $TestId $TestName $true ""
-            return [PSCustomObject]@{ Success = $true; Result = $result } | Out-String
-        }
-    } catch {
-        Write-TestResult $TestId $TestName $false $_.Exception.Message
-        return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message } | Out-String
-    }
-}
-
-# ============================================================================
-# BUILD AND SETUP
-# ============================================================================
-
-function Build-Certz {
-    param([bool]$Verbose = $false)
-
-    Write-Host "Building and publishing certz..." -ForegroundColor Cyan
-
-    $buildOutput = dotnet publish -c Debug -o docker\tools 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Build failed" -ForegroundColor Red
-        if ($Verbose) {
-            $buildOutput | ForEach-Object { Write-Host $_ -ForegroundColor Yellow }
-        }
-        exit 1
-    }
-
-    if ($Verbose) {
-        $buildOutput | ForEach-Object { Write-Host $_ -ForegroundColor Gray }
-    }
-
-    Write-Host "Build completed successfully" -ForegroundColor Green
-    Write-Host ""
-}
-
 # Initialize test environment
+Initialize-TestEnvironment -TestId $TestId -Category $Category -TestCategories $TestCategories
+Set-VerboseOutput -Enabled $Verbose
+
+# Display banner
 Write-Host "`nCertz Convert Command Test Suite" -ForegroundColor Magenta
 Write-Host "=================================`n" -ForegroundColor Magenta
 
 # Display active filters
-if ($script:FilterTestId -or $script:FilterCategory) {
+if ($TestId -or $Category) {
     Write-Host "Test Filters Active:" -ForegroundColor Yellow
-    if ($script:FilterTestId) {
-        Write-Host "  Test IDs: $($script:FilterTestId -join ', ')" -ForegroundColor Gray
+    if ($TestId) {
+        Write-Host "  Test IDs: $($TestId -join ', ')" -ForegroundColor Gray
     }
-    if ($script:FilterCategory) {
-        Write-Host "  Categories: $($script:FilterCategory -join ', ')" -ForegroundColor Gray
+    if ($Category) {
+        Write-Host "  Categories: $($Category -join ', ')" -ForegroundColor Gray
     }
     Write-Host ""
 }
@@ -274,7 +79,7 @@ if ($script:FilterTestId -or $script:FilterCategory) {
 Build-Certz -Verbose:$Verbose
 
 # Change to tools directory
-Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "docker\tools")
+Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
 
 # Initial cleanup
 Write-Host "Initializing test environment..." -ForegroundColor Yellow
@@ -789,7 +594,7 @@ Invoke-Test -TestId "fmt-1.1" -TestName "Convert with JSON output" -FilePrefix "
 }
 
 # ============================================================================
-# CLEANUP
+# CLEANUP AND SUMMARY
 # ============================================================================
 if (-not $SkipCleanup) {
     Write-TestHeader "Cleaning Up Test Environment"
@@ -802,33 +607,6 @@ if (-not $SkipCleanup) {
 # Return to original directory
 Pop-Location
 
-# ============================================================================
-# SUMMARY
-# ============================================================================
-Write-Host "`n" -NoNewline
-Write-TestHeader "Test Summary"
-
-$totalTests = $script:TestCount
-$passedCount = $script:PassedTests.Count
-$failedCount = $script:FailedTests.Count
-$passRate = if ($totalTests -gt 0) { [math]::Round(($passedCount / $totalTests) * 100, 2) } else { 0 }
-
-Write-Host "`nTotal Tests:  $totalTests" -ForegroundColor White
-Write-Host "Passed:       $passedCount ($passRate%)" -ForegroundColor Green
-Write-Host "Failed:       $failedCount" -ForegroundColor $(if ($failedCount -eq 0) { "Green" } else { "Red" })
-
-if ($failedCount -gt 0) {
-    Write-Host "`nFailed Tests:" -ForegroundColor Red
-    foreach ($test in $script:FailedTests) {
-        Write-Host "  - $test" -ForegroundColor Yellow
-    }
-}
-
-# Exit with appropriate code
-if ($failedCount -eq 0) {
-    Write-Host "`nAll tests passed!" -ForegroundColor Green
-    exit 0
-} else {
-    Write-Host "`nSome tests failed!" -ForegroundColor Red
-    exit 1
-}
+# Display summary and exit
+$exitCode = Write-TestSummary -SkipCleanup:$SkipCleanup
+exit $exitCode
