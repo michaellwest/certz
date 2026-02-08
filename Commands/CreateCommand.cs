@@ -1,4 +1,6 @@
 using certz.Commands.Create;
+using certz.Formatters;
+using certz.Models;
 using certz.Options;
 using certz.Services;
 
@@ -49,6 +51,7 @@ internal static class CreateCommand
         var subjectCOption = OptionBuilders.CreateSubjectCOption();
         var subjectSTOption = OptionBuilders.CreateSubjectSTOption();
         var subjectLOption = OptionBuilders.CreateSubjectLOption();
+        var formatOption = OptionBuilders.CreateFormatOption();
 
         createCommand.Options.Add(pfxOption);
         createCommand.Options.Add(passwordOption);
@@ -72,6 +75,7 @@ internal static class CreateCommand
         createCommand.Options.Add(subjectCOption);
         createCommand.Options.Add(subjectSTOption);
         createCommand.Options.Add(subjectLOption);
+        createCommand.Options.Add(formatOption);
 
         createCommand.SetAction(async (parseResult) =>
         {
@@ -80,13 +84,13 @@ internal static class CreateCommand
             var passwordFile = parseResult.GetValue(passwordFileOption);
             var cert = parseResult.GetValue(certOption);
             var key = parseResult.GetValue(keyOption);
-            var dnsNames = parseResult.GetValue(dnsOption);
+            var dnsNames = parseResult.GetValue(dnsOption) ?? Array.Empty<string>();
             var days = parseResult.GetValue(daysOption);
             var keySize = parseResult.GetValue(keySizeOption);
-            var hashAlgorithm = parseResult.GetValue(hashAlgorithmOption);
-            var keyType = parseResult.GetValue(keyTypeOption);
-            var rsaPadding = parseResult.GetValue(rsaPaddingOption);
-            var pfxEncryption = parseResult.GetValue(pfxEncryptionOption);
+            var hashAlgorithm = parseResult.GetValue(hashAlgorithmOption) ?? "auto";
+            var keyType = parseResult.GetValue(keyTypeOption) ?? "ECDSA-P256";
+            var rsaPadding = parseResult.GetValue(rsaPaddingOption) ?? "pss";
+            var pfxEncryption = parseResult.GetValue(pfxEncryptionOption) ?? "modern";
             var isCA = parseResult.GetValue(isCAOption);
             var pathLength = parseResult.GetValue(pathLengthOption);
             var crlUrl = parseResult.GetValue(crlUrlOption);
@@ -97,13 +101,85 @@ internal static class CreateCommand
             var subjectC = parseResult.GetValue(subjectCOption);
             var subjectST = parseResult.GetValue(subjectSTOption);
             var subjectL = parseResult.GetValue(subjectLOption);
+            var format = parseResult.GetValue(formatOption) ?? "text";
+            var formatter = FormatterFactory.Create(format);
 
-            await CertificateOperations.CreateCertificate(
-                pfx!, password, cert!, key!, dnsNames!, days,
-                keySize, hashAlgorithm!, keyType!, rsaPadding!,
-                isCA, pathLength, crlUrl, ocspUrl, caIssuersUrl,
-                subjectO, subjectOU, subjectC, subjectST, subjectL,
-                passwordFile, pfxEncryption!);
+            // Validate: if cert or key is specified, both must be specified
+            if ((cert != null && key == null) || (cert == null && key != null))
+            {
+                formatter.WriteError("Both the cert and key parameters should be provided.");
+                return;
+            }
+
+            // Set default for PFX if no files are specified
+            if (pfx == null && cert == null && key == null)
+            {
+                pfx = new FileInfo("devcert.pfx");
+            }
+
+            CertificateCreationResult result;
+
+            if (isCA)
+            {
+                // Create CA certificate
+                var caOptions = new CACertificateOptions
+                {
+                    Name = dnsNames.FirstOrDefault() ?? "Development CA",
+                    Days = days,
+                    PathLength = pathLength,
+                    KeyType = keyType,
+                    KeySize = keySize,
+                    HashAlgorithm = hashAlgorithm,
+                    RsaPadding = rsaPadding,
+                    PfxEncryption = pfxEncryption,
+                    CrlUrl = crlUrl,
+                    OcspUrl = ocspUrl,
+                    CAIssuersUrl = caIssuersUrl,
+                    SubjectO = subjectO,
+                    SubjectOU = subjectOU,
+                    SubjectC = subjectC,
+                    SubjectST = subjectST,
+                    SubjectL = subjectL,
+                    PfxFile = pfx,
+                    CertFile = cert,
+                    KeyFile = key,
+                    Password = password,
+                    PasswordFile = passwordFile,
+                    Trust = false,
+                    TrustLocation = StoreLocation.CurrentUser
+                };
+                result = await CreateService.CreateCACertificate(caOptions);
+            }
+            else
+            {
+                // Create development certificate
+                var devOptions = new DevCertificateOptions
+                {
+                    Domain = dnsNames.FirstOrDefault() ?? "*.dev.local",
+                    AdditionalSANs = dnsNames.Skip(1).ToArray(),
+                    Days = days,
+                    KeyType = keyType,
+                    KeySize = keySize,
+                    HashAlgorithm = hashAlgorithm,
+                    RsaPadding = rsaPadding,
+                    PfxEncryption = pfxEncryption,
+                    SubjectO = subjectO,
+                    SubjectOU = subjectOU,
+                    SubjectC = subjectC,
+                    SubjectST = subjectST,
+                    SubjectL = subjectL,
+                    PfxFile = pfx,
+                    CertFile = cert,
+                    KeyFile = key,
+                    Password = password,
+                    PasswordFile = passwordFile,
+                    Trust = false,
+                    TrustLocation = StoreLocation.CurrentUser
+                };
+                result = await CreateService.CreateDevCertificate(devOptions);
+            }
+
+            formatter.WriteCertificateCreated(result);
         });
     }
 }

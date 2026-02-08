@@ -28,9 +28,13 @@ internal static class ConvertService
             throw new FileNotFoundException($"Key file not found: {options.KeyFile.FullName}");
         }
 
-        // Handle password
+        // Handle password - check password file first if provided
         bool passwordWasGenerated = false;
         var password = options.Password;
+        if (string.IsNullOrEmpty(password) && options.PasswordFile != null && options.PasswordFile.Exists)
+        {
+            password = (await File.ReadAllTextAsync(options.PasswordFile.FullName)).Trim();
+        }
         if (string.IsNullOrEmpty(password))
         {
             password = CertificateUtilities.GenerateSecurePassword();

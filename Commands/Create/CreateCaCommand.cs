@@ -120,7 +120,7 @@ internal static class CreateCaCommand
                 options = options with { PfxFile = new FileInfo($"{options.Name.Replace(" ", "-").ToLowerInvariant()}.pfx") };
             }
 
-            var result = await CertificateOperationsV2.CreateCACertificate(options);
+            var result = await CreateService.CreateCACertificate(options);
             formatter.WriteCertificateCreated(result);
         });
 
