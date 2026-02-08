@@ -1,7 +1,8 @@
 # Phase 4: Lint & Validation Commands
 
-**Status:** In Progress
+**Status:** Complete
 **Started:** 2026-02-08
+**Completed:** 2026-02-08
 
 ## Overview
 Implement Phase 4 of the certz v2.0 roadmap: add `lint` command for certificate validation against industry standards (CA/B Forum Baseline Requirements, Mozilla NSS Policy). This phase also prepares for future `renew` and chain visualization features.
@@ -20,14 +21,14 @@ Implement Phase 4 of the certz v2.0 roadmap: add `lint` command for certificate 
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create LintResult model | [ ] | |
-| 2 | Create LintService.cs | [ ] | |
-| 3 | Implement CA/B Forum checks | [ ] | |
-| 4 | Implement Mozilla NSS checks | [ ] | |
-| 5 | Add LintCommand.cs | [ ] | |
-| 6 | Add formatter methods | [ ] | |
-| 7 | Create test-lint.ps1 | [ ] | |
-| 8 | Update documentation | [ ] | |
+| 1 | Create LintResult model | [x] | Models/LintResult.cs |
+| 2 | Create LintService.cs | [x] | Services/LintService.cs |
+| 3 | Implement CA/B Forum checks | [x] | In LintService.cs |
+| 4 | Implement Mozilla NSS checks | [x] | In LintService.cs |
+| 5 | Add LintCommand.cs | [x] | Commands/Lint/LintCommand.cs |
+| 6 | Add formatter methods | [x] | WriteLintResult in formatters |
+| 7 | Create test-lint.ps1 | [x] | test/test-lint.ps1 |
+| 8 | Update documentation | [x] | README.md, TESTING.md |
 
 ---
 
@@ -199,7 +200,7 @@ internal record LintResult
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -246,7 +247,7 @@ internal record LintOptions
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -339,7 +340,7 @@ internal static class LintService
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -482,7 +483,7 @@ private static List<LintFinding> CheckCaBForumRules(X509Certificate2 cert, bool 
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -547,7 +548,7 @@ private static List<LintFinding> CheckMozillaNssRules(X509Certificate2 cert, boo
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -615,7 +616,7 @@ private static List<LintFinding> CheckDevCertRules(X509Certificate2 cert)
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -772,7 +773,7 @@ internal static class LintCommand
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -848,7 +849,7 @@ public void WriteLintResult(LintResult result)
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -907,7 +908,7 @@ $script:TestCategories = @{
 # fmt-1.1: Lint with --format json output
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 

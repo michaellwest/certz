@@ -38,13 +38,18 @@ Run the dedicated test scripts for each command group:
 # Test trust store management (trust add, trust remove, store list)
 .\test-trust.ps1
 
+# Test certificate linting (lint against CA/B Forum, Mozilla NSS)
+.\test-lint.ps1
+
 # Run specific test by ID
 .\test-inspect.ps1 -TestId "ins-1.1"
 .\test-trust.ps1 -TestId "tru-1.1"
+.\test-lint.ps1 -TestId "lin-1.1"
 
 # Run tests by category
 .\test-inspect.ps1 -Category inspect-file
 .\test-trust.ps1 -Category trust-add
+.\test-lint.ps1 -Category cabf
 ```
 
 ### Legacy Testing (v1.x Commands)
@@ -285,6 +290,59 @@ certz store list --expiring 30
 certz store list --format json
 ```
 **Expected:** Outputs certificate list as JSON.
+
+### LINT Command
+
+Validate certificates against industry standards (CA/B Forum, Mozilla NSS).
+
+#### Test: Lint Valid Certificate
+```powershell
+certz lint cert.pfx --password MyPassword
+```
+**Expected:** Displays lint results with pass/fail status and any findings.
+
+#### Test: Lint with Mozilla Policy
+```powershell
+certz lint cert.pem --policy mozilla
+```
+**Expected:** Runs both CA/B Forum and Mozilla NSS checks.
+
+#### Test: Lint Remote Certificate
+```powershell
+certz lint https://github.com
+```
+**Expected:** Fetches and lints the remote server certificate.
+
+#### Test: Lint Development Certificate
+```powershell
+certz lint devcert.pfx --password Pass --policy dev
+```
+**Expected:** Runs relaxed development certificate checks.
+
+#### Test: Filter by Severity
+```powershell
+certz lint cert.pfx --password Pass --severity error
+```
+**Expected:** Shows only error-level findings, filters out warnings and info.
+
+#### Test: Lint from Store
+```powershell
+certz lint <thumbprint> --store Root
+```
+**Expected:** Retrieves certificate from store and lints it.
+
+#### Test: JSON Output
+```powershell
+certz lint cert.pfx --password Pass --format json
+```
+**Expected:** Outputs lint results as JSON for CI/CD integration.
+
+#### Test: Exit Code on Errors
+```powershell
+certz lint invalid-cert.pfx --password Pass
+echo $LASTEXITCODE
+```
+**Expected:** Returns exit code 1 if errors found, 0 if passed.
 
 ---
 
