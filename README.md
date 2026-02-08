@@ -214,8 +214,11 @@ certz trust add ca.cer --store Root --location LocalMachine
 Remove certificates from the Windows trust store.
 
 ```bash
-# Remove by thumbprint
-certz trust remove ABC123DEF456 --force
+# Remove by full thumbprint (40 chars)
+certz trust remove ABC123DEF456789012345678901234567890ABCD --force
+
+# Remove by partial thumbprint (8+ chars prefix match)
+certz trust remove ABC123DE --force
 
 # Remove by subject pattern
 certz trust remove --subject "CN=dev*" --force
@@ -226,6 +229,12 @@ certz trust remove ABC123DEF456 --store Root --force
 # Interactive removal (prompts for confirmation)
 certz trust remove ABC123DEF456
 ```
+
+**Partial Thumbprint Matching:**
+- Minimum 8 characters required for partial thumbprint
+- Uses prefix matching (StartsWith)
+- If multiple certificates match, `--force` is required
+- Full 40-character thumbprint performs exact match
 
 **Options:**
 | Option | Description |

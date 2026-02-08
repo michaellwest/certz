@@ -72,13 +72,29 @@ internal static class TrustHandler
 
         if (!string.IsNullOrEmpty(thumbprint))
         {
-            // Find by thumbprint
             var normalizedThumbprint = thumbprint.Replace(" ", "").ToUpperInvariant();
-            var found = store.Certificates.Find(X509FindType.FindByThumbprint, normalizedThumbprint, false);
-            foreach (var cert in found)
+
+            if (normalizedThumbprint.Length == 40)
             {
-                // Clone the cert to avoid disposal issues when store closes
-                matching.Add(X509CertificateLoader.LoadCertificate(cert.RawData));
+                // Exact match for full thumbprint (40 hex characters = SHA-1)
+                var found = store.Certificates.Find(X509FindType.FindByThumbprint, normalizedThumbprint, false);
+                foreach (var cert in found)
+                {
+                    // Clone the cert to avoid disposal issues when store closes
+                    matching.Add(X509CertificateLoader.LoadCertificate(cert.RawData));
+                }
+            }
+            else
+            {
+                // Prefix match for partial thumbprint (8+ characters)
+                foreach (var cert in store.Certificates)
+                {
+                    if (cert.Thumbprint.StartsWith(normalizedThumbprint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Clone the cert to avoid disposal issues when store closes
+                        matching.Add(X509CertificateLoader.LoadCertificate(cert.RawData));
+                    }
+                }
             }
         }
         else if (!string.IsNullOrEmpty(subject))
