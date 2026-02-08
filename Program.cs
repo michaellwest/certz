@@ -1,5 +1,6 @@
 using certz.Commands;
 using certz.Commands.Inspect;
+using certz.Commands.Lint;
 using certz.Commands.Store;
 using certz.Commands.Trust;
 using certz.Options;
@@ -19,6 +20,7 @@ rootCommand.AddConvertCommand();
 rootCommand.AddInfoCommand();
 rootCommand.AddVerifyCommand();
 rootCommand.AddInspectCommand();
+rootCommand.AddLintCommand();
 rootCommand.AddStoreCommand();
 rootCommand.AddTrustCommand();
 
@@ -30,6 +32,11 @@ try
     };
 
     return await rootCommand.Parse(args).InvokeAsync(configuration);
+}
+catch (LintFailedException)
+{
+    // Lint results were already displayed, just return exit code 1
+    return 1;
 }
 catch (Exception exception)
 {

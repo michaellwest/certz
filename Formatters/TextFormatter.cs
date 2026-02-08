@@ -550,6 +550,78 @@ internal class TextFormatter : IOutputFormatter
         }
     }
 
+    public void WriteLintResult(LintResult result)
+    {
+        var statusColor = result.Passed ? "green" : "red";
+        var statusText = result.Passed ? "PASSED" : "FAILED";
+
+        AnsiConsole.Write(new Rule($"[bold]Certificate Lint: [{statusColor}]{statusText}[/][/]").LeftJustified());
+        AnsiConsole.WriteLine();
+
+        // Certificate info
+        AnsiConsole.MarkupLine($"[bold]Subject:[/] {Markup.Escape(result.Subject)}");
+        AnsiConsole.MarkupLine($"[bold]Thumbprint:[/] [dim]{result.Thumbprint}[/]");
+        AnsiConsole.MarkupLine($"[bold]Policy Set:[/] {result.PolicySet}");
+        AnsiConsole.MarkupLine($"[bold]Certificate Type:[/] {(result.IsCa ? (result.IsRoot ? "Root CA" : "Intermediate CA") : "End Entity")}");
+        AnsiConsole.WriteLine();
+
+        if (result.Findings.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[green]No issues found.[/]");
+            return;
+        }
+
+        // Summary
+        var summaryParts = new List<string>();
+        if (result.ErrorCount > 0)
+            summaryParts.Add($"[red]{result.ErrorCount} error{(result.ErrorCount > 1 ? "s" : "")}[/]");
+        if (result.WarningCount > 0)
+            summaryParts.Add($"[yellow]{result.WarningCount} warning{(result.WarningCount > 1 ? "s" : "")}[/]");
+        if (result.InfoCount > 0)
+            summaryParts.Add($"[dim]{result.InfoCount} info[/]");
+
+        AnsiConsole.MarkupLine($"[bold]Findings:[/] {string.Join(", ", summaryParts)}");
+        AnsiConsole.WriteLine();
+
+        // Details table
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Severity[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Rule[/]"))
+            .AddColumn(new TableColumn("[bold]Details[/]"));
+
+        foreach (var finding in result.Findings)
+        {
+            var severityColor = finding.Severity switch
+            {
+                LintSeverity.Error => "red",
+                LintSeverity.Warning => "yellow",
+                _ => "dim"
+            };
+
+            var severityText = finding.Severity.ToString().ToUpper();
+            var ruleText = $"[bold]{finding.RuleId}[/]\n[dim]{Markup.Escape(finding.RuleName)}[/]";
+
+            var messageText = Markup.Escape(finding.Message);
+            if (finding.ActualValue != null)
+            {
+                messageText += $"\n[dim]Actual: {Markup.Escape(finding.ActualValue)}[/]";
+            }
+            if (finding.ExpectedValue != null)
+            {
+                messageText += $"\n[dim]Expected: {Markup.Escape(finding.ExpectedValue)}[/]";
+            }
+            messageText += $"\n[dim]Policy: {finding.Policy}[/]";
+
+            table.AddRow(
+                $"[{severityColor}]{severityText}[/]",
+                ruleText,
+                messageText);
+        }
+
+        AnsiConsole.Write(table);
+    }
+
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
     {
         AnsiConsole.MarkupLine($"[yellow]Multiple certificates match ({matchingCerts.Count}).[/]");

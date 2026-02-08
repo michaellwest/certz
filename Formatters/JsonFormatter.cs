@@ -183,6 +183,32 @@ internal record VerificationRevocationCheckDto(
     string? Message
 );
 
+// Lint result DTOs
+internal record LintOutput(
+    bool Success,
+    bool Passed,
+    string Subject,
+    string Thumbprint,
+    string PolicySet,
+    bool IsCa,
+    bool IsRoot,
+    string? SourcePath,
+    int ErrorCount,
+    int WarningCount,
+    int InfoCount,
+    LintFindingDto[] Findings
+);
+
+internal record LintFindingDto(
+    string RuleId,
+    string RuleName,
+    string Severity,
+    string Message,
+    string Policy,
+    string? ActualValue,
+    string? ExpectedValue
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -196,6 +222,7 @@ internal record VerificationRevocationCheckDto(
 [JsonSerializable(typeof(ConversionOutput))]
 [JsonSerializable(typeof(ExportOutput))]
 [JsonSerializable(typeof(VerificationOutput))]
+[JsonSerializable(typeof(LintOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -445,6 +472,36 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.MultipleMatchesOutput));
+    }
+
+    public void WriteLintResult(LintResult result)
+    {
+        var findings = result.Findings.Select(f => new LintFindingDto(
+            f.RuleId,
+            f.RuleName,
+            f.Severity.ToString(),
+            f.Message,
+            f.Policy,
+            f.ActualValue,
+            f.ExpectedValue
+        )).ToArray();
+
+        var output = new LintOutput(
+            Success: true,
+            Passed: result.Passed,
+            Subject: result.Subject,
+            Thumbprint: result.Thumbprint,
+            PolicySet: result.PolicySet,
+            IsCa: result.IsCa,
+            IsRoot: result.IsRoot,
+            SourcePath: result.SourcePath,
+            ErrorCount: result.ErrorCount,
+            WarningCount: result.WarningCount,
+            InfoCount: result.InfoCount,
+            Findings: findings
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.LintOutput));
     }
 
     public void WriteError(string message)
