@@ -146,7 +146,15 @@ internal class TextFormatter : IOutputFormatter
         if (result.Chain != null && result.Chain.Count > 0)
         {
             AnsiConsole.WriteLine();
-            RenderChainFromInfo(result.Chain, result.ChainIsValid);
+            if (result.DetailedTree)
+            {
+                var visualizer = new ChainVisualizer();
+                visualizer.RenderDetailedChain(result.Chain, result.ChainIsValid, AnsiConsole.Console);
+            }
+            else
+            {
+                RenderChainFromInfo(result.Chain, result.ChainIsValid);
+            }
         }
     }
 

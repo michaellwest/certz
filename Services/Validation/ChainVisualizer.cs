@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.RegularExpressions;
+using certz.Models;
 using Spectre.Console;
 
 namespace certz.Services.Validation;
@@ -14,6 +16,14 @@ internal interface IChainVisualizer
     /// <param name="result">The chain validation result to render.</param>
     /// <param name="console">The Spectre.Console instance to write to.</param>
     void RenderChain(ChainValidationResult result, IAnsiConsole console);
+
+    /// <summary>
+    /// Renders a detailed certificate chain tree with key info, SANs, and signatures.
+    /// </summary>
+    /// <param name="chain">The chain elements to render.</param>
+    /// <param name="isValid">Whether the chain is valid.</param>
+    /// <param name="console">The Spectre.Console instance to write to.</param>
+    void RenderDetailedChain(List<ChainElementInfo> chain, bool isValid, IAnsiConsole console);
 }
 
 /// <summary>
@@ -70,6 +80,158 @@ internal class ChainVisualizer : IChainVisualizer
             console.MarkupLine("");
             console.MarkupLine("[green]Chain validation successful[/]");
         }
+    }
+
+    public void RenderDetailedChain(List<ChainElementInfo> chain, bool isValid, IAnsiConsole console)
+    {
+        var root = new Tree("[bold]Certificate Chain[/]");
+
+        if (chain.Count == 0)
+        {
+            root.AddNode("[red]No chain elements found[/]");
+            console.Write(root);
+            return;
+        }
+
+        // Build tree from root CA down to end entity
+        // Chain is ordered from end-entity (index 0) to root CA (last index)
+        TreeNode? currentNode = null;
+        for (int i = chain.Count - 1; i >= 0; i--)
+        {
+            var element = chain[i];
+            var isEndEntity = i == 0;
+            var nodeText = BuildDetailedNodeText(element, isEndEntity);
+
+            if (currentNode == null)
+            {
+                currentNode = root.AddNode(nodeText);
+            }
+            else
+            {
+                currentNode = currentNode.AddNode(nodeText);
+            }
+        }
+
+        console.Write(root);
+
+        // Show overall chain status
+        if (!isValid)
+        {
+            console.MarkupLine("");
+            console.MarkupLine("[red]Chain validation failed[/]");
+        }
+        else
+        {
+            console.MarkupLine("");
+            console.MarkupLine("[green]Chain validation successful[/]");
+        }
+    }
+
+    private static string BuildDetailedNodeText(ChainElementInfo element, bool isEndEntity)
+    {
+        var sb = new StringBuilder();
+
+        // Certificate type indicator
+        string typeLabel;
+        if (isEndEntity)
+        {
+            typeLabel = "[blue]End Entity[/]";
+        }
+        else if (element.IsSelfSigned)
+        {
+            typeLabel = "[green]Root CA[/]";
+        }
+        else if (element.IsCa)
+        {
+            typeLabel = "[cyan]Intermediate CA[/]";
+        }
+        else
+        {
+            typeLabel = "[grey]Certificate[/]";
+        }
+
+        // Subject name (extract CN)
+        var cn = ExtractCN(element.Subject) ?? element.Subject;
+        sb.Append($"{typeLabel}: [bold]{Markup.Escape(cn)}[/]");
+
+        // Validity status
+        var now = DateTime.Now;
+        if (element.NotAfter < now)
+        {
+            sb.Append(" [red](EXPIRED)[/]");
+        }
+        else if (element.NotBefore > now)
+        {
+            sb.Append(" [yellow](NOT YET VALID)[/]");
+        }
+        else if (element.DaysRemaining < 30)
+        {
+            sb.Append($" [yellow]({element.DaysRemaining} days remaining)[/]");
+        }
+
+        // Key info
+        sb.Append($"\n  [dim]Key:[/] {element.KeyAlgorithm ?? "Unknown"}");
+        if (element.KeySize > 0)
+        {
+            sb.Append($" ({element.KeySize}-bit)");
+        }
+
+        // Signature algorithm
+        if (!string.IsNullOrEmpty(element.SignatureAlgorithm))
+        {
+            sb.Append($"\n  [dim]Signature:[/] {element.SignatureAlgorithm}");
+        }
+
+        // Validity period
+        sb.Append($"\n  [dim]Valid:[/] {element.NotBefore:yyyy-MM-dd} to {element.NotAfter:yyyy-MM-dd}");
+
+        // SANs for end-entity
+        if (isEndEntity && element.SubjectAlternativeNames.Count > 0)
+        {
+            var sansDisplay = string.Join(", ", element.SubjectAlternativeNames.Take(5));
+            if (element.SubjectAlternativeNames.Count > 5)
+            {
+                sansDisplay += $" (+{element.SubjectAlternativeNames.Count - 5} more)";
+            }
+            sb.Append($"\n  [dim]SANs:[/] {Markup.Escape(sansDisplay)}");
+        }
+
+        // Thumbprint (abbreviated)
+        if (element.Thumbprint.Length >= 16)
+        {
+            sb.Append($"\n  [dim]Thumbprint:[/] {element.Thumbprint[..16]}...");
+        }
+        else
+        {
+            sb.Append($"\n  [dim]Thumbprint:[/] {element.Thumbprint}");
+        }
+
+        // Revocation status (if checked)
+        if (!string.IsNullOrEmpty(element.RevocationStatus))
+        {
+            var statusColor = element.RevocationStatus switch
+            {
+                "OK" => "green",
+                "Revoked" => "red",
+                "Unknown" or "Offline" => "yellow",
+                _ => "dim"
+            };
+            sb.Append($"\n  [dim]Revocation:[/] [{statusColor}]{element.RevocationStatus}[/]");
+        }
+
+        // Validation errors
+        foreach (var error in element.ValidationErrors)
+        {
+            sb.Append($"\n  [red]- {Markup.Escape(error)}[/]");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string? ExtractCN(string subject)
+    {
+        var match = Regex.Match(subject, @"CN=([^,]+)");
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     private static string BuildNodeText(X509Certificate2 cert, List<X509ChainStatus> status, bool isEndEntity)

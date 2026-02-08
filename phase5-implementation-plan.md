@@ -1,7 +1,8 @@
 # Phase 5: Enhanced Chain Visualization
 
-**Status:** Not Started
+**Status:** Complete
 **Created:** 2026-02-08
+**Completed:** 2026-02-08
 
 ## Overview
 
@@ -60,14 +61,14 @@ The current implementation shows:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Add `--tree` option to InspectCommand | [ ] | |
-| 2 | Extend ChainElementInfo model | [ ] | Add key info, SANs, signature |
-| 3 | Update CertificateInspector | [ ] | Populate new fields |
-| 4 | Enhance ChainVisualizer | [ ] | Detailed tree rendering |
-| 5 | Update TextFormatter chain output | [ ] | Support tree mode |
-| 6 | Update JsonFormatter chain output | [ ] | Include new fields |
-| 7 | Add tests to test-inspect.ps1 | [ ] | Chain visualization tests |
-| 8 | Update documentation | [ ] | README.md, TESTING.md |
+| 1 | Add `--tree` option to InspectCommand | [x] | Added --tree/-t option, updated InspectOptions and CertificateInspectResult |
+| 2 | Extend ChainElementInfo model | [x] | Added KeyAlgorithm, KeySize, SignatureAlgorithm, SANs, DaysRemaining, RevocationStatus, CRL/OCSP |
+| 3 | Update CertificateInspector | [x] | Added GetRevocationInfo, DetermineRevocationStatus, populate chain element fields |
+| 4 | Enhance ChainVisualizer | [x] | Added RenderDetailedChain, BuildDetailedNodeText, ExtractCN methods |
+| 5 | Update TextFormatter chain output | [x] | Conditional rendering based on DetailedTree flag |
+| 6 | Update JsonFormatter chain output | [x] | Extended ChainElementDto with all new fields |
+| 7 | Add tests to test-inspect.ps1 | [x] | Added chn-1.3 (detailed tree) and chn-1.4 (JSON fields) tests |
+| 8 | Update documentation | [x] | Updated README.md and TESTING.md with --tree option |
 
 ---
 
@@ -620,4 +621,11 @@ certz renew <source> [options]
 
 *Record any changes to the plan during implementation:*
 
-1. _(none yet)_
+1. Implementation completed successfully on 2026-02-08
+2. Added `--tree` option to InspectCommand that implies `--chain` if not specified
+3. Extended ChainElementInfo with: KeyAlgorithm, KeySize, SignatureAlgorithm, SubjectAlternativeNames, DaysRemaining, RevocationStatus, CrlDistributionPoints, OcspResponder
+4. Added helper methods GetRevocationInfo and DetermineRevocationStatus to CertificateInspector
+5. Added RenderDetailedChain method to ChainVisualizer with detailed node text including key info, signatures, validity, SANs, and revocation status
+6. Updated JsonFormatter ChainElementDto to include all new fields
+7. Added tests chn-1.3 (detailed tree view) and chn-1.4 (JSON fields verification)
+8. Updated README.md and TESTING.md with --tree option documentation

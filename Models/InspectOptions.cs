@@ -21,6 +21,11 @@ internal record InspectOptions
     public bool ShowChain { get; init; }
 
     /// <summary>
+    /// Whether to show detailed tree with key info, SANs, and signatures (requires ShowChain).
+    /// </summary>
+    public bool DetailedTree { get; init; }
+
+    /// <summary>
     /// Whether to check certificate revocation status (OCSP/CRL).
     /// </summary>
     public bool CheckCrl { get; init; }

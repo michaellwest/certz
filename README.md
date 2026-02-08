@@ -142,8 +142,14 @@ certz inspect https://localhost:8443
 # Inspect with certificate chain
 certz inspect https://github.com --chain
 
+# Detailed chain tree with key info, SANs, signatures
+certz inspect https://github.com --chain --tree
+
 # Check revocation status (OCSP/CRL)
 certz inspect https://github.com --chain --crl
+
+# Detailed chain with revocation check
+certz inspect https://github.com --chain --tree --crl
 
 # Inspect from certificate store by thumbprint
 certz inspect ABC123DEF456
@@ -167,6 +173,7 @@ certz inspect cert.pfx --password Pass --format json
 | Option | Description |
 |--------|-------------|
 | `--chain` | Show certificate chain tree |
+| `--tree` | Show detailed tree with key info, SANs, signatures (requires --chain) |
 | `--crl` | Check revocation status (OCSP preferred, CRL fallback) |
 | `--warn <days>` | Warn if certificate expires within N days |
 | `--save <file>` | Save certificate to file (PEM default) |

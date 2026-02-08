@@ -189,11 +189,29 @@ certz inspect https://github.com --chain
 ```
 **Expected:** Displays certificate chain tree from root to leaf.
 
+#### Test: Inspect with Detailed Chain Tree
+```powershell
+certz inspect https://github.com --chain --tree
+```
+**Expected:** Displays detailed certificate chain tree with:
+- Key algorithm and size for each certificate
+- Signature algorithm
+- Validity period (from/to dates)
+- Subject Alternative Names (SANs) for end entity
+- Thumbprint (abbreviated)
+- Revocation status (if --crl is also used)
+
 #### Test: Inspect with Revocation Check
 ```powershell
 certz inspect https://github.com --chain --crl
 ```
 **Expected:** Checks OCSP/CRL and displays revocation status.
+
+#### Test: Detailed Chain with Revocation Check
+```powershell
+certz inspect https://github.com --chain --tree --crl
+```
+**Expected:** Displays detailed chain tree with revocation status for each certificate.
 
 #### Test: Inspect from Store
 ```powershell

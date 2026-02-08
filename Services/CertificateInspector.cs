@@ -345,20 +345,39 @@ internal static class CertificateInspector
             var chainResult = validator.ValidateChain(cert, additionalCerts, options.CheckCrl);
             chainIsValid = chainResult.IsValid;
 
-            chainInfo = chainResult.ChainElements.Select(e => new ChainElementInfo
+            chainInfo = chainResult.ChainElements.Select((e, index) =>
             {
-                Subject = e.Certificate.Subject,
-                Issuer = e.Certificate.Issuer,
-                Thumbprint = e.Certificate.Thumbprint,
-                SerialNumber = e.Certificate.SerialNumber,
-                NotBefore = e.Certificate.NotBefore,
-                NotAfter = e.Certificate.NotAfter,
-                IsCa = (e.Certificate.Extensions["2.5.29.19"] as X509BasicConstraintsExtension)?.CertificateAuthority ?? false,
-                IsSelfSigned = e.Certificate.Subject == e.Certificate.Issuer,
-                ValidationErrors = e.Status
-                    .Where(s => s.Status != X509ChainStatusFlags.NoError)
-                    .Select(s => s.StatusInformation)
-                    .ToList()
+                var isEndEntity = index == 0;
+                var elementCert = e.Certificate;
+                var (elemKeyAlgorithm, elemKeySize) = GetKeyInfo(elementCert);
+                var elemSans = isEndEntity ? GetSubjectAlternativeNames(elementCert) : [];
+                var (crlPoints, ocspUrl) = GetRevocationInfo(elementCert);
+                var revocationStatus = DetermineRevocationStatus(e.Status);
+                var elemDaysRemaining = (elementCert.NotAfter - now).Days;
+
+                return new ChainElementInfo
+                {
+                    Subject = elementCert.Subject,
+                    Issuer = elementCert.Issuer,
+                    Thumbprint = elementCert.Thumbprint,
+                    SerialNumber = elementCert.SerialNumber,
+                    NotBefore = elementCert.NotBefore,
+                    NotAfter = elementCert.NotAfter,
+                    IsCa = (elementCert.Extensions["2.5.29.19"] as X509BasicConstraintsExtension)?.CertificateAuthority ?? false,
+                    IsSelfSigned = elementCert.Subject == elementCert.Issuer,
+                    KeyAlgorithm = elemKeyAlgorithm,
+                    KeySize = elemKeySize,
+                    SignatureAlgorithm = elementCert.SignatureAlgorithm.FriendlyName,
+                    SubjectAlternativeNames = elemSans,
+                    DaysRemaining = elemDaysRemaining,
+                    RevocationStatus = options.CheckCrl ? revocationStatus : null,
+                    CrlDistributionPoints = crlPoints,
+                    OcspResponder = ocspUrl,
+                    ValidationErrors = e.Status
+                        .Where(s => s.Status != X509ChainStatusFlags.NoError)
+                        .Select(s => s.StatusInformation)
+                        .ToList()
+                };
             }).ToList();
 
             if (!chainIsValid)
@@ -389,6 +408,7 @@ internal static class CertificateInspector
             SourcePath = sourcePath,
             Chain = chainInfo,
             ChainIsValid = chainIsValid,
+            DetailedTree = options.DetailedTree,
             Warnings = warnings
         };
     }
@@ -495,6 +515,95 @@ internal static class CertificateInspector
         catch { }
 
         return (algorithm, keySize);
+    }
+
+    private static (List<string> CrlPoints, string? OcspUrl) GetRevocationInfo(X509Certificate2 cert)
+    {
+        var crlPoints = new List<string>();
+        string? ocspUrl = null;
+
+        // CRL Distribution Points (OID 2.5.29.31)
+        var crlExt = cert.Extensions["2.5.29.31"];
+        if (crlExt != null)
+        {
+            try
+            {
+                var asnData = new AsnEncodedData(crlExt.Oid!, crlExt.RawData);
+                var formatted = asnData.Format(true);
+                // Parse URLs from the formatted string
+                foreach (var line in formatted.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("URL=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        crlPoints.Add(trimmed.Substring(4));
+                    }
+                    else if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                             trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        crlPoints.Add(trimmed);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors
+            }
+        }
+
+        // Authority Information Access (OID 1.3.6.1.5.5.7.1.1) for OCSP
+        var aiaExt = cert.Extensions["1.3.6.1.5.5.7.1.1"];
+        if (aiaExt != null)
+        {
+            try
+            {
+                var asnData = new AsnEncodedData(aiaExt.Oid!, aiaExt.RawData);
+                var formatted = asnData.Format(true);
+                // Look for OCSP URLs in the formatted string
+                foreach (var line in formatted.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var trimmed = line.Trim();
+                    // Look for OCSP access method
+                    if (trimmed.Contains("OCSP", StringComparison.OrdinalIgnoreCase) ||
+                        trimmed.Contains("1.3.6.1.5.5.7.48.1", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // The URL usually follows on the same or next line
+                        var urlMatch = Regex.Match(trimmed, @"(https?://[^\s]+)");
+                        if (urlMatch.Success)
+                        {
+                            ocspUrl = urlMatch.Groups[1].Value;
+                            break;
+                        }
+                    }
+                    // Also check for direct URL patterns
+                    if (ocspUrl == null && trimmed.StartsWith("URL=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var url = trimmed.Substring(4);
+                        if (url.Contains("ocsp", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ocspUrl = url;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors
+            }
+        }
+
+        return (crlPoints, ocspUrl);
+    }
+
+    private static string DetermineRevocationStatus(List<X509ChainStatus> status)
+    {
+        if (status.Any(s => s.Status == X509ChainStatusFlags.Revoked))
+            return "Revoked";
+        if (status.Any(s => s.Status == X509ChainStatusFlags.RevocationStatusUnknown))
+            return "Unknown";
+        if (status.Any(s => s.Status == X509ChainStatusFlags.OfflineRevocation))
+            return "Offline";
+        return "OK";
     }
 
     private static void HandleSaveOperations(X509Certificate2 cert, InspectOptions options)

@@ -62,6 +62,14 @@ internal record ChainElementDto(
     string NotAfter,
     bool IsCa,
     bool IsSelfSigned,
+    string? KeyAlgorithm,
+    int KeySize,
+    string? SignatureAlgorithm,
+    string[]? SubjectAlternativeNames,
+    int DaysRemaining,
+    string? RevocationStatus,
+    string[]? CrlDistributionPoints,
+    string? OcspResponder,
     string[]? ValidationErrors
 );
 
@@ -291,6 +299,14 @@ internal class JsonFormatter : IOutputFormatter
                 c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 c.IsCa,
                 c.IsSelfSigned,
+                c.KeyAlgorithm,
+                c.KeySize,
+                c.SignatureAlgorithm,
+                c.SubjectAlternativeNames.Count > 0 ? c.SubjectAlternativeNames.ToArray() : null,
+                c.DaysRemaining,
+                c.RevocationStatus,
+                c.CrlDistributionPoints.Count > 0 ? c.CrlDistributionPoints.ToArray() : null,
+                c.OcspResponder,
                 c.ValidationErrors.Count > 0 ? c.ValidationErrors.ToArray() : null
             )).ToArray();
         }
