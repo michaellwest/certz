@@ -39,6 +39,7 @@ Commands:
   create ca              Create a Certificate Authority (CA) certificate
   inspect <source>       Inspect certificate from file, URL, or store
   lint <source>          Validate certificate against industry standards
+  monitor <sources...>   Monitor certificates for expiration
   trust add <file>       Add certificate to trust store
   trust remove           Remove certificate from trust store
   store list             List certificates in a store
@@ -374,6 +375,112 @@ The lint command checks for common certificate issues:
 
 ---
 
+## Certificate Expiration Monitoring
+
+Monitor certificates for expiration across files, directories, URLs, and certificate stores. Ideal for CI/CD pipelines and infrastructure monitoring.
+
+```bash
+# Monitor a single certificate file
+certz monitor cert.pfx --password MyPassword
+
+# Monitor a directory of certificates
+certz monitor ./certs --password MyPassword
+
+# Monitor directory recursively
+certz monitor ./certs --recursive --password MyPassword
+
+# Monitor remote URL certificate
+certz monitor https://github.com
+
+# Monitor multiple sources at once
+certz monitor ./certs https://github.com https://google.com
+
+# Monitor certificate store
+certz monitor --store My --location CurrentUser
+
+# Custom warning threshold (default is 30 days)
+certz monitor ./certs --warn 90
+
+# Quiet mode - only show certificates within warning threshold
+certz monitor ./certs --quiet
+
+# CI/CD integration - fail on warning
+certz monitor ./certs --fail-on-warning
+
+# JSON output for automation
+certz monitor ./certs --format json
+```
+
+**Options:**
+| Option | Description |
+|--------|-------------|
+| `--warn, -w <days>` | Warning threshold in days (default: 30) |
+| `--recursive, -r` | Scan subdirectories for certificate files |
+| `--password, -p` | Password for PFX files (or use env: CERTZ_PASSWORD) |
+| `--store, -s` | Certificate store to scan (My, Root, CA) |
+| `--location, -l` | Store location (CurrentUser, LocalMachine) |
+| `--quiet, -q` | Only output certificates within warning threshold |
+| `--fail-on-warning` | Exit with code 1 if certificates within threshold |
+| `--format` | Output format: text (default) or json |
+
+### Exit Codes
+
+| Code | Description |
+|------|-------------|
+| `0` | All certificates valid and outside warning threshold |
+| `1` | Certificates expiring within threshold (with `--fail-on-warning`) |
+| `2` | Expired certificates found |
+
+### Example Output
+
+**Text Format:**
+```
+Certificate Expiration Monitor
+Threshold: 30 days
+
+╭────────────┬───────╮
+│ Status     │ Count │
+├────────────┼───────┤
+│ Valid      │ 3     │
+│ Expiring   │ 1     │
+│ Expired    │ 0     │
+│ Total      │ 4     │
+╰────────────┴───────╯
+
+╭─────────────────────┬─────────────────┬────────────┬──────┬──────────╮
+│ Source              │ Subject         │ Expires    │ Days │ Status   │
+├─────────────────────┼─────────────────┼────────────┼──────┼──────────┤
+│ ./certs/api.pfx     │ api.company.com │ 2026-03-01 │ 21   │ Expiring │
+│ ./certs/web.pfx     │ www.company.com │ 2026-06-15 │ 127  │ Valid    │
+│ https://example.com │ example.com     │ 2027-01-01 │ 327  │ Valid    │
+╰─────────────────────┴─────────────────┴────────────┴──────┴──────────╯
+```
+
+**JSON Format:**
+```json
+{
+  "success": true,
+  "totalScanned": 4,
+  "validCount": 3,
+  "expiringCount": 1,
+  "expiredCount": 0,
+  "warnThreshold": 30,
+  "certificates": [
+    {
+      "source": "./certs/api.pfx",
+      "subject": "CN=api.company.com",
+      "thumbprint": "ABC123...",
+      "notAfter": "2026-03-01T00:00:00Z",
+      "daysRemaining": 21,
+      "status": "Expiring",
+      "isWarning": true
+    }
+  ]
+}
+```
+
+---
+
 ## Global Options
 
 These options are available on all commands:
@@ -483,6 +590,7 @@ Comprehensive testing documentation and automated test scripts are available:
 - **test-inspect.ps1** - Tests for certificate inspection
 - **test-trust.ps1** - Tests for trust store management
 - **test-lint.ps1** - Tests for certificate linting
+- **test-monitor.ps1** - Tests for certificate expiration monitoring
 
 ### Quick Test
 
@@ -501,9 +609,13 @@ Run the test suites:
 # Test certificate linting
 .\test-lint.ps1
 
+# Test certificate monitoring
+.\test-monitor.ps1
+
 # Run specific test by ID
 .\test-inspect.ps1 -TestId "ins-1.1"
 .\test-lint.ps1 -TestId "lin-1.1"
+.\test-monitor.ps1 -TestId "mon-1.1"
 ```
 
 For detailed testing instructions, see [TESTING.md](TESTING.md).

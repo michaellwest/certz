@@ -1,6 +1,7 @@
 using certz.Commands;
 using certz.Commands.Inspect;
 using certz.Commands.Lint;
+using certz.Commands.Monitor;
 using certz.Commands.Store;
 using certz.Commands.Trust;
 using certz.Options;
@@ -21,6 +22,7 @@ rootCommand.AddInfoCommand();
 rootCommand.AddVerifyCommand();
 rootCommand.AddInspectCommand();
 rootCommand.AddLintCommand();
+rootCommand.AddMonitorCommand();
 rootCommand.AddStoreCommand();
 rootCommand.AddTrustCommand();
 

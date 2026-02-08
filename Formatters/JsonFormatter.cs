@@ -217,6 +217,33 @@ internal record LintFindingDto(
     string? ExpectedValue
 );
 
+// Monitor result DTOs
+internal record MonitorOutput(
+    bool Success,
+    int TotalScanned,
+    int ValidCount,
+    int ExpiringCount,
+    int ExpiredCount,
+    int WarnThreshold,
+    MonitorCertificateDto[] Certificates,
+    MonitorErrorDto[]? Errors
+);
+
+internal record MonitorCertificateDto(
+    string Source,
+    string Subject,
+    string Thumbprint,
+    string NotAfter,
+    int DaysRemaining,
+    string Status,
+    bool IsWarning
+);
+
+internal record MonitorErrorDto(
+    string Source,
+    string Message
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -231,6 +258,7 @@ internal record LintFindingDto(
 [JsonSerializable(typeof(ExportOutput))]
 [JsonSerializable(typeof(VerificationOutput))]
 [JsonSerializable(typeof(LintOutput))]
+[JsonSerializable(typeof(MonitorOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -518,6 +546,40 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.LintOutput));
+    }
+
+    public void WriteMonitorResult(MonitorResult result, bool quietMode)
+    {
+        var certs = quietMode
+            ? result.Certificates.Where(c => c.IsWarning)
+            : result.Certificates;
+
+        var certificates = certs.Select(c => new MonitorCertificateDto(
+            c.Source,
+            c.Subject,
+            c.Thumbprint,
+            c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            c.DaysRemaining,
+            c.Status,
+            c.IsWarning
+        )).ToArray();
+
+        var errors = result.Errors.Count > 0
+            ? result.Errors.Select(e => new MonitorErrorDto(e.Source, e.Message)).ToArray()
+            : null;
+
+        var output = new MonitorOutput(
+            Success: true,
+            TotalScanned: result.TotalScanned,
+            ValidCount: result.ValidCount,
+            ExpiringCount: result.ExpiringCount,
+            ExpiredCount: result.ExpiredCount,
+            WarnThreshold: result.WarnThreshold,
+            Certificates: certificates,
+            Errors: errors
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.MonitorOutput));
     }
 
     public void WriteError(string message)

@@ -630,6 +630,96 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.Write(table);
     }
 
+    public void WriteMonitorResult(MonitorResult result, bool quietMode)
+    {
+        // Header
+        AnsiConsole.MarkupLine("[bold]Certificate Expiration Monitor[/]");
+        AnsiConsole.MarkupLine($"Threshold: [cyan]{result.WarnThreshold} days[/]");
+        AnsiConsole.WriteLine();
+
+        // Summary table
+        var summaryTable = new Table();
+        summaryTable.AddColumn("Status");
+        summaryTable.AddColumn("Count");
+        summaryTable.Border = TableBorder.Rounded;
+
+        summaryTable.AddRow("[green]Valid[/]", result.ValidCount.ToString());
+        summaryTable.AddRow("[yellow]Expiring[/]", result.ExpiringCount.ToString());
+        summaryTable.AddRow("[red]Expired[/]", result.ExpiredCount.ToString());
+        summaryTable.AddRow("[dim]Total[/]", result.TotalScanned.ToString());
+
+        AnsiConsole.Write(summaryTable);
+        AnsiConsole.WriteLine();
+
+        // Certificate details
+        var certs = quietMode
+            ? result.Certificates.Where(c => c.IsWarning)
+            : result.Certificates;
+
+        if (certs.Any())
+        {
+            var table = new Table();
+            table.AddColumn("Source");
+            table.AddColumn("Subject");
+            table.AddColumn("Expires");
+            table.AddColumn("Days");
+            table.AddColumn("Status");
+            table.Border = TableBorder.Rounded;
+
+            foreach (var cert in certs.OrderBy(c => c.DaysRemaining))
+            {
+                var statusColor = cert.Status switch
+                {
+                    "Expired" => "red",
+                    "Expiring" => "yellow",
+                    "NotYetValid" => "blue",
+                    _ => "green"
+                };
+
+                table.AddRow(
+                    TruncateSource(cert.Source, 30),
+                    GetSimpleName(cert.Subject),
+                    cert.NotAfter.ToString("yyyy-MM-dd"),
+                    cert.DaysRemaining.ToString(),
+                    $"[{statusColor}]{cert.Status}[/]"
+                );
+            }
+
+            AnsiConsole.Write(table);
+        }
+
+        // Errors
+        if (result.Errors.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[red]Errors:[/]");
+            foreach (var error in result.Errors)
+            {
+                AnsiConsole.MarkupLine($"  [dim]{Markup.Escape(error.Source)}:[/] {Markup.Escape(error.Message)}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Truncates a source path for display.
+    /// </summary>
+    private static string TruncateSource(string source, int maxLength)
+    {
+        if (source.Length <= maxLength)
+        {
+            return Markup.Escape(source);
+        }
+
+        // For file paths, try to preserve the filename
+        var fileName = Path.GetFileName(source);
+        if (fileName.Length < maxLength - 3)
+        {
+            return Markup.Escape("..." + source[(source.Length - maxLength + 3)..]);
+        }
+
+        return Markup.Escape(source[..maxLength] + "...");
+    }
+
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)
     {
         AnsiConsole.MarkupLine($"[yellow]Multiple certificates match ({matchingCerts.Count}).[/]");

@@ -1,6 +1,6 @@
 # Phase 6: Certificate Expiration Monitoring
 
-**Status:** Not Started
+**Status:** Complete
 **Created:** 2026-02-08
 
 ## Overview
@@ -61,14 +61,14 @@ Exit Codes:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create MonitorOptions model | [ ] | |
-| 2 | Create MonitorResult model | [ ] | |
-| 3 | Create MonitorService | [ ] | Core scanning logic |
-| 4 | Create MonitorCommand | [ ] | CLI command |
-| 5 | Add TextFormatter output | [ ] | Human-readable output |
-| 6 | Add JsonFormatter output | [ ] | Machine-readable output |
-| 7 | Add tests | [ ] | test-monitor.ps1 |
-| 8 | Update documentation | [ ] | README.md |
+| 1 | Create MonitorOptions model | [x] | Models/MonitorOptions.cs |
+| 2 | Create MonitorResult model | [x] | Models/MonitorResult.cs |
+| 3 | Create MonitorService | [x] | Services/MonitorService.cs |
+| 4 | Create MonitorCommand | [x] | Commands/Monitor/MonitorCommand.cs |
+| 5 | Add TextFormatter output | [x] | Formatters/TextFormatter.cs |
+| 6 | Add JsonFormatter output | [x] | Formatters/JsonFormatter.cs |
+| 7 | Add tests | [x] | test/test-monitor.ps1 |
+| 8 | Update documentation | [x] | README.md |
 
 ---
 
