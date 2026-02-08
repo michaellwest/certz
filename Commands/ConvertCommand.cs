@@ -68,10 +68,15 @@ internal static class ConvertCommand
             else if (pfx != null && (outCert != null || outKey != null))
             {
                 // PFX to PEM (using modern V2 API)
+                // Read password from file if --password-file is specified
+                if (string.IsNullOrEmpty(password) && passwordFile != null && passwordFile.Exists)
+                {
+                    password = (await File.ReadAllTextAsync(passwordFile.FullName)).Trim();
+                }
+
                 if (string.IsNullOrEmpty(password))
                 {
-                    formatter.WriteError("Password is required for PFX file. Use --password to specify the password.");
-                    return;
+                    throw new ArgumentException("Password is required for PFX file. Use --password or --password-file to specify the password.");
                 }
 
                 var options = new ConvertFromPfxOptions
@@ -86,7 +91,7 @@ internal static class ConvertCommand
             }
             else
             {
-                formatter.WriteError(
+                throw new ArgumentException(
                     "Please specify conversion parameters:\n" +
                     "  PEM to PFX: --cert <file> --key <file> --pfx <output>\n" +
                     "  PFX to PEM: --pfx <file> --out-cert <output> --out-key <output>");
