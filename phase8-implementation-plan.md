@@ -1,7 +1,8 @@
 # Phase 8: Ephemeral Mode and Pipe Output
 
-**Status:** Not Started
+**Status:** Completed
 **Created:** 2026-02-08
+**Completed:** 2026-02-09
 
 ## Objective
 
@@ -225,19 +226,19 @@ certz create dev example.com --pipe --pipe-format key
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Add Ephemeral property to DevCertificateOptions | [ ] | Models/DevCertificateOptions.cs |
-| 2 | Add Ephemeral property to CACertificateOptions | [ ] | Models/CACertificateOptions.cs |
-| 3 | Add IsEphemeral to CertificateCreationResult | [ ] | Models/CertificateCreationResult.cs |
-| 4 | Add pipe-related properties to options | [ ] | Pipe, PipeFormat, PipePassword |
-| 5 | Create option builders | [ ] | OptionBuilders.cs |
-| 6 | Update CreateDevCommand | [ ] | Add options, validation |
-| 7 | Update CreateCaCommand | [ ] | Add options, validation |
-| 8 | Update CreateService | [ ] | Conditional file writing |
-| 9 | Add PipeOutputService | [ ] | Handle pipe format output |
-| 10 | Update TextFormatter | [ ] | Ephemeral warning display |
-| 11 | Update JsonFormatter | [ ] | Add isEphemeral field |
-| 12 | Create tests | [ ] | test/test-ephemeral.ps1 |
-| 13 | Update documentation | [ ] | README.md |
+| 1 | Add Ephemeral property to DevCertificateOptions | [x] | Models/DevCertificateOptions.cs |
+| 2 | Add Ephemeral property to CACertificateOptions | [x] | Models/CACertificateOptions.cs |
+| 3 | Add IsEphemeral to CertificateCreationResult | [x] | Models/CertificateCreationResult.cs |
+| 4 | Add pipe-related properties to options | [x] | Pipe, PipeFormat, PipePassword |
+| 5 | Create option builders | [x] | OptionBuilders.cs |
+| 6 | Update CreateDevCommand | [x] | Add options, validation |
+| 7 | Update CreateCaCommand | [x] | Add options, validation |
+| 8 | Update CreateService | [x] | Conditional file writing |
+| 9 | Add PipeOutputService | [x] | Handle pipe format output |
+| 10 | Update TextFormatter | [x] | Ephemeral warning display |
+| 11 | Update JsonFormatter | [x] | Add isEphemeral field |
+| 12 | Create tests | [x] | test/test-ephemeral.ps1 |
+| 13 | Update documentation | [x] | README.md |
 
 ---
 
