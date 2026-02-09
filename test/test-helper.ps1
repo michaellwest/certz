@@ -395,6 +395,36 @@ function Build-Certz {
 }
 
 # ============================================================================
+# DIRECTORY UTILITIES
+# ============================================================================
+
+function Enter-ToolsDirectory {
+    <#
+    .SYNOPSIS
+        Changes to the docker\tools directory, syncing both PowerShell and .NET directories.
+    .DESCRIPTION
+        When using Push-Location in PowerShell, the .NET Environment.CurrentDirectory is not
+        updated. This causes issues with certz (and other .NET apps) that use System.IO.FileInfo
+        to resolve relative paths. This function syncs both directories and saves the original
+        state for restoration via Exit-ToolsDirectory.
+    #>
+    $script:OriginalNetDirectory = [System.IO.Directory]::GetCurrentDirectory()
+    Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
+    [System.IO.Directory]::SetCurrentDirectory((Get-Location).Path)
+}
+
+function Exit-ToolsDirectory {
+    <#
+    .SYNOPSIS
+        Returns to the original directory, restoring both PowerShell and .NET directories.
+    #>
+    Pop-Location
+    if ($script:OriginalNetDirectory) {
+        [System.IO.Directory]::SetCurrentDirectory($script:OriginalNetDirectory)
+    }
+}
+
+# ============================================================================
 # CERTIFICATE STORE UTILITIES
 # ============================================================================
 

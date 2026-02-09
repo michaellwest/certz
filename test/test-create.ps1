@@ -81,8 +81,8 @@ if ($TestId -or $Category) {
 # Build certz
 Build-Certz -Verbose:$Verbose
 
-# Change to tools directory
-Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
+# Change to tools directory (syncs both PowerShell and .NET current directories)
+Enter-ToolsDirectory
 
 # Initial cleanup
 Write-Host "Initializing test environment..." -ForegroundColor Yellow
@@ -562,7 +562,7 @@ if (-not $SkipCleanup) {
 }
 
 # Return to original directory
-Pop-Location
+Exit-ToolsDirectory
 
 # Display summary and exit
 $exitCode = Write-TestSummary -SkipCleanup:$SkipCleanup

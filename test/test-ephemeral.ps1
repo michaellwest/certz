@@ -21,8 +21,8 @@ $TestCategories = @{
 Initialize-TestEnvironment -TestId $TestId -Category $Category -TestCategories $TestCategories
 Build-Certz
 
-# Change to tools directory where certz.exe is located
-Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
+# Change to tools directory (syncs both PowerShell and .NET current directories)
+Enter-ToolsDirectory
 
 Write-TestHeader "Ephemeral Certificate Generation Tests"
 Write-Host "========================================`n"
@@ -281,7 +281,7 @@ Invoke-Test -TestId "eph-4.4" -TestName "Error: both ephemeral and pipe" -TestSc
 # ============================================================================
 
 # Return to original directory
-Pop-Location
+Exit-ToolsDirectory
 
 $exitCode = Write-TestSummary
 exit $exitCode
