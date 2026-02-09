@@ -1,6 +1,6 @@
 # Phase 9: Enhanced Certificate Format Conversion
 
-**Status:** Not Started
+**Status:** In Progress
 **Created:** 2026-02-09
 
 ## Objective
@@ -183,7 +183,7 @@ When `--output` is not specified, derive from input:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Add FormatType enum | [ ] | Models/FormatType.cs |
+| 1 | Add FormatType enum | [x] | Models/FormatType.cs |
 | 2 | Add ConvertOptions model | [ ] | Models/ConvertOptions.cs |
 | 3 | Add format detection service | [ ] | Services/FormatDetectionService.cs |
 | 4 | Add DER conversion methods | [ ] | Services/ConvertService.cs |
@@ -231,7 +231,7 @@ public enum FormatType
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 ---
 
