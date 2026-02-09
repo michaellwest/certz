@@ -49,4 +49,9 @@ internal record ConversionResult
     /// Certificate subject (for display purposes).
     /// </summary>
     public string? Subject { get; init; }
+
+    /// <summary>
+    /// The output format (PEM, DER, PFX).
+    /// </summary>
+    public string? OutputFormat { get; init; }
 }
