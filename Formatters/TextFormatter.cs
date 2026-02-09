@@ -374,44 +374,52 @@ internal class TextFormatter : IOutputFormatter
             return;
         }
 
-        AnsiConsole.MarkupLine("[green]Successfully converted certificate format![/]");
-        AnsiConsole.WriteLine();
+        var table = new Table();
+        table.Border(TableBorder.Rounded);
+        table.AddColumn("Property");
+        table.AddColumn("Value");
 
-        // Show input files
-        if (result.InputCertificate != null && result.InputKey != null)
+        table.AddRow("[bold]Status[/]", "[green]Success[/]");
+
+        if (!string.IsNullOrEmpty(result.Subject))
         {
-            AnsiConsole.MarkupLine("[bold]Input (PEM):[/]");
-            AnsiConsole.MarkupLine($"  [blue]-[/] Certificate: {Markup.Escape(Path.GetFileName(result.InputCertificate))}");
-            AnsiConsole.MarkupLine($"  [blue]-[/] Private Key: {Markup.Escape(Path.GetFileName(result.InputKey))}");
-        }
-        else if (result.InputPfx != null)
-        {
-            AnsiConsole.MarkupLine("[bold]Input (PFX):[/]");
-            AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.InputPfx))}");
+            table.AddRow("Subject", Markup.Escape(result.Subject));
         }
 
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[bold]Output:[/]");
-        AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.OutputFile))}");
+        if (!string.IsNullOrEmpty(result.OutputFormat))
+        {
+            table.AddRow("Output Format", result.OutputFormat);
+        }
 
-        // Show additional output files
+        // Input files
+        if (result.InputCertificate != null)
+        {
+            table.AddRow("Input Certificate", Markup.Escape(result.InputCertificate));
+        }
+        if (result.InputKey != null)
+        {
+            table.AddRow("Input Key", Markup.Escape(result.InputKey));
+        }
+        if (result.InputPfx != null)
+        {
+            table.AddRow("Input PFX", Markup.Escape(result.InputPfx));
+        }
+
+        // Output files
+        table.AddRow("[bold]Output File[/]", $"[blue]{Markup.Escape(result.OutputFile)}[/]");
+
         if (result.AdditionalOutputFiles.Length > 0)
         {
             foreach (var file in result.AdditionalOutputFiles)
             {
-                AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(file))}");
+                table.AddRow("Additional Output", $"[blue]{Markup.Escape(file)}[/]");
             }
         }
 
-        // Show certificate subject if available
-        if (!string.IsNullOrEmpty(result.Subject))
-        {
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine($"[bold]Certificate Subject:[/] {Markup.Escape(result.Subject)}");
-        }
+        AnsiConsole.Write(table);
 
-        // Password warning if generated
-        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.GeneratedPassword))
+        // Password handling
+        if (result.PasswordWasGenerated && result.GeneratedPassword != null)
         {
             AnsiConsole.WriteLine();
             var passwordPanel = new Panel(
