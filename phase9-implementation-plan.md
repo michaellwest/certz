@@ -185,7 +185,7 @@ When `--output` is not specified, derive from input:
 |---|------|--------|-------|
 | 1 | Add FormatType enum | [x] | Models/FormatType.cs |
 | 2 | Add ConvertOptions model | [x] | Models/ConvertOptions.cs |
-| 3 | Add format detection service | [ ] | Services/FormatDetectionService.cs |
+| 3 | Add format detection service | [x] | Services/FormatDetectionService.cs |
 | 4 | Add DER conversion methods | [ ] | Services/ConvertService.cs |
 | 5 | Update ConvertCommand | [ ] | Add new simplified interface |
 | 6 | Update TextFormatter | [ ] | Enhanced conversion output |
@@ -491,7 +491,7 @@ internal static class FormatDetectionService
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 ---
 
