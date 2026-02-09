@@ -33,4 +33,25 @@ internal record CACertificateOptions
     public string? SubjectC { get; init; }
     public string? SubjectST { get; init; }
     public string? SubjectL { get; init; }
+
+    // Ephemeral and pipe options
+    /// <summary>
+    /// Generate certificate in memory only (no files written).
+    /// </summary>
+    public bool Ephemeral { get; init; }
+
+    /// <summary>
+    /// Stream certificate output to stdout.
+    /// </summary>
+    public bool Pipe { get; init; }
+
+    /// <summary>
+    /// Format for pipe output: pem (default), pfx, cert, key.
+    /// </summary>
+    public string? PipeFormat { get; init; }
+
+    /// <summary>
+    /// Password for PFX pipe output.
+    /// </summary>
+    public string? PipePassword { get; init; }
 }

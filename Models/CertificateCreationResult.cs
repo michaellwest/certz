@@ -14,4 +14,14 @@ internal record CertificateCreationResult
     public bool WasTrusted { get; init; }
     public bool IsCA { get; init; }
     public int PathLength { get; init; } = -1;
+
+    /// <summary>
+    /// Indicates the certificate was generated in ephemeral mode (not persisted).
+    /// </summary>
+    public bool IsEphemeral { get; init; }
+
+    /// <summary>
+    /// Indicates output was piped to stdout.
+    /// </summary>
+    public bool WasPiped { get; init; }
 }
