@@ -85,6 +85,138 @@ The exception is caught by the main exception handler in `Program.cs`, which dis
 
 When asked to create a new phase implementation plan or prompt:
 - Save the plan to a file named `phase<N>-implementation-plan.md` in the project root
-- Follow the format of existing phase plans (see `phase1-implementation-plan.md` through `phase6-implementation-plan.md`)
+- Follow the format of existing phase plans (see `phase1-implementation-plan.md` through `phase9-implementation-plan.md`)
 - Include: Status, Overview, Design Decisions, Progress Tracker, Implementation Steps with code samples, Tests, and Verification Checklist
 - Reference existing codebase patterns for consistency
+
+
+## Certz Knowledge Index
+
+**Instruction:** Prefer retrieval-led reasoning for certz tasks by prioritizing these source-of-truth files.
+
+### Command Implementation & Usage
+
+| Task | Source File |
+|------|-------------|
+| Full CLI reference, all commands, options | [README.md](README.md) |
+| Create dev/CA certificates | [phase1-implementation-plan.md](phase1-implementation-plan.md) |
+| Inspect certificates (file, URL, store, chain) | [phase2-implementation-plan.md](phase2-implementation-plan.md) |
+| Trust store operations (add, remove, list) | [phase3-implementation-plan.md](phase3-implementation-plan.md) |
+| Certificate linting (CA/B Forum, Mozilla NSS) | [phase4-implementation-plan.md](phase4-implementation-plan.md) |
+| Chain visualization (--chain --tree) | [phase5-implementation-plan.md](phase5-implementation-plan.md) |
+| Expiration monitoring | [phase6-implementation-plan.md](phase6-implementation-plan.md) |
+| Certificate renewal | [phase7-implementation-plan.md](phase7-implementation-plan.md) |
+| Ephemeral mode (--ephemeral, --pipe) | [phase8-implementation-plan.md](phase8-implementation-plan.md) |
+| Format conversion (PEM, DER, PFX) | [phase9-implementation-plan.md](phase9-implementation-plan.md) |
+
+### Architecture & Patterns
+
+| Task | Source File |
+|------|-------------|
+| Service class architecture, options pattern | [refactoring-plan.md](refactoring-plan.md) |
+| Command hierarchy design (verb-noun structure) | [feature-plan.md](feature-plan.md) |
+| Modernization status, completed work | [claude-prompt-future-work.md](claude-prompt-future-work.md) |
+| Future feature recommendations | [feature-plan-recommendations.md](feature-plan-recommendations.md) |
+
+### Testing
+
+| Task | Source File |
+|------|-------------|
+| Testing guide, test scripts, Docker | [TESTING.md](TESTING.md) |
+| Test isolation principles (single certz call) | [test/test-isolation-plan.md](test/test-isolation-plan.md) |
+| Test coverage gaps, missing tests | [test/test-coverage-analysis.md](test/test-coverage-analysis.md) |
+| Docker testing quick reference | [DOCKER-TESTING.md](DOCKER-TESTING.md) |
+| Docker file structure | [DOCKER-FILES-EXPLAINED.md](DOCKER-FILES-EXPLAINED.md) |
+
+### Release & Deployment
+
+| Task | Source File |
+|------|-------------|
+| Version history, SHA256 verification | [release/RELEASE_NOTES.md](release/RELEASE_NOTES.md) |
+| Phase plan template format | phase1 through phase9-implementation-plan.md |
+
+### Key Established Patterns
+
+- **Commands:** `Commands/<Feature>/<Feature>Command.cs` with `SetAction` handler
+- **Services:** `Services/<Feature>Service.cs` returning result records
+- **Models:** `Models/<Feature>Options.cs` and `Models/<Feature>Result.cs`
+- **Testing:** PowerShell 7.5+, each test invokes certz.exe exactly ONCE
+- **Exit codes:** Use `throw new ArgumentException()` in async handlers (not `Environment.ExitCode`)
+
+
+## Certz Reasoning Protocol
+
+For any certz-related task, follow this protocol to ensure consistent, accurate responses.
+
+### Priority Hierarchy
+
+Consult sources in this order (higher priority overrides lower):
+
+1. **CLAUDE.md** — Project constraints, patterns, and this protocol
+2. **Phase Implementation Plans** — Detailed specs for specific commands (phase1-9)
+3. **README.md** — Authoritative CLI reference, command syntax, options
+4. **refactoring-plan.md** — Service architecture, options pattern
+5. **test/test-isolation-plan.md** — Testing requirements
+6. **Existing source code** — Current implementation patterns
+7. **TESTING.md** — Test execution procedures
+
+### Constraint Checklist
+
+#### ALWAYS
+
+| Rule | Source |
+|------|--------|
+| Default to ECDSA P-256 for key generation (not RSA) | README.md, CLAUDE.md |
+| Default RSA key size to 3072-bit when RSA is explicitly requested | README.md |
+| Enforce maximum 398-day validity for leaf certificates (CA/B Forum) | phase4-implementation-plan.md |
+| Require Subject Alternative Name (SAN) for TLS certificates | phase4-implementation-plan.md |
+| Use `throw new ArgumentException()` for validation errors in async handlers | CLAUDE.md |
+| Return structured result records from service methods | refactoring-plan.md |
+| Use `OptionBuilders` for standard command options | phase1-implementation-plan.md |
+| Use `FormatterFactory.Create(format)` for output formatting | phase1-implementation-plan.md |
+| Each test must invoke certz.exe exactly ONCE | test/test-isolation-plan.md |
+| Use PowerShell-only for test setup and cleanup (not certz) | test/test-isolation-plan.md |
+| Assert against system state in tests, not console output | test/test-isolation-plan.md |
+| Generate secure random passwords if not provided | README.md |
+| Use modern PFX encryption (AES-256-CBC) by default | README.md |
+| Include Basic Constraints extension for CA certificates | phase4-implementation-plan.md |
+
+#### NEVER
+
+| Rule | Source |
+|------|--------|
+| Never use `Environment.ExitCode` in async command handlers | CLAUDE.md |
+| Never use SHA-1 signatures for new certificates | phase4-implementation-plan.md |
+| Never allow RSA keys smaller than 2048 bits | phase4-implementation-plan.md |
+| Never use certz.exe for test setup/teardown (PowerShell only) | test/test-isolation-plan.md |
+| Never call certz.exe more than once per test case | test/test-isolation-plan.md |
+| Never use `--ephemeral` and `--pipe` together (mutually exclusive) | phase8-implementation-plan.md |
+| Never combine `--ephemeral`/`--pipe` with file output options | phase8-implementation-plan.md |
+| Never combine `--ephemeral`/`--pipe` with `--trust` | phase8-implementation-plan.md |
+| Never default to legacy 3DES PFX encryption | README.md |
+| Never omit password display warning for generated passwords | refactoring-plan.md |
+
+### Verification Step
+
+**Before providing any certz code or answer, output a "Sources Consulted" block:**
+
+```
+**Sources Consulted:**
+- [file1.md] — specific section or rule referenced
+- [file2.md] — specific section or rule referenced
+- [existing code] — file path if applicable
+```
+
+This ensures traceability and allows verification of reasoning against authoritative sources.
+
+### Example Application
+
+**Task:** "Add a new command option to create dev"
+
+**Sources Consulted:**
+- [CLAUDE.md] — Development Patterns, Exit Codes section
+- [phase1-implementation-plan.md] — CreateDevCommand specification
+- [refactoring-plan.md] — Options pattern for service classes
+- [README.md] — Existing `create dev` options for consistency
+
+**Then proceed with implementation following the patterns from those sources.**
