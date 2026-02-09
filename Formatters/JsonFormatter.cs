@@ -129,6 +129,7 @@ internal record MultipleMatchesOutput(
 internal record ConversionOutput(
     bool Success,
     string OutputFile,
+    string? OutputFormat,
     string? InputCertificate,
     string? InputKey,
     string? InputPfx,
@@ -446,6 +447,7 @@ internal class JsonFormatter : IOutputFormatter
         var output = new ConversionOutput(
             Success: result.Success,
             OutputFile: result.OutputFile,
+            OutputFormat: result.OutputFormat,
             InputCertificate: result.InputCertificate,
             InputKey: result.InputKey,
             InputPfx: result.InputPfx,

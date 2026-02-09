@@ -189,7 +189,7 @@ When `--output` is not specified, derive from input:
 | 4 | Add DER conversion methods | [x] | Services/ConvertService.cs |
 | 5 | Update ConvertCommand | [x] | Add new simplified interface |
 | 6 | Update TextFormatter | [x] | Enhanced conversion output |
-| 7 | Update JsonFormatter | [ ] | Add format info fields |
+| 7 | Update JsonFormatter | [x] | Add format info fields |
 | 8 | Create tests | [ ] | test/test-convert.ps1 |
 | 9 | Update documentation | [ ] | README.md |
 
@@ -1176,7 +1176,7 @@ public void WriteConversionResult(ConversionResult result)
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 ---
 
