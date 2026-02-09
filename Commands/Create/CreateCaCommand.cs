@@ -97,39 +97,33 @@ internal static class CreateCaCommand
             {
                 if (pfxFile != null || certFile != null || keyFile != null)
                 {
-                    formatter.WriteError("--ephemeral and --pipe cannot be used with file output options (--file, --cert, --key).");
-                    return;
+                    throw new ArgumentException("--ephemeral and --pipe cannot be used with file output options (--file, --cert, --key).");
                 }
                 if (trust)
                 {
-                    formatter.WriteError("--ephemeral and --pipe cannot be used with --trust.");
-                    return;
+                    throw new ArgumentException("--ephemeral and --pipe cannot be used with --trust.");
                 }
                 if (passwordFile != null)
                 {
-                    formatter.WriteError("--ephemeral and --pipe cannot be used with --password-file.");
-                    return;
+                    throw new ArgumentException("--ephemeral and --pipe cannot be used with --password-file.");
                 }
             }
 
             if (ephemeral && pipe)
             {
-                formatter.WriteError("--ephemeral and --pipe are mutually exclusive. Use one or the other.");
-                return;
+                throw new ArgumentException("--ephemeral and --pipe are mutually exclusive. Use one or the other.");
             }
 
             // Validate pipe-format requires pipe
             if (pipeFormat != null && !pipe)
             {
-                formatter.WriteError("--pipe-format requires --pipe flag.");
-                return;
+                throw new ArgumentException("--pipe-format requires --pipe flag.");
             }
 
             // Validate pipe-password requires pipe
             if (pipePassword != null && !pipe)
             {
-                formatter.WriteError("--pipe-password requires --pipe flag.");
-                return;
+                throw new ArgumentException("--pipe-password requires --pipe flag.");
             }
 
             CACertificateOptions options;
@@ -150,8 +144,7 @@ internal static class CreateCaCommand
                 var name = parseResult.GetValue(nameOption);
                 if (string.IsNullOrWhiteSpace(name))
                 {
-                    formatter.WriteError("CA name is required. Use 'certz create ca --name <name>' or 'certz create ca --guided'.");
-                    return;
+                    throw new ArgumentException("CA name is required. Use 'certz create ca --name <name>' or 'certz create ca --guided'.");
                 }
 
                 options = new CACertificateOptions

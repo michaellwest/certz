@@ -21,6 +21,9 @@ $TestCategories = @{
 Initialize-TestEnvironment -TestId $TestId -Category $Category -TestCategories $TestCategories
 Build-Certz
 
+# Change to tools directory where certz.exe is located
+Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
+
 Write-TestHeader "Ephemeral Certificate Generation Tests"
 Write-Host "========================================`n"
 
@@ -32,7 +35,7 @@ Write-TestHeader "Testing Ephemeral Mode"
 
 # eph-1.1: Basic ephemeral dev certificate
 Invoke-Test -TestId "eph-1.1" -TestName "Ephemeral dev certificate" -TestScript {
-    $output = & certz create dev ephemeral-test.local --ephemeral 2>&1
+    $output = & .\certz.exe create dev ephemeral-test.local --ephemeral 2>&1
     $exitCode = $LASTEXITCODE
 
     # Should succeed
@@ -55,7 +58,7 @@ Invoke-Test -TestId "eph-1.1" -TestName "Ephemeral dev certificate" -TestScript 
 
 # eph-1.2: Ephemeral with custom options
 Invoke-Test -TestId "eph-1.2" -TestName "Ephemeral with SANs and key type" -TestScript {
-    $output = & certz create dev custom.local --ephemeral --san "alt.local,192.168.1.1" --key-type RSA 2>&1
+    $output = & .\certz.exe create dev custom.local --ephemeral --san "alt.local,192.168.1.1" --key-type RSA 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -73,7 +76,7 @@ Invoke-Test -TestId "eph-1.2" -TestName "Ephemeral with SANs and key type" -Test
 
 # eph-1.3: Ephemeral CA certificate
 Invoke-Test -TestId "eph-1.3" -TestName "Ephemeral CA certificate" -TestScript {
-    $output = & certz create ca --name "Ephemeral Test CA" --ephemeral 2>&1
+    $output = & .\certz.exe create ca --name "Ephemeral Test CA" --ephemeral 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -88,7 +91,7 @@ Invoke-Test -TestId "eph-1.3" -TestName "Ephemeral CA certificate" -TestScript {
 
 # eph-2.1: Ephemeral with JSON output
 Invoke-Test -TestId "eph-2.1" -TestName "Ephemeral with JSON format" -TestScript {
-    $output = & certz create dev json-test.local --ephemeral --format json 2>&1
+    $output = & .\certz.exe create dev json-test.local --ephemeral --format json 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -109,7 +112,7 @@ Invoke-Test -TestId "eph-2.1" -TestName "Ephemeral with JSON format" -TestScript
 
 # eph-2.2: Ephemeral shows warning panel
 Invoke-Test -TestId "eph-2.2" -TestName "Ephemeral shows warning message" -TestScript {
-    $output = & certz create dev warn-test.local --ephemeral 2>&1
+    $output = & .\certz.exe create dev warn-test.local --ephemeral 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -130,7 +133,7 @@ Write-TestHeader "Testing Pipe Mode"
 
 # eph-3.1: Pipe PEM output
 Invoke-Test -TestId "eph-3.1" -TestName "Pipe PEM format to stdout" -TestScript {
-    $output = & certz create dev pipe-test.local --pipe 2>&1
+    $output = & .\certz.exe create dev pipe-test.local --pipe 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -150,7 +153,7 @@ Invoke-Test -TestId "eph-3.1" -TestName "Pipe PEM format to stdout" -TestScript 
 
 # eph-3.2: Pipe cert-only format
 Invoke-Test -TestId "eph-3.2" -TestName "Pipe cert-only format" -TestScript {
-    $output = & certz create dev cert-only.local --pipe --pipe-format cert 2>&1
+    $output = & .\certz.exe create dev cert-only.local --pipe --pipe-format cert 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -165,7 +168,7 @@ Invoke-Test -TestId "eph-3.2" -TestName "Pipe cert-only format" -TestScript {
 
 # eph-3.3: Pipe key-only format
 Invoke-Test -TestId "eph-3.3" -TestName "Pipe key-only format" -TestScript {
-    $output = & certz create dev key-only.local --pipe --pipe-format key 2>&1
+    $output = & .\certz.exe create dev key-only.local --pipe --pipe-format key 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -180,7 +183,7 @@ Invoke-Test -TestId "eph-3.3" -TestName "Pipe key-only format" -TestScript {
 
 # eph-3.4: Pipe PFX with password
 Invoke-Test -TestId "eph-3.4" -TestName "Pipe PFX format with password" -TestScript {
-    $output = & certz create dev pfx-pipe.local --pipe --pipe-format pfx --pipe-password "TestPass123" 2>&1
+    $output = & .\certz.exe create dev pfx-pipe.local --pipe --pipe-format pfx --pipe-password "TestPass123" 2>&1
 
     Assert-ExitCode -Expected 0
 
@@ -200,7 +203,7 @@ Invoke-Test -TestId "eph-3.5" -TestName "Pipe PFX auto-generates password to std
     # Run the command and capture both stdout and stderr
     $tempFile = [System.IO.Path]::GetTempFileName()
     try {
-        $stdout = & certz create dev pfx-auto.local --pipe --pipe-format pfx 2>$tempFile
+        $stdout = & .\certz.exe create dev pfx-auto.local --pipe --pipe-format pfx 2>$tempFile
         $stderr = Get-Content $tempFile -Raw
 
         $hasPassword = $stderr -match "PASSWORD:"
@@ -223,7 +226,7 @@ Write-TestHeader "Testing Error Handling"
 
 # eph-4.1: Ephemeral with file option
 Invoke-Test -TestId "eph-4.1" -TestName "Error: ephemeral with --file" -TestScript {
-    $output = & certz create dev conflict.local --ephemeral --file conflict.pfx 2>&1
+    $output = & .\certz.exe create dev conflict.local --ephemeral --file conflict.pfx 2>&1
     $exitCode = $LASTEXITCODE
 
     $hasError = $output -match "cannot be used with"
@@ -236,7 +239,7 @@ Invoke-Test -TestId "eph-4.1" -TestName "Error: ephemeral with --file" -TestScri
 
 # eph-4.2: Ephemeral with --trust
 Invoke-Test -TestId "eph-4.2" -TestName "Error: ephemeral with --trust" -TestScript {
-    $output = & certz create dev trust-conflict.local --ephemeral --trust 2>&1
+    $output = & .\certz.exe create dev trust-conflict.local --ephemeral --trust 2>&1
     $exitCode = $LASTEXITCODE
 
     $hasError = $output -match "cannot be used with"
@@ -249,7 +252,7 @@ Invoke-Test -TestId "eph-4.2" -TestName "Error: ephemeral with --trust" -TestScr
 
 # eph-4.3: Pipe with file option
 Invoke-Test -TestId "eph-4.3" -TestName "Error: pipe with --file" -TestScript {
-    $output = & certz create dev pipe-conflict.local --pipe --file pipe.pfx 2>&1
+    $output = & .\certz.exe create dev pipe-conflict.local --pipe --file pipe.pfx 2>&1
     $exitCode = $LASTEXITCODE
 
     $hasError = $output -match "cannot be used with"
@@ -262,7 +265,7 @@ Invoke-Test -TestId "eph-4.3" -TestName "Error: pipe with --file" -TestScript {
 
 # eph-4.4: Both ephemeral and pipe
 Invoke-Test -TestId "eph-4.4" -TestName "Error: both ephemeral and pipe" -TestScript {
-    $output = & certz create dev both.local --ephemeral --pipe 2>&1
+    $output = & .\certz.exe create dev both.local --ephemeral --pipe 2>&1
     $exitCode = $LASTEXITCODE
 
     $hasError = $output -match "mutually exclusive"
@@ -276,6 +279,9 @@ Invoke-Test -TestId "eph-4.4" -TestName "Error: both ephemeral and pipe" -TestSc
 # ============================================================================
 # SUMMARY
 # ============================================================================
+
+# Return to original directory
+Pop-Location
 
 $exitCode = Write-TestSummary
 exit $exitCode

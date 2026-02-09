@@ -51,6 +51,36 @@
 - Explain when to use each format and how to determine which type is in the file
 
 
+## Development Patterns
+
+### Exit Codes in Command Handlers
+
+When validation errors occur in async command handlers (`SetAction(async (parseResult) => { ... })`), use `throw new ArgumentException("message")` instead of `Environment.ExitCode = 1`.
+
+**Why:** In System.CommandLine 2.x with async handlers, `Environment.ExitCode` does not reliably propagate through `InvokeAsync()`. The value gets overwritten when the handler returns.
+
+**Pattern to use:**
+```csharp
+// CORRECT: Throw ArgumentException for validation errors
+if (ephemeral && pipe)
+{
+    throw new ArgumentException("--ephemeral and --pipe are mutually exclusive.");
+}
+
+// INCORRECT: Environment.ExitCode doesn't work in async handlers
+if (ephemeral && pipe)
+{
+    formatter.WriteError("--ephemeral and --pipe are mutually exclusive.");
+    Environment.ExitCode = 1;  // This won't propagate!
+    return;
+}
+```
+
+The exception is caught by the main exception handler in `Program.cs`, which displays the error message and returns exit code 1.
+
+**Note:** Synchronous handlers (`SetAction((parseResult) => { ... })`) can use `return 1;` directly since they return int.
+
+
 ## Phase Implementation Plans
 
 When asked to create a new phase implementation plan or prompt:
