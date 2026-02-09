@@ -21,7 +21,9 @@ internal record CertificateCreatedOutput(
     CertificateDto Certificate,
     string[]? Files,
     string? Password,
-    bool WasTrusted
+    bool WasTrusted,
+    bool IsEphemeral,
+    bool WasPiped
 );
 
 internal record CertificateInspectedOutput(
@@ -307,7 +309,9 @@ internal class JsonFormatter : IOutputFormatter
             Certificate: certificate,
             Files: result.OutputFiles.Length > 0 ? result.OutputFiles : null,
             Password: result.PasswordWasGenerated ? result.Password : null,
-            WasTrusted: result.WasTrusted
+            WasTrusted: result.WasTrusted,
+            IsEphemeral: result.IsEphemeral,
+            WasPiped: result.WasPiped
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.CertificateCreatedOutput));

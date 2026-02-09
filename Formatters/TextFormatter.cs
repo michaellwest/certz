@@ -37,9 +37,30 @@ internal class TextFormatter : IOutputFormatter
             .Header("[bold green]Certificate Created Successfully[/]")
             .Border(BoxBorder.Rounded));
 
-        // Output files section
-        if (result.OutputFiles.Length > 0)
+        // Ephemeral mode warning
+        if (result.IsEphemeral)
         {
+            AnsiConsole.WriteLine();
+            var warningPanel = new Panel(
+                new Rows(
+                    new Markup("[bold yellow]EPHEMERAL MODE[/]"),
+                    new Markup(""),
+                    new Markup("Certificate exists in memory only."),
+                    new Markup("No files were written to disk."),
+                    new Markup("[dim]Certificate will be discarded when this command exits.[/]")
+                ))
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(warningPanel);
+        }
+        else if (result.WasPiped)
+        {
+            // Pipe mode - minimal output, content went to stdout
+            // Don't display file list since there are none
+        }
+        else if (result.OutputFiles.Length > 0)
+        {
+            // Output files section (normal mode)
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[bold]Saved Files:[/]");
             foreach (var file in result.OutputFiles)
@@ -48,8 +69,9 @@ internal class TextFormatter : IOutputFormatter
             }
         }
 
-        // Password warning if generated
-        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.Password))
+        // Password warning if generated (not in ephemeral/pipe mode)
+        if (!result.IsEphemeral && !result.WasPiped &&
+            result.PasswordWasGenerated && !string.IsNullOrEmpty(result.Password))
         {
             AnsiConsole.WriteLine();
             var passwordPanel = new Panel(
