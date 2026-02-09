@@ -92,6 +92,10 @@ certz create dev localhost --file server.pfx --cert server.cer --key server.key
 | `--cert` | Output certificate filename |
 | `--key` | Output private key filename |
 | `--password` | PFX password (auto-generated if not provided) |
+| `--ephemeral, -e` | Generate certificate in memory only |
+| `--pipe` | Stream certificate to stdout |
+| `--pipe-format` | Pipe output format: pem, pfx, cert, key |
+| `--pipe-password` | Password for PFX pipe output |
 
 ### CA Certificates
 
@@ -124,6 +128,80 @@ certz create ca --guided
 | `--crl-url` | CRL Distribution Point URL |
 | `--ocsp-url` | OCSP responder URL |
 | `--guided` | Launch interactive wizard |
+| `--ephemeral, -e` | Generate certificate in memory only (no files written) |
+| `--pipe` | Stream certificate to stdout (no files written) |
+| `--pipe-format` | Pipe output format: pem (default), pfx, cert, key |
+| `--pipe-password` | Password for PFX pipe output |
+
+---
+
+## Ephemeral & Pipe Modes
+
+### Ephemeral Mode
+
+Generate certificates in memory without writing files to disk:
+
+```bash
+# Create ephemeral certificate (displays details, no files)
+certz create dev example.com --ephemeral
+
+# Ephemeral with custom options
+certz create dev app.local --ephemeral --san "*.app.local" --key-type RSA
+
+# Ephemeral CA certificate
+certz create ca --name "Test CA" --ephemeral
+
+# JSON output for scripting
+certz create dev test.local --ephemeral --format json
+```
+
+**Use cases:**
+- Testing certificate settings before committing to files
+- CI/CD pipelines without cleanup requirements
+- Security-sensitive environments (keys never touch disk)
+- Training and demonstrations
+
+### Pipe Mode
+
+Stream certificate content to stdout for piping to other tools:
+
+```bash
+# Pipe full PEM (cert + key) to stdout
+certz create dev example.com --pipe
+
+# Pipe to kubectl to create Kubernetes secret
+certz create dev app.local --pipe | kubectl create secret tls my-cert --cert=/dev/stdin --key=/dev/stdin
+
+# Pipe certificate only (no private key)
+certz create dev example.com --pipe --pipe-format cert
+
+# Pipe private key only
+certz create dev example.com --pipe --pipe-format key
+
+# Pipe as base64 PFX with specified password
+certz create dev example.com --pipe --pipe-format pfx --pipe-password "MySecret"
+
+# Pipe PFX with auto-generated password (password written to stderr)
+certz create dev example.com --pipe --pipe-format pfx 2>password.txt > cert.b64
+```
+
+**Pipe Formats:**
+
+| Format | Output |
+|--------|--------|
+| `pem` (default) | Certificate + private key in PEM format |
+| `pfx` | Base64-encoded PFX (password required or auto-generated to stderr) |
+| `cert` | Certificate only (PEM format) |
+| `key` | Private key only (PEM format) |
+
+### Restrictions
+
+Both `--ephemeral` and `--pipe` are mutually exclusive with:
+- `--file`, `--cert`, `--key` (file output options)
+- `--trust` (cannot install in-memory certificate)
+- `--password-file` (no file to protect)
+
+You cannot use both `--ephemeral` and `--pipe` together.
 
 ---
 
@@ -652,6 +730,7 @@ Comprehensive testing documentation and automated test scripts are available:
 - **test-lint.ps1** - Tests for certificate linting
 - **test-monitor.ps1** - Tests for certificate expiration monitoring
 - **test-renew.ps1** - Tests for certificate renewal
+- **test-ephemeral.ps1** - Tests for ephemeral and pipe modes
 
 ### Quick Test
 
@@ -675,6 +754,9 @@ Run the test suites:
 
 # Test certificate renewal
 .\test-renew.ps1
+
+# Test ephemeral and pipe modes
+.\test-ephemeral.ps1
 
 # Run specific test by ID
 .\test-inspect.ps1 -TestId "ins-1.1"
