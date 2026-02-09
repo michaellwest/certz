@@ -190,7 +190,7 @@ When `--output` is not specified, derive from input:
 | 5 | Update ConvertCommand | [x] | Add new simplified interface |
 | 6 | Update TextFormatter | [x] | Enhanced conversion output |
 | 7 | Update JsonFormatter | [x] | Add format info fields |
-| 8 | Create tests | [ ] | test/test-convert.ps1 |
+| 8 | Create tests | [x] | test/test-convert.ps1 |
 | 9 | Update documentation | [ ] | README.md |
 
 ---
@@ -1530,7 +1530,7 @@ $exitCode = Write-TestSummary
 exit $exitCode
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 ---
 

@@ -53,6 +53,13 @@ $TestCategories = @{
     "pfx-to-pem" = @("cnv-2.1", "cnv-2.2", "cnv-2.3")
     "encryption" = @("cnv-3.1", "cnv-3.2")
     "format" = @("fmt-1.1")
+    "simplified-pem-der" = @("cnv-4.1", "cnv-4.2")
+    "simplified-der-pem" = @("cnv-5.1", "cnv-5.2")
+    "simplified-pem-pfx" = @("cnv-6.1", "cnv-6.2")
+    "simplified-pfx-pem" = @("cnv-7.1", "cnv-7.2")
+    "simplified-pfx-der" = @("cnv-8.1")
+    "simplified-der-pfx" = @("cnv-9.1")
+    "simplified-errors" = @("cnv-10.1", "cnv-10.2", "cnv-10.3")
 }
 
 # Initialize test environment
@@ -590,6 +597,580 @@ Invoke-Test -TestId "fmt-1.1" -TestName "Convert with JSON output" -FilePrefix "
         Remove-Item "fmt-json.cer" -Force -ErrorAction SilentlyContinue
         Remove-Item "fmt-json.key" -Force -ErrorAction SilentlyContinue
         Remove-Item "fmt-json.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SIMPLIFIED INTERFACE: PEM TO DER
+# ============================================================================
+Write-TestHeader "Testing Simplified Interface: PEM to DER"
+
+# Test cnv-4.1: PEM to DER conversion
+Invoke-Test -TestId "cnv-4.1" -TestName "Convert PEM to DER (simplified)" -FilePrefix "cnv-pem-der" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP: Create a test certificate and export to PEM using PowerShell
+    $certParams = @{
+        Subject = "CN=certz-pem-der-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+
+    # Export certificate to PEM format
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    $certPemContent = "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    Set-Content -Path "cnv-pem-der.pem" -Value $certPemContent
+
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call using simplified interface
+        $output = & .\certz.exe convert cnv-pem-der.pem --to der 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: DER file exists
+        Assert-FileExists "cnv-pem-der.der"
+
+        # ASSERTION 3: DER file is binary (starts with ASN.1 SEQUENCE tag 0x30)
+        $bytes = [System.IO.File]::ReadAllBytes("cnv-pem-der.der")
+        if ($bytes[0] -ne 0x30) {
+            throw "Output is not valid DER format (expected ASN.1 SEQUENCE tag)"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "PEM to DER conversion successful" }
+    }
+    finally {
+        Remove-Item "cnv-pem-der.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pem-der.der" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-4.2: PEM to DER with custom output path
+Invoke-Test -TestId "cnv-4.2" -TestName "Convert PEM to DER with custom output path" -FilePrefix "cnv-pem-der-out" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-pem-der-out-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    $certPemContent = "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    Set-Content -Path "cnv-pem-der-out.pem" -Value $certPemContent
+
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Custom output path
+        $output = & .\certz.exe convert cnv-pem-der-out.pem --to der --output custom-output.der 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Custom output file exists
+        Assert-FileExists "custom-output.der"
+
+        [PSCustomObject]@{ Success = $true; Details = "Custom output path works" }
+    }
+    finally {
+        Remove-Item "cnv-pem-der-out.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "custom-output.der" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SIMPLIFIED INTERFACE: DER TO PEM
+# ============================================================================
+Write-TestHeader "Testing Simplified Interface: DER to PEM"
+
+# Test cnv-5.1: DER to PEM conversion
+Invoke-Test -TestId "cnv-5.1" -TestName "Convert DER to PEM (simplified)" -FilePrefix "cnv-der-pem" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP: Create a DER file
+    $certParams = @{
+        Subject = "CN=certz-der-pem-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    [System.IO.File]::WriteAllBytes("cnv-der-pem.der", $cert.RawData)
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe convert cnv-der-pem.der --to pem 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: PEM file exists
+        Assert-FileExists "cnv-der-pem.pem"
+
+        # ASSERTION 3: PEM file contains correct headers
+        $content = Get-Content "cnv-der-pem.pem" -Raw
+        if ($content -notmatch "-----BEGIN CERTIFICATE-----") {
+            throw "Output should contain PEM headers"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "DER to PEM conversion successful" }
+    }
+    finally {
+        Remove-Item "cnv-der-pem.der" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-der-pem.pem" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-5.2: DER to PEM with JSON output
+Invoke-Test -TestId "cnv-5.2" -TestName "Convert DER to PEM with JSON output" -FilePrefix "cnv-der-pem-json" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-der-pem-json-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    [System.IO.File]::WriteAllBytes("cnv-der-pem-json.der", $cert.RawData)
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION
+        $output = & .\certz.exe convert cnv-der-pem-json.der --to pem --format json 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Valid JSON
+        $json = $outputStr | ConvertFrom-Json
+        if (-not $json.success) { throw "JSON success should be true" }
+        if ($json.outputFormat -ne "PEM") { throw "outputFormat should be PEM" }
+
+        [PSCustomObject]@{ Success = $true; Details = "JSON output correct with outputFormat=PEM" }
+    }
+    finally {
+        Remove-Item "cnv-der-pem-json.der" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-der-pem-json.pem" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SIMPLIFIED INTERFACE: PEM TO PFX
+# ============================================================================
+Write-TestHeader "Testing Simplified Interface: PEM to PFX"
+
+# Test cnv-6.1: PEM to PFX with explicit key
+Invoke-Test -TestId "cnv-6.1" -TestName "Convert PEM to PFX with explicit key (simplified)" -FilePrefix "cnv-pem-pfx" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-pem-pfx-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "cnv-pem-pfx.pem" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+
+    $ecdsaKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($cert)
+    $pkcs8Bytes = $ecdsaKey.ExportPkcs8PrivateKey()
+    $base64Key = [System.Convert]::ToBase64String($pkcs8Bytes, [System.Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "cnv-pem-pfx.key" -Value "-----BEGIN PRIVATE KEY-----`n$base64Key`n-----END PRIVATE KEY-----"
+
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION
+        $output = & .\certz.exe convert cnv-pem-pfx.pem --to pfx --key cnv-pem-pfx.key --password TestSimple123 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: PFX file exists
+        Assert-FileExists "cnv-pem-pfx.pfx"
+
+        # ASSERTION 3: PFX can be loaded
+        $loadedCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "cnv-pem-pfx.pfx").Path, "TestSimple123")
+        if (-not $loadedCert.HasPrivateKey) {
+            throw "PFX should have private key"
+        }
+        $loadedCert.Dispose()
+
+        [PSCustomObject]@{ Success = $true; Details = "Simplified PEM to PFX with explicit key" }
+    }
+    finally {
+        Remove-Item "cnv-pem-pfx.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pem-pfx.key" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pem-pfx.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-6.2: PEM to PFX with auto-discovered key
+Invoke-Test -TestId "cnv-6.2" -TestName "Convert PEM to PFX with auto-discovered key" -FilePrefix "cnv-pem-pfx-auto" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-pem-pfx-auto-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "cnv-pem-pfx-auto.pem" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+
+    $ecdsaKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($cert)
+    $pkcs8Bytes = $ecdsaKey.ExportPkcs8PrivateKey()
+    $base64Key = [System.Convert]::ToBase64String($pkcs8Bytes, [System.Base64FormattingOptions]::InsertLineBreaks)
+    # Use .key extension for auto-discovery
+    Set-Content -Path "cnv-pem-pfx-auto.key" -Value "-----BEGIN PRIVATE KEY-----`n$base64Key`n-----END PRIVATE KEY-----"
+
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: No --key specified, should auto-discover cnv-pem-pfx-auto.key
+        $output = & .\certz.exe convert cnv-pem-pfx-auto.pem --to pfx --password AutoPass123 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: PFX file exists
+        Assert-FileExists "cnv-pem-pfx-auto.pfx"
+
+        [PSCustomObject]@{ Success = $true; Details = "Key auto-discovery works" }
+    }
+    finally {
+        Remove-Item "cnv-pem-pfx-auto.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pem-pfx-auto.key" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pem-pfx-auto.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SIMPLIFIED INTERFACE: PFX TO PEM
+# ============================================================================
+Write-TestHeader "Testing Simplified Interface: PFX to PEM"
+
+# Test cnv-7.1: PFX to PEM (simplified)
+Invoke-Test -TestId "cnv-7.1" -TestName "Convert PFX to PEM (simplified)" -FilePrefix "cnv-pfx-pem" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-pfx-pem-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    $password = ConvertTo-SecureString "SimplePfx123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "cnv-pfx-pem.pfx" -Password $password | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION
+        $output = & .\certz.exe convert cnv-pfx-pem.pfx --to pem --password SimplePfx123 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: PEM file exists
+        Assert-FileExists "cnv-pfx-pem.pem"
+
+        # ASSERTION 3: Key file also created (PFX has private key)
+        Assert-FileExists "cnv-pfx-pem.key"
+
+        [PSCustomObject]@{ Success = $true; Details = "Simplified PFX to PEM conversion" }
+    }
+    finally {
+        Remove-Item "cnv-pfx-pem.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pfx-pem.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pfx-pem.key" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-7.2: PFX to PEM without including key
+Invoke-Test -TestId "cnv-7.2" -TestName "Convert PFX to PEM without key" -FilePrefix "cnv-pfx-pem-nokey" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-pfx-pem-nokey-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    $password = ConvertTo-SecureString "NoKeyPfx123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "cnv-pfx-pem-nokey.pfx" -Password $password | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: --include-key false
+        $output = & .\certz.exe convert cnv-pfx-pem-nokey.pfx --to pem --password NoKeyPfx123 --include-key:$false 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: PEM file exists
+        Assert-FileExists "cnv-pfx-pem-nokey.pem"
+
+        # ASSERTION 3: Key file NOT created
+        Assert-FileNotExists "cnv-pfx-pem-nokey.key"
+
+        [PSCustomObject]@{ Success = $true; Details = "Key excluded from output" }
+    }
+    finally {
+        Remove-Item "cnv-pfx-pem-nokey.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pfx-pem-nokey.pem" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SIMPLIFIED INTERFACE: PFX TO DER
+# ============================================================================
+Write-TestHeader "Testing Simplified Interface: PFX to DER"
+
+# Test cnv-8.1: PFX to DER
+Invoke-Test -TestId "cnv-8.1" -TestName "Convert PFX to DER (simplified)" -FilePrefix "cnv-pfx-der" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-pfx-der-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    $password = ConvertTo-SecureString "PfxDer123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "cnv-pfx-der.pfx" -Password $password | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION
+        $output = & .\certz.exe convert cnv-pfx-der.pfx --to der --password PfxDer123 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: DER file exists
+        Assert-FileExists "cnv-pfx-der.der"
+
+        # ASSERTION 3: DER file is valid binary
+        $bytes = [System.IO.File]::ReadAllBytes("cnv-pfx-der.der")
+        if ($bytes[0] -ne 0x30) {
+            throw "Output is not valid DER format"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "PFX to DER conversion" }
+    }
+    finally {
+        Remove-Item "cnv-pfx-der.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-pfx-der.der" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SIMPLIFIED INTERFACE: DER TO PFX
+# ============================================================================
+Write-TestHeader "Testing Simplified Interface: DER to PFX"
+
+# Test cnv-9.1: DER to PFX with key file
+Invoke-Test -TestId "cnv-9.1" -TestName "Convert DER to PFX with key file" -FilePrefix "cnv-der-pfx" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-der-pfx-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+
+    # Export certificate to DER
+    [System.IO.File]::WriteAllBytes("cnv-der-pfx.der", $cert.RawData)
+
+    # Export private key to PEM
+    $ecdsaKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($cert)
+    $pkcs8Bytes = $ecdsaKey.ExportPkcs8PrivateKey()
+    $base64Key = [System.Convert]::ToBase64String($pkcs8Bytes, [System.Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "cnv-der-pfx.key" -Value "-----BEGIN PRIVATE KEY-----`n$base64Key`n-----END PRIVATE KEY-----"
+
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION
+        $output = & .\certz.exe convert cnv-der-pfx.der --to pfx --key cnv-der-pfx.key --password DerPfx123 2>&1
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: PFX file exists
+        Assert-FileExists "cnv-der-pfx.pfx"
+
+        # ASSERTION 3: PFX can be loaded
+        $loadedCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "cnv-der-pfx.pfx").Path, "DerPfx123")
+        if (-not $loadedCert.HasPrivateKey) {
+            throw "PFX should have private key"
+        }
+        $loadedCert.Dispose()
+
+        [PSCustomObject]@{ Success = $true; Details = "DER to PFX with key" }
+    }
+    finally {
+        Remove-Item "cnv-der-pfx.der" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-der-pfx.key" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-der-pfx.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SIMPLIFIED INTERFACE: ERROR HANDLING
+# ============================================================================
+Write-TestHeader "Testing Simplified Interface: Error Handling"
+
+# Test cnv-10.1: Same format conversion error
+Invoke-Test -TestId "cnv-10.1" -TestName "Error when input and output formats are same" -FilePrefix "cnv-same-format" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-same-format-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "cnv-same-format.pem" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: PEM to PEM should fail
+        $output = & .\certz.exe convert cnv-same-format.pem --to pem 2>&1
+        $exitCode = $LASTEXITCODE
+        $outputStr = $output -join "`n"
+
+        # ASSERTION: Should fail
+        if ($exitCode -eq 0) {
+            throw "Should have failed for same format"
+        }
+        if ($outputStr -notmatch "same") {
+            throw "Error should mention same format"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Same format conversion rejected" }
+    }
+    finally {
+        Remove-Item "cnv-same-format.pem" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-10.2: PFX without password error
+Invoke-Test -TestId "cnv-10.2" -TestName "Error when PFX password missing" -FilePrefix "cnv-pfx-nopwd" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP
+    $certParams = @{
+        Subject = "CN=certz-pfx-nopwd-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    $password = ConvertTo-SecureString "NoPwdTest123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "cnv-pfx-nopwd.pfx" -Password $password | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: No password
+        $output = & .\certz.exe convert cnv-pfx-nopwd.pfx --to pem 2>&1
+        $exitCode = $LASTEXITCODE
+        $outputStr = $output -join "`n"
+
+        # ASSERTION: Should fail
+        if ($exitCode -eq 0) {
+            throw "Should have failed without password"
+        }
+        if ($outputStr -notmatch "password|Password") {
+            throw "Error should mention password"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Password requirement enforced" }
+    }
+    finally {
+        Remove-Item "cnv-pfx-nopwd.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-10.3: Missing key for PFX output error
+Invoke-Test -TestId "cnv-10.3" -TestName "Error when key missing for PFX output" -FilePrefix "cnv-nokey" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP: Create a PEM cert with no matching key file
+    $certParams = @{
+        Subject = "CN=certz-nokey-$guid"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "cnv-nokey-orphan.pem" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: No key file available
+        $output = & .\certz.exe convert cnv-nokey-orphan.pem --to pfx 2>&1
+        $exitCode = $LASTEXITCODE
+        $outputStr = $output -join "`n"
+
+        # ASSERTION: Should fail
+        if ($exitCode -eq 0) {
+            throw "Should have failed without key"
+        }
+        if ($outputStr -notmatch "key|Key") {
+            throw "Error should mention key"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Key requirement enforced" }
+    }
+    finally {
+        Remove-Item "cnv-nokey-orphan.pem" -Force -ErrorAction SilentlyContinue
     }
 }
 
