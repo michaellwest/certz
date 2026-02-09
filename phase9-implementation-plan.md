@@ -187,7 +187,7 @@ When `--output` is not specified, derive from input:
 | 2 | Add ConvertOptions model | [x] | Models/ConvertOptions.cs |
 | 3 | Add format detection service | [x] | Services/FormatDetectionService.cs |
 | 4 | Add DER conversion methods | [x] | Services/ConvertService.cs |
-| 5 | Update ConvertCommand | [ ] | Add new simplified interface |
+| 5 | Update ConvertCommand | [x] | Add new simplified interface |
 | 6 | Update TextFormatter | [ ] | Enhanced conversion output |
 | 7 | Update JsonFormatter | [ ] | Add format info fields |
 | 8 | Create tests | [ ] | test/test-convert.ps1 |
@@ -1012,7 +1012,7 @@ internal static class ConvertCommand
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 ---
 
