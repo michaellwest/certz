@@ -51,3 +51,10 @@
 - Explain when to use each format and how to determine which type is in the file
 
 
+## Phase Implementation Plans
+
+When asked to create a new phase implementation plan or prompt:
+- Save the plan to a file named `phase<N>-implementation-plan.md` in the project root
+- Follow the format of existing phase plans (see `phase1-implementation-plan.md` through `phase6-implementation-plan.md`)
+- Include: Status, Overview, Design Decisions, Progress Tracker, Implementation Steps with code samples, Tests, and Verification Checklist
+- Reference existing codebase patterns for consistency
