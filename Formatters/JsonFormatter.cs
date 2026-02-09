@@ -244,6 +244,26 @@ internal record MonitorErrorDto(
     string Message
 );
 
+// Renew result DTO
+internal record RenewOutput(
+    bool Success,
+    string? Error,
+    string OriginalSubject,
+    string OriginalThumbprint,
+    string OriginalNotAfter,
+    string? NewSubject,
+    string? NewThumbprint,
+    string? NewNotBefore,
+    string? NewNotAfter,
+    string? OutputFile,
+    string? Password,
+    bool PasswordWasGenerated,
+    string[]? SANs,
+    string? KeyType,
+    bool KeyWasPreserved,
+    bool WasResigned
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -259,6 +279,7 @@ internal record MonitorErrorDto(
 [JsonSerializable(typeof(VerificationOutput))]
 [JsonSerializable(typeof(LintOutput))]
 [JsonSerializable(typeof(MonitorOutput))]
+[JsonSerializable(typeof(RenewOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -580,6 +601,30 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.MonitorOutput));
+    }
+
+    public void WriteRenewResult(RenewResult result)
+    {
+        var output = new RenewOutput(
+            Success: result.Success,
+            Error: result.ErrorMessage,
+            OriginalSubject: result.OriginalSubject,
+            OriginalThumbprint: result.OriginalThumbprint,
+            OriginalNotAfter: result.OriginalNotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            NewSubject: result.NewSubject,
+            NewThumbprint: result.NewThumbprint,
+            NewNotBefore: result.NewNotBefore?.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            NewNotAfter: result.NewNotAfter?.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            OutputFile: result.OutputFile,
+            Password: result.PasswordWasGenerated ? result.Password : null,
+            PasswordWasGenerated: result.PasswordWasGenerated,
+            SANs: result.SANs?.Length > 0 ? result.SANs : null,
+            KeyType: result.KeyType,
+            KeyWasPreserved: result.KeyWasPreserved,
+            WasResigned: result.WasResigned
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.RenewOutput));
     }
 
     public void WriteError(string message)

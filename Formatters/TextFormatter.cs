@@ -630,6 +630,73 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.Write(table);
     }
 
+    public void WriteRenewResult(RenewResult result)
+    {
+        if (!result.Success)
+        {
+            AnsiConsole.MarkupLine("[red]Renewal Failed[/]");
+            AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(result.ErrorMessage ?? "Unknown error")}");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold]Original Certificate:[/]");
+            AnsiConsole.MarkupLine($"  Subject: {Markup.Escape(result.OriginalSubject)}");
+            if (!string.IsNullOrEmpty(result.OriginalThumbprint))
+            {
+                AnsiConsole.MarkupLine($"  Thumbprint: {result.OriginalThumbprint}");
+            }
+            if (result.OriginalNotAfter != DateTime.MinValue)
+            {
+                AnsiConsole.MarkupLine($"  Expires: {result.OriginalNotAfter:yyyy-MM-dd}");
+            }
+            return;
+        }
+
+        AnsiConsole.Write(new Rule("[green]Certificate Renewed[/]").LeftJustified());
+        AnsiConsole.WriteLine();
+
+        // Original vs Renewed comparison table
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Property[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Original[/]"))
+            .AddColumn(new TableColumn("[bold]Renewed[/]"));
+
+        table.AddRow("Subject", Markup.Escape(result.OriginalSubject), Markup.Escape(result.NewSubject ?? "-"));
+        table.AddRow("Thumbprint",
+            $"[dim]{result.OriginalThumbprint[..Math.Min(16, result.OriginalThumbprint.Length)]}...[/]",
+            $"[cyan]{result.NewThumbprint?[..Math.Min(16, result.NewThumbprint?.Length ?? 0)]}...[/]");
+        table.AddRow("Expires",
+            $"[yellow]{result.OriginalNotAfter:yyyy-MM-dd}[/]",
+            $"[green]{result.NewNotAfter:yyyy-MM-dd}[/]");
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+
+        // Details
+        AnsiConsole.MarkupLine($"[bold]Key:[/] {result.KeyType} {(result.KeyWasPreserved ? "[dim](preserved)[/]" : "[dim](new)[/]")}");
+
+        if (result.SANs?.Length > 0)
+        {
+            AnsiConsole.MarkupLine($"[bold]SANs:[/] {string.Join(", ", result.SANs.Select(Markup.Escape))}");
+        }
+
+        AnsiConsole.MarkupLine($"[bold]Output:[/] {Markup.Escape(result.OutputFile ?? "")}");
+
+        if (result.PasswordWasGenerated && result.Password != null)
+        {
+            AnsiConsole.WriteLine();
+            var passwordPanel = new Panel(
+                new Rows(
+                    new Markup($"[bold cyan]{Markup.Escape(result.Password)}[/]"),
+                    new Markup(""),
+                    new Markup("[yellow]Store this password securely! This is your only chance to see it.[/]")
+                ))
+                .Header("[bold yellow]Generated Password[/]")
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(passwordPanel);
+        }
+    }
+
     public void WriteMonitorResult(MonitorResult result, bool quietMode)
     {
         // Header

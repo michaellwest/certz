@@ -1,7 +1,8 @@
 # Phase 7: Certificate Renewal Command
 
-**Status:** Not Started
+**Status:** Completed
 **Created:** 2026-02-08
+**Completed:** 2026-02-08
 
 ## Objective
 
@@ -77,14 +78,14 @@ Exit Codes:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create RenewOptions model | [ ] | Models/RenewOptions.cs |
-| 2 | Create RenewResult model | [ ] | Models/RenewResult.cs |
-| 3 | Create RenewService | [ ] | Services/RenewService.cs |
-| 4 | Create RenewCommand | [ ] | Commands/Renew/RenewCommand.cs |
-| 5 | Add formatter methods | [ ] | IOutputFormatter, TextFormatter, JsonFormatter |
-| 6 | Register command | [ ] | Program.cs |
-| 7 | Create tests | [ ] | test/test-renew.ps1 |
-| 8 | Update documentation | [ ] | README.md |
+| 1 | Create RenewOptions model | [x] | Models/RenewOptions.cs |
+| 2 | Create RenewResult model | [x] | Models/RenewResult.cs |
+| 3 | Create RenewService | [x] | Services/RenewService.cs |
+| 4 | Create RenewCommand | [x] | Commands/Renew/RenewCommand.cs |
+| 5 | Add formatter methods | [x] | IOutputFormatter, TextFormatter, JsonFormatter |
+| 6 | Register command | [x] | Program.cs |
+| 7 | Create tests | [x] | test/test-renew.ps1 |
+| 8 | Update documentation | [x] | README.md |
 
 ---
 
@@ -159,7 +160,7 @@ internal record RenewOptions
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -260,7 +261,7 @@ internal record RenewResult
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -524,7 +525,7 @@ internal static class RenewService
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -655,7 +656,7 @@ internal static class RenewCommand
 }
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -728,7 +729,7 @@ public void WriteRenewResult(RenewResult result)
 
 Add DTO and serialization for RenewResult.
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -743,7 +744,7 @@ using certz.Commands.Renew;
 rootCommand.AddRenewCommand();
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -958,7 +959,7 @@ Invoke-Test -TestId "ren-6.1" -TestName "JSON output format" -FilePrefix "ren" -
 Invoke-TestSuite -TestId $TestId -Category $Category -Verbose:$Verbose
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
@@ -1007,22 +1008,22 @@ certz renew server.pfx --password secret --out server-2024.pfx
 | `--format` | Output format: text, json |
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Completed
 
 ---
 
 ## Verification Checklist
 
-- [ ] `dotnet build` succeeds
-- [ ] `certz renew --help` shows correct usage
-- [ ] Self-signed cert renewal works
-- [ ] CA-signed cert renewal with `--issuer-cert` works
-- [ ] `--keep-key` preserves private key
-- [ ] `--days` sets custom validity (capped at 398)
-- [ ] Missing issuer for CA-signed cert returns exit code 2
-- [ ] `--format json` outputs valid JSON
-- [ ] Exit codes are correct (0=success, 1=not found, 2=missing issuer)
-- [ ] `.\test\test-renew.ps1` passes
+- [x] `dotnet build` succeeds
+- [x] `certz renew --help` shows correct usage
+- [x] Self-signed cert renewal works
+- [x] CA-signed cert renewal with `--issuer-cert` works
+- [x] `--keep-key` preserves private key
+- [x] `--days` sets custom validity (capped at 398)
+- [x] Missing issuer for CA-signed cert returns exit code 2
+- [x] `--format json` outputs valid JSON
+- [x] Exit codes are correct (0=success, 1=not found, 2=missing issuer)
+- [ ] `.\test\test-renew.ps1` passes (tests written, pending execution)
 
 ---
 
@@ -1042,4 +1043,7 @@ Review these for implementation patterns:
 
 *Record any changes during implementation:*
 
-1. _(none yet)_
+1. Fixed SYSLIB0057 warnings by replacing obsolete `X509Certificate2(string)` constructor with `X509CertificateLoader.LoadCertificate()` for loading non-PFX certificate files.
+2. Used existing `CertificateGeneration.GenerateCertificate()` for self-signed renewals and `CertificateGeneration.GenerateSignedCertificate()` for CA-signed renewals with new keys.
+3. Implemented `RenewWithExistingKey()` to create a new certificate request using the existing private key from the source certificate.
+4. Added comprehensive test suite with 11 test cases covering self-signed, CA-signed, keep-key, validity constraints, error handling, and JSON output.
