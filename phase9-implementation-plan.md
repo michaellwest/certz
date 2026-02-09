@@ -1,6 +1,6 @@
 # Phase 9: Enhanced Certificate Format Conversion
 
-**Status:** In Progress
+**Status:** Complete
 **Created:** 2026-02-09
 
 ## Objective
@@ -191,7 +191,7 @@ When `--output` is not specified, derive from input:
 | 6 | Update TextFormatter | [x] | Enhanced conversion output |
 | 7 | Update JsonFormatter | [x] | Add format info fields |
 | 8 | Create tests | [x] | test/test-convert.ps1 |
-| 9 | Update documentation | [ ] | README.md |
+| 9 | Update documentation | [x] | README.md |
 
 ---
 
@@ -1621,7 +1621,7 @@ certz convert --file input.pfx --out-cert cert.pem --out-key key.pem -p secret
 | **PFX** | Password-protected bundle | Windows, IIS, certificate export |
 ```
 
-**Status:** [ ] Not Started
+**Status:** [x] Complete
 
 ---
 
