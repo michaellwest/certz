@@ -16,6 +16,7 @@ ENV DOTNET_ENVIRONMENT=Test
 COPY debug/certz.exe ./
 COPY debug/certz.pdb ./
 COPY test/ ./test/
+RUN New-Item -Path ./test-results -ItemType Directory -Force
 
 # Default command runs the full test suite
 ENTRYPOINT ["pwsh", "-File", "./test/test-all.ps1"]

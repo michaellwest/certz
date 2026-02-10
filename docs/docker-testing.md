@@ -118,6 +118,39 @@ docker-compose -f docker-compose.test.yml up --build
 docker-compose -f docker-compose.test.yml down
 ```
 
+## Known Test Failures in Containers
+
+### Root Store UI Dialog Tests
+
+Several tests will **hang or fail** inside Docker containers because they invoke certz.exe commands that add certificates to `CurrentUser\Root`. On Windows, the .NET `X509Store.Add()` API triggers an interactive security dialog for the Root store that cannot complete in a non-interactive container environment.
+
+**Affected tests:**
+
+| Test ID | Test Script | Command |
+|---------|------------|---------|
+| tru-1.1 | test-create.ps1 | `certz create dev ... --trust` |
+| tru-1.2 | test-create.ps1 | `certz create ca ... --trust` |
+| tru-1.1 | test-trust.ps1 | `certz trust add ... --store root` |
+| tru-1.2 | test-trust.ps1 | `certz trust add ... --store root` (PFX) |
+
+**Recommendation:** When running in Docker, use `-Category` filters to exclude trust-to-Root tests, or run only test suites that don't touch the Root store:
+
+```powershell
+# Safe to run in Docker (no Root store UI):
+pwsh -File ./test/test-create.ps1 -Category create-dev, create-ca, create-signing
+pwsh -File ./test/test-lint.ps1
+pwsh -File ./test/test-convert.ps1
+pwsh -File ./test/test-inspect.ps1
+pwsh -File ./test/test-monitor.ps1
+pwsh -File ./test/test-renew.ps1
+pwsh -File ./test/test-ephemeral.ps1
+pwsh -File ./test/test-export.ps1
+pwsh -File ./test/test-verify.ps1
+pwsh -File ./test/test-install.ps1
+```
+
+See [testing.md — Known Limitations](testing.md#known-limitations) for full details and workarounds.
+
 ## Troubleshooting
 
 ### Error: "image operating system ... cannot be used"

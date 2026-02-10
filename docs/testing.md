@@ -1164,6 +1164,51 @@ Get-ChildItem -Path . -File | Where-Object {
 
 ---
 
+## Known Limitations
+
+### Windows Root Store UI Dialog
+
+On Windows, the .NET `X509Store.Add()` API triggers a **Windows Security UI confirmation dialog** when adding certificates to the `CurrentUser\Root` store. This dialog requires interactive user input (click Yes/No) and **cannot be suppressed programmatically**.
+
+This affects any certz command that installs certificates into the Root store:
+
+- `certz create dev <domain> --trust` — installs to `CurrentUser\Root` via `CreateService.cs` → `CertificateUtilities.InstallCertificate()`
+- `certz create ca --name <name> --trust` — installs to `CurrentUser\Root` via `CreateService.cs` → `CertificateUtilities.InstallCertificate()`
+- `certz trust add <file> --store root` — installs to `CurrentUser\Root` via `TrustHandler.AddToStore()`
+- `certz install --file <file> --sn root --sl CurrentUser` — installs to `CurrentUser\Root` via `CertificateUtilities.InstallCertificate()`
+
+**Impact on test suites:**
+
+The following tests will **hang indefinitely** in non-interactive environments (Docker containers, CI/CD pipelines, headless servers, remote sessions) because they invoke certz.exe with commands that trigger the Root store UI dialog:
+
+| Test ID | Test Script | Command | Why It Hangs |
+|---------|------------|---------|--------------|
+| tru-1.1 | test-create.ps1 | `certz create dev ... --trust` | Adds dev cert to `CurrentUser\Root` |
+| tru-1.2 | test-create.ps1 | `certz create ca ... --trust` | Adds CA cert to `CurrentUser\Root` |
+| tru-1.1 | test-trust.ps1 | `certz trust add ... --store root` | Adds cert to `CurrentUser\Root` |
+| tru-1.2 | test-trust.ps1 | `certz trust add ... --store root` (PFX) | Adds PFX cert to `CurrentUser\Root` |
+
+**Note:** The test helper function `Import-CertificateToStoreNoUI` (in `test-helper.ps1`) uses `certutil.exe -user -addstore` to bypass the UI dialog for test **setup and teardown**. However, the certz.exe commands being **tested** still use `X509Store.Add()` internally, which triggers the dialog.
+
+**Workarounds:**
+
+1. **Run affected tests only on interactive desktops** where a user can click through the dialog
+2. **Skip trust-to-Root tests in CI/CD** by using the `-Category` or `-TestId` filters to exclude them:
+   ```powershell
+   # Run create tests but skip trust tests
+   pwsh -File test/test-create.ps1 -Category create-dev, create-ca, create-signing
+
+   # Run trust tests but only the non-Root store tests
+   pwsh -File test/test-trust.ps1 -TestId "tru-1.3", "tru-1.4"
+   ```
+3. **Use Docker with Server Core** for tests that don't touch the Root store — the `ContainerAdministrator` user in Server Core may not trigger the UI in some configurations, but behavior is not guaranteed
+
+**Tests that safely avoid the Root store UI:**
+
+- `test-install.ps1` — deliberately uses `CurrentUser\My` and `CurrentUser\CA` stores instead of Root (see `ist-1.2` comment at line 131)
+- `test-trust.ps1 tru-1.3` — uses `CurrentUser\CA` store (no UI dialog)
+- `test-ephemeral.ps1 eph-4.2` — tests that `--ephemeral --trust` is rejected with an error (certz never reaches the store API)
+
 ## Troubleshooting
 
 ### Common Issues and Solutions
