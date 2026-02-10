@@ -1,6 +1,6 @@
 # Test Coverage Analysis
 
-**Date:** 2026-02-07
+**Date:** 2026-02-09
 **Purpose:** Analyze test coverage gaps and provide recommendations for new tests
 
 ---
@@ -12,7 +12,11 @@
 | `test-create.ps1` | `create dev`, `create ca` | 14 tests | ✅ Modern v2 |
 | `test-inspect.ps1` | `inspect` (file, URL, store, chain, save) | 17 tests | ✅ Modern v2 |
 | `test-trust.ps1` | `trust add`, `trust remove`, `store list` | 11 tests | ✅ Modern v2 |
-| `test-all.ps1` | Legacy v1 commands (create, install, list, remove, export, convert, info, verify) | ~70+ tests | ⚠️ Legacy |
+| `test-convert.ps1` | `convert` (PEM, DER, PFX conversions) | 23 tests | ✅ Modern v2 |
+| `test-lint.ps1` | `lint` (CA/B Forum, Mozilla NSS) | 12 tests | ✅ Modern v2 |
+| `test-monitor.ps1` | `monitor` (expiration tracking) | 8 tests | ✅ Modern v2 |
+| `test-renew.ps1` | `renew` (certificate renewal) | 6 tests | ✅ Modern v2 |
+| `test-ephemeral.ps1` | `--ephemeral`, `--pipe` modes | 10 tests | ✅ Modern v2 |
 
 ---
 
@@ -35,62 +39,25 @@
 | `trust add` | test-trust.ps1 | ✅ Covered (4 tests) |
 | `trust remove` | test-trust.ps1 | ✅ Covered (4 tests) |
 | `store list` | test-trust.ps1 | ✅ Covered (3 tests) |
-| `convert` | ❌ **MISSING** | ❌ No dedicated v2 test file |
-| `lint` | N/A | Phase 4 - Not implemented |
-| `renew` | N/A | Phase 4 - Not implemented |
-
-### Legacy V1 Commands (Covered by test-all.ps1)
-
-| Command | Category | Test IDs | Migration Status |
-|---------|----------|----------|------------------|
-| `create` | create, password, keysize, hash, keytype, ca, subject, validity, extensions, rsa-padding, pfx-encryption | cre-1.x through cre-11.x | → `create dev/ca` |
-| `install` | install | ins-1.x, ins-2.x | → `trust add` |
-| `list` | list | lst-1.x | → `store list` |
-| `remove` | remove | rem-1.x | → `trust remove` |
-| `export` | export | exp-1.x | → `inspect --save` |
-| `convert` | convert | cnv-1.x through cnv-3.x | Kept as `convert` |
-| `info` | info | inf-1.x | → `inspect` |
-| `verify` | verify | ver-1.x | → `inspect --chain --crl` |
+| `convert` | test-convert.ps1 | ✅ Covered (23 tests) |
+| `lint` | test-lint.ps1 | ✅ Covered (12 tests) |
+| `monitor` | test-monitor.ps1 | ✅ Covered (8 tests) |
+| `renew` | test-renew.ps1 | ✅ Covered (6 tests) |
+| `--ephemeral` / `--pipe` | test-ephemeral.ps1 | ✅ Covered (10 tests) |
 
 ---
 
-## Missing Test Files
+## Completed Test Files
 
-### 1. `test-convert.ps1` - **CRITICAL**
+All v2 commands now have dedicated test files:
 
-The `convert` command is a standalone v2 command that needs a dedicated test file.
-
-**Required Test Categories:**
-- `convert-to-pfx` - Convert PEM/DER to PFX
-- `convert-from-pfx` - Convert PFX to PEM/DER
-- `format` - JSON output support
-
-**Proposed Test IDs:**
-| Test ID | Description |
-|---------|-------------|
-| cnv-1.1 | Convert PEM cert to PFX |
-| cnv-1.2 | Convert PEM cert+key to PFX |
-| cnv-1.3 | Convert DER cert to PFX |
-| cnv-2.1 | Convert PFX to PEM (cert only) |
-| cnv-2.2 | Convert PFX to PEM (cert+key) |
-| cnv-2.3 | Convert PFX to DER |
-| cnv-3.1 | Convert with password |
-| cnv-3.2 | Convert with password file |
-| fmt-1.1 | Convert with JSON output |
-
-### 2. Phase 4 Test Files (Future)
-
-When Phase 4 is implemented, these test files will be needed:
-
-#### `test-lint.ps1`
-- Lint against CA/B Forum Baseline Requirements
-- Lint against Mozilla NSS Policy
-- JSON output support
-
-#### `test-renew.ps1`
-- Auto-detect parameters from existing certificate
-- Preserve SANs, key type, extensions
-- Custom validity period
+| Test File | Categories | Test Count |
+|-----------|------------|------------|
+| `test-convert.ps1` | pem-to-pfx, pfx-to-pem, encryption, format, simplified conversions, errors | 23 tests |
+| `test-lint.ps1` | CA/B Forum, Mozilla NSS, JSON output | 12 tests |
+| `test-monitor.ps1` | directory scan, expiration tracking, JSON output | 8 tests |
+| `test-renew.ps1` | auto-detect parameters, preserve SANs, custom validity | 6 tests |
+| `test-ephemeral.ps1` | ephemeral mode, pipe mode, mutual exclusion | 10 tests |
 
 ---
 
@@ -102,8 +69,6 @@ When Phase 4 is implemented, these test files will be needed:
 |-----|----------|----------------|
 | `--guided` for CA | Medium | Add gui-1.2 test for CA wizard |
 | `--issuer` with password file | Low | Add iss-1.3 for `--issuer-password-file` |
-| PFX encryption options | Low | Covered in test-all.ps1, consider migrating |
-| RSA padding options | Low | Covered in test-all.ps1, consider migrating |
 
 ### test-inspect.ps1 Gaps
 
@@ -125,32 +90,19 @@ When Phase 4 is implemented, these test files will be needed:
 
 ## Recommendations
 
-### Immediate Priority (Before Next Release)
-
-1. **Create `test-convert.ps1`**
-   - This is the only v2 command without a dedicated test file
-   - Can adapt tests from test-all.ps1 convert category (cnv-1.x through cnv-3.x)
-   - Follow test-isolation-plan.md principles
-
 ### Medium Priority
 
-2. **Add missing coverage to existing test files**
+1. **Add missing coverage to existing test files**
    - Add `--crl` revocation tests to test-inspect.ps1
    - Add `--expired`/`--expiring` filter tests to test-trust.ps1
    - Add CA `--guided` wizard test to test-create.ps1
 
-### Low Priority (Technical Debt)
+### Future Work
 
-3. **Migrate legacy tests from test-all.ps1**
-   - Many tests in test-all.ps1 use legacy v1 command syntax
-   - Consider migrating key tests to v2 syntax files
-   - Keep test-all.ps1 for backwards compatibility testing
-
-### Phase 4 (Future)
-
-4. **Create Phase 4 test files when commands are implemented**
-   - `test-lint.ps1` - For CA/B Forum and Mozilla NSS linting
-   - `test-renew.ps1` - For certificate renewal
+2. **Phase 10: Cross-Platform Support**
+   - Create `test-crossplatform.ps1` when Linux support is implemented
+   - Test platform guards for trust store operations
+   - Test file-based operations on Linux
 
 ---
 
@@ -221,9 +173,8 @@ $script:TestCategories = @{
 
 | Status | Count | Description |
 |--------|-------|-------------|
-| ✅ Covered | 3 | test-create.ps1, test-inspect.ps1, test-trust.ps1 |
-| ❌ Missing | 1 | test-convert.ps1 |
-| ⏳ Future | 2 | test-lint.ps1, test-renew.ps1 (Phase 4) |
-| ⚠️ Gaps | 7 | Various gaps in existing test files |
+| ✅ Covered | 8 | test-create, test-inspect, test-trust, test-convert, test-lint, test-monitor, test-renew, test-ephemeral |
+| ⚠️ Gaps | 7 | 4 medium priority, 3 low priority (see above) |
+| ⏳ Future | 1 | test-crossplatform.ps1 (Phase 10) |
 
-**Next Action:** Create `test-convert.ps1` following the established patterns.
+**Next Action:** Fill test coverage gaps in existing files, or begin Phase 10 cross-platform support.
