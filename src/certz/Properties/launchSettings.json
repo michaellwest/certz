@@ -2,7 +2,7 @@
   "profiles": {
     "certz": {
       "commandName": "Project",
-      "commandLineArgs": "export --f devcert-bak.pfx --c devcert-bak.pem --url https://www.github.com"
+      "commandLineArgs": "examples trust"
     },
     "Docker": {
       "commandName": "Docker",

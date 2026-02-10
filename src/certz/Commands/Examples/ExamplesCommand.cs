@@ -49,36 +49,19 @@ internal static class ExamplesCommand
                 // Show examples for specific command
                 var examples = ExamplesRegistry.GetExamples(commandPath);
 
-                if (examples.Length == 0)
+                if (!examples.Any())
                 {
-                    // Try to find closest match or suggest available commands
-                    var available = ExamplesRegistry.GetAllCommandPaths()
-                        .Where(p => p.StartsWith(commandPath, StringComparison.OrdinalIgnoreCase)
-                                 || commandPath.StartsWith(p, StringComparison.OrdinalIgnoreCase))
-                        .ToArray();
-
-                    if (available.Length > 0)
+                    formatter.WriteWarning($"No examples found for '{commandPath}'.");
+                    Console.WriteLine();
+                    Console.WriteLine("Available commands with examples:");
+                    foreach (var cmd in ExamplesRegistry.GetAllCommandPaths())
                     {
-                        formatter.WriteWarning($"No examples found for '{commandPath}'. Did you mean:");
-                        foreach (var cmd in available)
-                        {
-                            Console.WriteLine($"  certz examples {cmd}");
-                        }
-                    }
-                    else
-                    {
-                        formatter.WriteWarning($"No examples found for '{commandPath}'.");
-                        Console.WriteLine();
-                        Console.WriteLine("Available commands with examples:");
-                        foreach (var cmd in ExamplesRegistry.GetAllCommandPaths())
-                        {
-                            Console.WriteLine($"  certz examples {cmd}");
-                        }
+                        Console.WriteLine($"  certz examples {cmd}");
                     }
                     return;
                 }
 
-                formatter.WriteExamples(commandPath, examples);
+                formatter.WriteAllExamples(examples);
             }
         });
 
