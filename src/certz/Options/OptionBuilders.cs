@@ -525,4 +525,16 @@ internal static class OptionBuilders
             Description = "Password for PFX pipe output (required for --pipe-format pfx)"
         };
     }
+
+    /// <summary>
+    /// Creates the --examples option to show usage examples with help output.
+    /// </summary>
+    internal static Option<bool> CreateExamplesOption()
+    {
+        return new Option<bool>("--examples", "-x")
+        {
+            Description = "Show usage examples with help output",
+            DefaultValueFactory = _ => false
+        };
+    }
 }

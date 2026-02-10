@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using certz.Examples;
 using certz.Models;
 
 namespace certz.Formatters;
@@ -267,6 +268,24 @@ internal record RenewOutput(
     bool WasResigned
 );
 
+// Examples DTOs
+internal record ExampleDto(
+    string Description,
+    string Command,
+    string? Notes
+);
+
+internal record ExamplesOutput(
+    bool Success,
+    string? CommandPath,
+    ExampleDto[] Examples
+);
+
+internal record AllExamplesOutput(
+    bool Success,
+    Dictionary<string, ExampleDto[]> Commands
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -286,6 +305,8 @@ internal record RenewOutput(
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
+[JsonSerializable(typeof(ExamplesOutput))]
+[JsonSerializable(typeof(AllExamplesOutput))]
 internal partial class JsonFormatterContext : JsonSerializerContext
 {
 }
@@ -649,5 +670,26 @@ internal class JsonFormatter : IOutputFormatter
     {
         var output = new SuccessOutput(Success: true, Message: message);
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.SuccessOutput));
+    }
+
+    public void WriteExamples(string commandPath, CommandExample[] examples)
+    {
+        var exampleDtos = examples.Select(e => new ExampleDto(e.Description, e.Command, e.Notes)).ToArray();
+        var output = new ExamplesOutput(
+            Success: true,
+            CommandPath: string.IsNullOrEmpty(commandPath) ? null : commandPath,
+            Examples: exampleDtos
+        );
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.ExamplesOutput));
+    }
+
+    public void WriteAllExamples(IReadOnlyDictionary<string, CommandExample[]> allExamples)
+    {
+        var commands = allExamples.ToDictionary(
+            kvp => string.IsNullOrEmpty(kvp.Key) ? "general" : kvp.Key,
+            kvp => kvp.Value.Select(e => new ExampleDto(e.Description, e.Command, e.Notes)).ToArray()
+        );
+        var output = new AllExamplesOutput(Success: true, Commands: commands);
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.AllExamplesOutput));
     }
 }

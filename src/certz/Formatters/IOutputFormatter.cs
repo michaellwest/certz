@@ -1,3 +1,4 @@
+using certz.Examples;
 using certz.Models;
 
 namespace certz.Formatters;
@@ -16,6 +17,8 @@ internal interface IOutputFormatter
     void WriteMonitorResult(MonitorResult result, bool quietMode);
     void WriteRenewResult(RenewResult result);
     void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts);
+    void WriteExamples(string commandPath, CommandExample[] examples);
+    void WriteAllExamples(IReadOnlyDictionary<string, CommandExample[]> allExamples);
     void WriteError(string message);
     void WriteWarning(string message);
     void WriteSuccess(string message);
