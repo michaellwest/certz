@@ -7,21 +7,21 @@ Use this prompt when implementing a new CLI command for certz.
 Create the following files for a new `<feature>` command:
 
 ```
-Commands/<Feature>/<Feature>Command.cs    # Command definition and handler
-Services/<Feature>Service.cs              # Business logic
-Models/<Feature>Options.cs                # Input parameters
-Models/<Feature>Result.cs                 # Output record
-test/test-<feature>.ps1                   # Test suite
+src/certz/Commands/<Feature>/<Feature>Command.cs    # Command definition and handler
+src/certz/Services/<Feature>Service.cs              # Business logic
+src/certz/Models/<Feature>Options.cs                # Input parameters
+src/certz/Models/<Feature>Result.cs                 # Output record
+test/test-<feature>.ps1                             # Test suite
 ```
 
 ## Implementation Checklist
 
-- [ ] Create command class in `Commands/<Feature>/`
-- [ ] Create service class in `Services/`
-- [ ] Create options class in `Models/`
-- [ ] Create result class in `Models/`
-- [ ] Add reusable options to `Options/OptionBuilders.cs` if applicable
-- [ ] Update `Program.cs` to register the command
+- [ ] Create command class in `src/certz/Commands/<Feature>/`
+- [ ] Create service class in `src/certz/Services/`
+- [ ] Create options class in `src/certz/Models/`
+- [ ] Create result class in `src/certz/Models/`
+- [ ] Add reusable options to `src/certz/Options/OptionBuilders.cs` if applicable
+- [ ] Update `src/certz/Program.cs` to register the command
 - [ ] Create test file in `test/`
 - [ ] Update `README.md` with command documentation
 - [ ] Update `CLAUDE.md` Code Map
@@ -31,7 +31,7 @@ test/test-<feature>.ps1                   # Test suite
 ### Command Class
 
 ```csharp
-// Commands/<Feature>/<Feature>Command.cs
+// src/certz/Commands/<Feature>/<Feature>Command.cs
 using System.CommandLine;
 
 namespace Certz.Commands.<Feature>;
@@ -71,7 +71,7 @@ public class <Feature>Command
 ### Service Class
 
 ```csharp
-// Services/<Feature>Service.cs
+// src/certz/Services/<Feature>Service.cs
 namespace Certz.Services;
 
 public static class <Feature>Service
@@ -92,7 +92,7 @@ public static class <Feature>Service
 ### Options Class
 
 ```csharp
-// Models/<Feature>Options.cs
+// src/certz/Models/<Feature>Options.cs
 namespace Certz.Models;
 
 public class <Feature>Options
@@ -106,7 +106,7 @@ public class <Feature>Options
 ### Result Class
 
 ```csharp
-// Models/<Feature>Result.cs
+// src/certz/Models/<Feature>Result.cs
 namespace Certz.Models;
 
 public record <Feature>Result
@@ -147,7 +147,7 @@ formatter.Write<Feature>Result(result);
 
 ### Reusable Options
 
-Add common options to `OptionBuilders.cs`:
+Add common options to `src/certz/Options/OptionBuilders.cs`:
 
 ```csharp
 public static Option<string> CreateSomeOption()
@@ -161,9 +161,9 @@ public static Option<string> CreateSomeOption()
 
 ## Reference Files
 
-- `Commands/Create/CreateDevCommand.cs` - Example command structure
-- `Services/CreateService.cs` - Example service pattern
-- `Models/DevCertificateOptions.cs` - Example options class
-- `Models/CertificateCreationResult.cs` - Example result class
-- `Options/OptionBuilders.cs` - Centralized option definitions
+- `src/certz/Commands/Create/CreateDevCommand.cs` - Example command structure
+- `src/certz/Services/CreateService.cs` - Example service pattern
+- `src/certz/Models/DevCertificateOptions.cs` - Example options class
+- `src/certz/Models/CertificateCreationResult.cs` - Example result class
+- `src/certz/Options/OptionBuilders.cs` - Centralized option definitions
 - `docs/architecture.md` - Architecture overview

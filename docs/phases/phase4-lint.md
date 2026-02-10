@@ -21,11 +21,11 @@ Implement Phase 4 of the certz v2.0 roadmap: add `lint` command for certificate 
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create LintResult model | [x] | Models/LintResult.cs |
-| 2 | Create LintService.cs | [x] | Services/LintService.cs |
+| 1 | Create LintResult model | [x] | src/certz/Models/LintResult.cs |
+| 2 | Create LintService.cs | [x] | src/certz/Services/LintService.cs |
 | 3 | Implement CA/B Forum checks | [x] | In LintService.cs |
 | 4 | Implement Mozilla NSS checks | [x] | In LintService.cs |
-| 5 | Add LintCommand.cs | [x] | Commands/Lint/LintCommand.cs |
+| 5 | Add LintCommand.cs | [x] | src/certz/Commands/Lint/LintCommand.cs |
 | 6 | Add formatter methods | [x] | WriteLintResult in formatters |
 | 7 | Create test-lint.ps1 | [x] | test/test-lint.ps1 |
 | 8 | Update documentation | [x] | README.md, TESTING.md |
@@ -87,7 +87,7 @@ For self-signed/development certificates, use relaxed rules:
 ## Implementation Steps
 
 ### Step 1: Create LintResult Model
-**New file:** `Models/LintResult.cs`
+**New file:** `src/certz/Models/LintResult.cs`
 
 ```csharp
 namespace certz.Models;
@@ -205,7 +205,7 @@ internal record LintResult
 ---
 
 ### Step 2: Create LintOptions Model
-**New file:** `Models/LintOptions.cs`
+**New file:** `src/certz/Models/LintOptions.cs`
 
 ```csharp
 namespace certz.Models;
@@ -252,7 +252,7 @@ internal record LintOptions
 ---
 
 ### Step 3: Create LintService.cs
-**New file:** `Services/LintService.cs`
+**New file:** `src/certz/Services/LintService.cs`
 
 ```csharp
 namespace certz.Services;
@@ -345,7 +345,7 @@ internal static class LintService
 ---
 
 ### Step 4: Implement CA/B Forum Checks
-**Add to:** `Services/LintService.cs`
+**Add to:** `src/certz/Services/LintService.cs`
 
 ```csharp
 private static List<LintFinding> CheckCaBForumRules(X509Certificate2 cert, bool isCa)
@@ -488,7 +488,7 @@ private static List<LintFinding> CheckCaBForumRules(X509Certificate2 cert, bool 
 ---
 
 ### Step 5: Implement Mozilla NSS Checks
-**Add to:** `Services/LintService.cs`
+**Add to:** `src/certz/Services/LintService.cs`
 
 ```csharp
 private static List<LintFinding> CheckMozillaNssRules(X509Certificate2 cert, bool isCa)
@@ -553,7 +553,7 @@ private static List<LintFinding> CheckMozillaNssRules(X509Certificate2 cert, boo
 ---
 
 ### Step 6: Implement Development Certificate Checks
-**Add to:** `Services/LintService.cs`
+**Add to:** `src/certz/Services/LintService.cs`
 
 ```csharp
 private static List<LintFinding> CheckDevCertRules(X509Certificate2 cert)
@@ -621,7 +621,7 @@ private static List<LintFinding> CheckDevCertRules(X509Certificate2 cert)
 ---
 
 ### Step 7: Add LintCommand.cs
-**New file:** `Commands/Lint/LintCommand.cs`
+**New file:** `src/certz/Commands/Lint/LintCommand.cs`
 
 ```csharp
 using certz.Formatters;
@@ -778,7 +778,7 @@ internal static class LintCommand
 ---
 
 ### Step 8: Add Formatter Methods
-**Modify:** `Formatters/IOutputFormatter.cs`, `Formatters/TextFormatter.cs`, `Formatters/JsonFormatter.cs`
+**Modify:** `src/certz/Formatters/IOutputFormatter.cs`, `src/certz/Formatters/TextFormatter.cs`, `src/certz/Formatters/JsonFormatter.cs`
 
 Add to interface:
 ```csharp
@@ -943,10 +943,10 @@ Examples:
 
 | File | Purpose |
 |------|---------|
-| `Models/LintResult.cs` | Lint finding and result models |
-| `Models/LintOptions.cs` | Lint command options |
-| `Services/LintService.cs` | Lint logic and rule checks |
-| `Commands/Lint/LintCommand.cs` | Command definition |
+| `src/certz/Models/LintResult.cs` | Lint finding and result models |
+| `src/certz/Models/LintOptions.cs` | Lint command options |
+| `src/certz/Services/LintService.cs` | Lint logic and rule checks |
+| `src/certz/Commands/Lint/LintCommand.cs` | Command definition |
 | `test/test-lint.ps1` | Test suite |
 
 ---

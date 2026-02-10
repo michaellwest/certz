@@ -78,12 +78,12 @@ Exit Codes:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create RenewOptions model | [x] | Models/RenewOptions.cs |
-| 2 | Create RenewResult model | [x] | Models/RenewResult.cs |
-| 3 | Create RenewService | [x] | Services/RenewService.cs |
-| 4 | Create RenewCommand | [x] | Commands/Renew/RenewCommand.cs |
+| 1 | Create RenewOptions model | [x] | src/certz/Models/RenewOptions.cs |
+| 2 | Create RenewResult model | [x] | src/certz/Models/RenewResult.cs |
+| 3 | Create RenewService | [x] | src/certz/Services/RenewService.cs |
+| 4 | Create RenewCommand | [x] | src/certz/Commands/Renew/RenewCommand.cs |
 | 5 | Add formatter methods | [x] | IOutputFormatter, TextFormatter, JsonFormatter |
-| 6 | Register command | [x] | Program.cs |
+| 6 | Register command | [x] | src/certz/Program.cs |
 | 7 | Create tests | [x] | test/test-renew.ps1 |
 | 8 | Update documentation | [x] | README.md |
 
@@ -93,7 +93,7 @@ Exit Codes:
 
 ### Step 1: Create RenewOptions Model
 
-**Create:** `Models/RenewOptions.cs`
+**Create:** `src/certz/Models/RenewOptions.cs`
 
 ```csharp
 namespace certz.Models;
@@ -166,7 +166,7 @@ internal record RenewOptions
 
 ### Step 2: Create RenewResult Model
 
-**Create:** `Models/RenewResult.cs`
+**Create:** `src/certz/Models/RenewResult.cs`
 
 ```csharp
 namespace certz.Models;
@@ -267,7 +267,7 @@ internal record RenewResult
 
 ### Step 3: Create RenewService
 
-**Create:** `Services/RenewService.cs`
+**Create:** `src/certz/Services/RenewService.cs`
 
 ```csharp
 using certz.Models;
@@ -531,7 +531,7 @@ internal static class RenewService
 
 ### Step 4: Create RenewCommand
 
-**Create:** `Commands/Renew/RenewCommand.cs`
+**Create:** `src/certz/Commands/Renew/RenewCommand.cs`
 
 ```csharp
 using certz.Formatters;
@@ -662,13 +662,13 @@ internal static class RenewCommand
 
 ### Step 5: Add Formatter Methods
 
-**Modify:** `Formatters/IOutputFormatter.cs`
+**Modify:** `src/certz/Formatters/IOutputFormatter.cs`
 
 ```csharp
 void WriteRenewResult(RenewResult result);
 ```
 
-**Modify:** `Formatters/TextFormatter.cs`
+**Modify:** `src/certz/Formatters/TextFormatter.cs`
 
 ```csharp
 public void WriteRenewResult(RenewResult result)
@@ -725,7 +725,7 @@ public void WriteRenewResult(RenewResult result)
 }
 ```
 
-**Modify:** `Formatters/JsonFormatter.cs`
+**Modify:** `src/certz/Formatters/JsonFormatter.cs`
 
 Add DTO and serialization for RenewResult.
 
@@ -735,7 +735,7 @@ Add DTO and serialization for RenewResult.
 
 ### Step 6: Register Command
 
-**Modify:** `Program.cs`
+**Modify:** `src/certz/Program.cs`
 
 ```csharp
 using certz.Commands.Renew;
@@ -1030,11 +1030,11 @@ certz renew server.pfx --password secret --out server-2024.pfx
 ## Reference Files
 
 Review these for implementation patterns:
-- `Commands/Create/CreateDevCommand.cs` - command structure
-- `Services/CreateService.cs` - certificate generation flow
-- `Models/DevCertificateOptions.cs` - options pattern
-- `Services/CertificateInspector.cs` - loading certs from various sources
-- `Services/CertificateGeneration.cs` - key and cert generation
+- `src/certz/Commands/Create/CreateDevCommand.cs` - command structure
+- `src/certz/Services/CreateService.cs` - certificate generation flow
+- `src/certz/Models/DevCertificateOptions.cs` - options pattern
+- `src/certz/Services/CertificateInspector.cs` - loading certs from various sources
+- `src/certz/Services/CertificateGeneration.cs` - key and cert generation
 - `test/test-create.ps1` - test structure
 
 ---

@@ -14,11 +14,11 @@ Enhance the existing `certz inspect --chain` functionality with richer visualiza
 
 | Component | File | Status |
 |-----------|------|--------|
-| Chain validation | `Services/Validation/ChainValidator.cs` | ✅ Complete |
-| Basic tree rendering | `Services/Validation/ChainVisualizer.cs` | ✅ Complete |
-| Chain element model | `Models/ChainElementInfo.cs` | ✅ Complete |
-| Inspector integration | `Services/CertificateInspector.cs` | ✅ Complete |
-| Inspect command | `Commands/Inspect/InspectCommand.cs` | ✅ Has `--chain` |
+| Chain validation | `src/certz/Services/Validation/ChainValidator.cs` | ✅ Complete |
+| Basic tree rendering | `src/certz/Services/Validation/ChainVisualizer.cs` | ✅ Complete |
+| Chain element model | `src/certz/Models/ChainElementInfo.cs` | ✅ Complete |
+| Inspector integration | `src/certz/Services/CertificateInspector.cs` | ✅ Complete |
+| Inspect command | `src/certz/Commands/Inspect/InspectCommand.cs` | ✅ Has `--chain` |
 
 ### Current `--chain` Output
 
@@ -76,7 +76,7 @@ The current implementation shows:
 
 ### Step 1: Add `--tree` Option to InspectCommand
 
-**Modify:** `Commands/Inspect/InspectCommand.cs`
+**Modify:** `src/certz/Commands/Inspect/InspectCommand.cs`
 
 ```csharp
 // Add new option after --chain
@@ -102,7 +102,7 @@ var options = new InspectOptions
 
 ### Step 2: Extend ChainElementInfo Model
 
-**Modify:** `Models/ChainElementInfo.cs`
+**Modify:** `src/certz/Models/ChainElementInfo.cs`
 
 ```csharp
 internal record ChainElementInfo
@@ -157,7 +157,7 @@ internal record ChainElementInfo
 
 ### Step 3: Update CertificateInspector
 
-**Modify:** `Services/CertificateInspector.cs`
+**Modify:** `src/certz/Services/CertificateInspector.cs`
 
 Add helper method to extract additional info:
 
@@ -251,7 +251,7 @@ private static string? DetermineRevocationStatus(List<X509ChainStatus> status)
 
 ### Step 4: Enhance ChainVisualizer
 
-**Modify:** `Services/Validation/ChainVisualizer.cs`
+**Modify:** `src/certz/Services/Validation/ChainVisualizer.cs`
 
 Add detailed tree rendering mode:
 
@@ -439,7 +439,7 @@ Chain validation successful
 
 ### Step 5: Update TextFormatter Chain Output
 
-**Modify:** `Formatters/TextFormatter.cs`
+**Modify:** `src/certz/Formatters/TextFormatter.cs`
 
 ```csharp
 public void WriteCertificateInspected(CertificateInspectResult result)
@@ -469,7 +469,7 @@ public void WriteCertificateInspected(CertificateInspectResult result)
 
 ### Step 6: Update JsonFormatter Chain Output
 
-**Modify:** `Formatters/JsonFormatter.cs`
+**Modify:** `src/certz/Formatters/JsonFormatter.cs`
 
 Ensure all new `ChainElementInfo` fields are included in JSON output:
 

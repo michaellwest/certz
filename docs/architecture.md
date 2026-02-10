@@ -80,23 +80,24 @@ All certificate operations follow the **Options Pattern** with specialized servi
 ### File Structure
 
 ```
-Services/
-├── CertificateUtilities.cs    # Shared utilities
-├── CreateService.cs           # Certificate creation (dev/CA)
-├── ConvertService.cs          # Format conversion (PEM/PFX)
-├── ExportService.cs           # Certificate export (URL/store)
-├── InspectService.cs          # Certificate inspection/verification
-├── TrustService.cs            # Trust store operations
-├── CertificateGeneration.cs   # Low-level generation
-└── CertificateDisplay.cs      # Display helpers
-
-Models/
-├── DevCertificateOptions.cs   # Options for dev certificate creation
-├── CaCertificateOptions.cs    # Options for CA certificate creation
-├── ConvertToPfxOptions.cs     # Options for PFX conversion
-├── CertificateCreationResult.cs
-├── ConversionResult.cs
-└── ...
+src/certz/
+├── Services/
+│   ├── CertificateUtilities.cs    # Shared utilities
+│   ├── CreateService.cs           # Certificate creation (dev/CA)
+│   ├── ConvertService.cs          # Format conversion (PEM/PFX)
+│   ├── ExportService.cs           # Certificate export (URL/store)
+│   ├── InspectService.cs          # Certificate inspection/verification
+│   ├── TrustService.cs            # Trust store operations
+│   ├── CertificateGeneration.cs   # Low-level generation
+│   └── CertificateDisplay.cs      # Display helpers
+│
+├── Models/
+│   ├── DevCertificateOptions.cs   # Options for dev certificate creation
+│   ├── CaCertificateOptions.cs    # Options for CA certificate creation
+│   ├── ConvertToPfxOptions.cs     # Options for PFX conversion
+│   ├── CertificateCreationResult.cs
+│   ├── ConversionResult.cs
+│   └── ...
 ```
 
 ---
@@ -115,7 +116,7 @@ Models/
 
 ### Completed Work (2026-02)
 
-**Phase 1:** Extracted shared utilities into `CertificateUtilities.cs`
+**Phase 1:** Extracted shared utilities into `src/certz/Services/CertificateUtilities.cs`
 - `GenerateSecurePassword()` - Password generation
 - `DisplayPasswordWarning()` - Console password display
 - `GetKeyStorageFlags()` - X509 key storage flag configuration

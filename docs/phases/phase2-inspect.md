@@ -26,17 +26,17 @@ The following decisions were made for Phase 2 (documented in feature-plan-recomm
 |---|------|--------|-------|
 | 1 | Create test-inspect.ps1 Test Script | [x] | test-inspect.ps1 |
 | 2 | Create test-trust.ps1 Test Script | [x] | test-trust.ps1 |
-| 3 | Add Certificate Chain Validation Service | [x] | Services/Validation/ChainValidator.cs |
-| 4 | Add Chain Visualization Service | [x] | Services/Validation/ChainVisualizer.cs |
-| 5 | Add Inspect Result Models | [x] | Models/CertificateInspectResult.cs, InspectSource.cs, ChainElementInfo.cs, InspectOptions.cs |
-| 6 | Create Inspect Command Structure | [x] | Commands/Inspect/InspectCommand.cs |
-| 7 | Implement File Inspection | [x] | Services/CertificateInspector.cs - InspectFile() |
-| 8 | Implement URL Inspection | [x] | Services/CertificateInspector.cs - InspectUrlAsync() |
-| 9 | Implement Thumbprint/Store Inspection | [x] | Services/CertificateInspector.cs - InspectFromStore() |
-| 10 | Add --save and --save-key Export Options | [x] | Services/CertificateInspector.cs - SaveCertificate(), SavePrivateKey() |
-| 11 | Create Store List Command | [x] | Commands/Store/StoreListCommand.cs, Services/StoreListHandler.cs |
-| 12 | Create Trust Add Command | [x] | Commands/Trust/TrustCommand.cs, Services/TrustHandler.cs |
-| 13 | Create Trust Remove Command | [x] | Commands/Trust/TrustCommand.cs - BuildRemoveCommand() |
+| 3 | Add Certificate Chain Validation Service | [x] | src/certz/Services/Validation/ChainValidator.cs |
+| 4 | Add Chain Visualization Service | [x] | src/certz/Services/Validation/ChainVisualizer.cs |
+| 5 | Add Inspect Result Models | [x] | src/certz/Models/CertificateInspectResult.cs, src/certz/Models/InspectSource.cs, src/certz/Models/ChainElementInfo.cs, src/certz/Models/InspectOptions.cs |
+| 6 | Create Inspect Command Structure | [x] | src/certz/Commands/Inspect/InspectCommand.cs |
+| 7 | Implement File Inspection | [x] | src/certz/Services/CertificateInspector.cs - InspectFile() |
+| 8 | Implement URL Inspection | [x] | src/certz/Services/CertificateInspector.cs - InspectUrlAsync() |
+| 9 | Implement Thumbprint/Store Inspection | [x] | src/certz/Services/CertificateInspector.cs - InspectFromStore() |
+| 10 | Add --save and --save-key Export Options | [x] | src/certz/Services/CertificateInspector.cs - SaveCertificate(), SavePrivateKey() |
+| 11 | Create Store List Command | [x] | src/certz/Commands/Store/StoreListCommand.cs, src/certz/Services/StoreListHandler.cs |
+| 12 | Create Trust Add Command | [x] | src/certz/Commands/Trust/TrustCommand.cs, src/certz/Services/TrustHandler.cs |
+| 13 | Create Trust Remove Command | [x] | src/certz/Commands/Trust/TrustCommand.cs - BuildRemoveCommand() |
 | 14 | Update Formatters for Inspect Output | [x] | IOutputFormatter, TextFormatter, JsonFormatter |
 
 ---
@@ -546,7 +546,7 @@ Invoke-Test -TestId "sto-1.1" -TestName "List certificates in My store" -FilePre
 ---
 
 ### Step 3: Add Certificate Chain Validation Service
-**New file:** `Services/Validation/ChainValidator.cs`
+**New file:** `src/certz/Services/Validation/ChainValidator.cs`
 
 Create a service to build and validate certificate chains.
 
@@ -613,7 +613,7 @@ public record ChainElement
 ---
 
 ### Step 4: Add Chain Visualization Service
-**New file:** `Services/Validation/ChainVisualizer.cs`
+**New file:** `src/certz/Services/Validation/ChainVisualizer.cs`
 
 Create a service to render certificate chains as ASCII trees using Spectre.Console:
 
@@ -727,11 +727,11 @@ public class ChainVisualizer : IChainVisualizer
 | File | Purpose |
 |------|---------|
 | `CertificateInspectResult.cs` | Record with certificate details, chain info, warnings |
-| `ChainElementInfo.cs` | Information about a single chain element |
-| `InspectSource.cs` | Enum: File, Url, Store |
+| `src/certz/Models/ChainElementInfo.cs` | Information about a single chain element |
+| `src/certz/Models/InspectSource.cs` | Enum: File, Url, Store |
 
 ```csharp
-// Models/CertificateInspectResult.cs
+// src/certz/Models/CertificateInspectResult.cs
 namespace certz.Models;
 
 public record CertificateInspectResult
@@ -783,7 +783,7 @@ public enum InspectSource
 ---
 
 ### Step 6: Create Inspect Command Structure
-**New directory:** `Commands/Inspect/`
+**New directory:** `src/certz/Commands/Inspect/`
 
 | File | Purpose |
 |------|---------|
@@ -799,7 +799,7 @@ The command should auto-detect the source type:
 **Design Decision:** File existence takes priority over thumbprint detection. Use `--store` flag to explicitly force thumbprint lookup when a file with the same name exists.
 
 ```csharp
-// Commands/Inspect/InspectCommand.cs
+// src/certz/Commands/Inspect/InspectCommand.cs
 namespace certz.Commands.Inspect;
 
 internal static class InspectCommand
@@ -877,7 +877,7 @@ internal static class InspectCommand
 ---
 
 ### Step 7: Implement File Inspection
-**New file:** `Services/CertificateInspector.cs`
+**New file:** `src/certz/Services/CertificateInspector.cs`
 
 Add file inspection logic that handles PFX, PEM, and DER formats:
 
@@ -910,7 +910,7 @@ public class CertificateInspector
 ---
 
 ### Step 8: Implement URL Inspection
-**Modify:** `Services/CertificateInspector.cs`
+**Modify:** `src/certz/Services/CertificateInspector.cs`
 
 Add HTTPS inspection that retrieves the certificate from a remote server:
 
@@ -963,7 +963,7 @@ public async Task<CertificateInspectResult> InspectUrlAsync(string url, bool inc
 ---
 
 ### Step 9: Implement Thumbprint/Store Inspection
-**Modify:** `Services/CertificateInspector.cs`
+**Modify:** `src/certz/Services/CertificateInspector.cs`
 
 Add certificate store lookup by thumbprint:
 
@@ -1005,7 +1005,7 @@ public CertificateInspectResult InspectFromStore(string thumbprint, string? stor
 ---
 
 ### Step 10: Add --save, --save-key, and --save-format Export Options
-**Modify:** `Services/CertificateInspector.cs`
+**Modify:** `src/certz/Services/CertificateInspector.cs`
 
 Add export functionality to save certificates and keys in PEM (default) or DER format:
 
@@ -1089,7 +1089,7 @@ public static ExportFormat ParseExportFormat(string format)
 ---
 
 ### Step 11: Create Store List Command
-**New file:** `Commands/Store/StoreListCommand.cs`
+**New file:** `src/certz/Commands/Store/StoreListCommand.cs`
 
 ```csharp
 namespace certz.Commands.Store;
@@ -1149,7 +1149,7 @@ internal static class StoreListCommand
 ---
 
 ### Step 12: Create Trust Add Command
-**New file:** `Commands/Trust/TrustAddCommand.cs`
+**New file:** `src/certz/Commands/Trust/TrustAddCommand.cs`
 
 **Design Decision:** LocalMachine operations require admin rights. If not running elevated, fail with a clear error message explaining the requirement. No silent fallback or auto-elevation.
 
@@ -1227,7 +1227,7 @@ internal static class TrustCommand
 ---
 
 ### Step 13: Create Trust Remove Command
-**Modify:** `Commands/Trust/TrustAddCommand.cs` (add remove command)
+**Modify:** `src/certz/Commands/Trust/TrustAddCommand.cs` (add remove command)
 
 ```csharp
 private static Command BuildRemoveCommand()
@@ -1309,7 +1309,7 @@ private static Command BuildRemoveCommand()
 ---
 
 ### Step 14: Update Formatters for Inspect Output
-**Modify:** `Formatters/IOutputFormatter.cs`, `TextFormatter.cs`, `JsonFormatter.cs`
+**Modify:** `src/certz/Formatters/IOutputFormatter.cs`, `TextFormatter.cs`, `JsonFormatter.cs`
 
 Add new methods to the formatter interface and implementations:
 
@@ -1445,22 +1445,22 @@ Behavior:
 |------|--------|
 | `test-inspect.ps1` | New file - test script for inspect command |
 | `test-trust.ps1` | New file - test script for trust/store commands |
-| `Program.cs` | Add inspect, store, trust commands |
-| `Commands/Inspect/InspectCommand.cs` | New file |
-| `Commands/Store/StoreListCommand.cs` | New file |
-| `Commands/Trust/TrustCommand.cs` | New file (add + remove) |
-| `Services/CertificateInspector.cs` | New file |
-| `Services/Validation/ChainValidator.cs` | New file |
-| `Services/Validation/ChainVisualizer.cs` | New file |
-| `Services/TrustHandler.cs` | New file (includes FindMatchingCertificates, AddToStore, RemoveFromStore) |
-| `Services/StoreListHandler.cs` | New file |
-| `Models/CertificateInspectResult.cs` | New file |
-| `Models/ExportFormat.cs` | New file (enum: Pem, Der) |
-| `Models/StoreListResult.cs` | New file |
-| `Models/TrustOperationResult.cs` | New file |
-| `Formatters/IOutputFormatter.cs` | Add new methods |
-| `Formatters/TextFormatter.cs` | Add new output methods |
-| `Formatters/JsonFormatter.cs` | Add new output methods |
+| `src/certz/Program.cs` | Add inspect, store, trust commands |
+| `src/certz/Commands/Inspect/InspectCommand.cs` | New file |
+| `src/certz/Commands/Store/StoreListCommand.cs` | New file |
+| `src/certz/Commands/Trust/TrustCommand.cs` | New file (add + remove) |
+| `src/certz/Services/CertificateInspector.cs` | New file |
+| `src/certz/Services/Validation/ChainValidator.cs` | New file |
+| `src/certz/Services/Validation/ChainVisualizer.cs` | New file |
+| `src/certz/Services/TrustHandler.cs` | New file (includes FindMatchingCertificates, AddToStore, RemoveFromStore) |
+| `src/certz/Services/StoreListHandler.cs` | New file |
+| `src/certz/Models/CertificateInspectResult.cs` | New file |
+| `src/certz/Models/ExportFormat.cs` | New file (enum: Pem, Der) |
+| `src/certz/Models/StoreListResult.cs` | New file |
+| `src/certz/Models/TrustOperationResult.cs` | New file |
+| `src/certz/Formatters/IOutputFormatter.cs` | Add new methods |
+| `src/certz/Formatters/TextFormatter.cs` | Add new output methods |
+| `src/certz/Formatters/JsonFormatter.cs` | Add new output methods |
 
 ---
 

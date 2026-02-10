@@ -62,7 +62,7 @@ certz trust remove ABC123   # Error: minimum 8 characters required
 
 ### Step 1: Update TrustHandler.FindMatchingCertificates
 
-**Modify:** `Services/TrustHandler.cs`
+**Modify:** `src/certz/Services/TrustHandler.cs`
 
 Current code (lines 73-82):
 ```csharp
@@ -111,7 +111,7 @@ if (!string.IsNullOrEmpty(thumbprint))
 
 ### Step 2: Add Validation for Minimum Length
 
-**Modify:** `Commands/Trust/TrustCommand.cs`
+**Modify:** `src/certz/Commands/Trust/TrustCommand.cs`
 
 Add validation before calling FindMatchingCertificates:
 
@@ -137,7 +137,7 @@ if (!string.IsNullOrEmpty(thumbprint))
 
 ### Step 3: Update Command Help Text
 
-**Modify:** `Commands/Trust/TrustCommand.cs`
+**Modify:** `src/certz/Commands/Trust/TrustCommand.cs`
 
 Update thumbprint argument description:
 
@@ -207,11 +207,11 @@ certz trust remove ABC1 --force
 
 *Changes made during implementation:*
 
-1. **TrustHandler.FindMatchingCertificates** (Services/TrustHandler.cs:73-98):
+1. **TrustHandler.FindMatchingCertificates** (src/certz/Services/TrustHandler.cs:73-98):
    - Added conditional logic: if thumbprint.Length == 40, use X509FindType.FindByThumbprint for exact match
    - Otherwise, iterate over all certificates and use StartsWith for prefix matching
 
-2. **TrustCommand.BuildRemoveCommand** (Commands/Trust/TrustCommand.cs:162-181):
+2. **TrustCommand.BuildRemoveCommand** (src/certz/Commands/Trust/TrustCommand.cs:162-181):
    - Added validation after checking thumbprint/subject is provided
    - Validates minimum 8 characters for partial thumbprint
    - Validates all characters are hexadecimal
