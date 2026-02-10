@@ -1,4 +1,4 @@
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS

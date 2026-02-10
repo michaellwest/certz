@@ -11,6 +11,7 @@ Implement `certz renew <source>` command that reads an existing certificate, aut
 ## Project Context
 
 This is a .NET 10 CLI tool using:
+
 - **System.CommandLine** for command parsing
 - **Spectre.Console** for display formatting
 - **Record types** for options and results
@@ -18,20 +19,24 @@ This is a .NET 10 CLI tool using:
 ### Established Patterns
 
 **Command Structure:** `Commands/<Feature>/<Feature>Command.cs`
+
 - Static class with `Build<Feature>Command()` method
 - Returns `Command` with options and `SetAction` handler
 - Uses `OptionBuilders` for standard options
 - Calls service layer, formats with `FormatterFactory.Create(format)`
 
 **Service Layer:** `Services/<Feature>Service.cs`
+
 - Static class with internal methods
 - Returns result record types
 - Contains business logic
 
 **Models:** `Models/<Feature>Options.cs` and `Models/<Feature>Result.cs`
+
 - Record types with `required` and `init` properties
 
 **Testing:** `test/test-<feature>.ps1`
+
 - PowerShell 7.5+ scripts
 - Each test invokes certz.exe exactly ONCE
 - Setup/cleanup in PowerShell only
@@ -66,26 +71,26 @@ Exit Codes:
 
 ## Design Decisions
 
-| Area | Decision | Rationale |
-|------|----------|-----------|
-| **Default validity** | Preserve original duration (max 398) | Consistency with original cert |
-| **Key handling** | Generate new key by default | Security best practice |
-| **CA-signed detection** | Compare Subject vs Issuer | Standard approach |
-| **Output naming** | `<original>-renewed.pfx` | Clear naming convention |
-| **Password handling** | Generate if not specified | Consistent with create commands |
+| Area                    | Decision                             | Rationale                       |
+| ----------------------- | ------------------------------------ | ------------------------------- |
+| **Default validity**    | Preserve original duration (max 398) | Consistency with original cert  |
+| **Key handling**        | Generate new key by default          | Security best practice          |
+| **CA-signed detection** | Compare Subject vs Issuer            | Standard approach               |
+| **Output naming**       | `<original>-renewed.pfx`             | Clear naming convention         |
+| **Password handling**   | Generate if not specified            | Consistent with create commands |
 
 ## Progress Tracker
 
-| # | Step | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create RenewOptions model | [x] | src/certz/Models/RenewOptions.cs |
-| 2 | Create RenewResult model | [x] | src/certz/Models/RenewResult.cs |
-| 3 | Create RenewService | [x] | src/certz/Services/RenewService.cs |
-| 4 | Create RenewCommand | [x] | src/certz/Commands/Renew/RenewCommand.cs |
-| 5 | Add formatter methods | [x] | IOutputFormatter, TextFormatter, JsonFormatter |
-| 6 | Register command | [x] | src/certz/Program.cs |
-| 7 | Create tests | [x] | test/test-renew.ps1 |
-| 8 | Update documentation | [x] | README.md |
+| #   | Step                      | Status | Notes                                          |
+| --- | ------------------------- | ------ | ---------------------------------------------- |
+| 1   | Create RenewOptions model | [x]    | src/certz/Models/RenewOptions.cs               |
+| 2   | Create RenewResult model  | [x]    | src/certz/Models/RenewResult.cs                |
+| 3   | Create RenewService       | [x]    | src/certz/Services/RenewService.cs             |
+| 4   | Create RenewCommand       | [x]    | src/certz/Commands/Renew/RenewCommand.cs       |
+| 5   | Add formatter methods     | [x]    | IOutputFormatter, TextFormatter, JsonFormatter |
+| 6   | Register command          | [x]    | src/certz/Program.cs                           |
+| 7   | Create tests              | [x]    | test/test-renew.ps1                            |
+| 8   | Update documentation      | [x]    | README.md                                      |
 
 ---
 
@@ -753,7 +758,7 @@ rootCommand.AddRenewCommand();
 **Create:** `test/test-renew.ps1`
 
 ```powershell
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS
@@ -969,7 +974,7 @@ Invoke-TestSuite -TestId $TestId -Category $Category -Verbose:$Verbose
 
 Add renew command section with examples:
 
-```markdown
+````markdown
 ## Renew Command
 
 Renew an existing certificate with extended validity while preserving its parameters.
@@ -992,20 +997,22 @@ certz renew server.pfx --password secret --keep-key
 # Specify output file
 certz renew server.pfx --password secret --out server-2024.pfx
 ```
+````
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `--days, -d` | New validity period (default: original, max 398) |
-| `--password, -p` | Password for source PFX |
-| `--out, -o` | Output file path |
-| `--out-password` | Password for output (auto-generated if not set) |
-| `--keep-key` | Preserve existing private key |
-| `--issuer-cert` | CA certificate for re-signing |
-| `--issuer-key` | CA private key (PEM) |
-| `--issuer-password` | CA certificate password |
-| `--format` | Output format: text, json |
+| Option              | Description                                      |
+| ------------------- | ------------------------------------------------ |
+| `--days, -d`        | New validity period (default: original, max 398) |
+| `--password, -p`    | Password for source PFX                          |
+| `--out, -o`         | Output file path                                 |
+| `--out-password`    | Password for output (auto-generated if not set)  |
+| `--keep-key`        | Preserve existing private key                    |
+| `--issuer-cert`     | CA certificate for re-signing                    |
+| `--issuer-key`      | CA private key (PEM)                             |
+| `--issuer-password` | CA certificate password                          |
+| `--format`          | Output format: text, json                        |
+
 ```
 
 **Status:** [x] Completed
@@ -1047,3 +1054,4 @@ Review these for implementation patterns:
 2. Used existing `CertificateGeneration.GenerateCertificate()` for self-signed renewals and `CertificateGeneration.GenerateSignedCertificate()` for CA-signed renewals with new keys.
 3. Implemented `RenewWithExistingKey()` to create a new certificate request using the existing private key from the source certificate.
 4. Added comprehensive test suite with 11 test cases covering self-signed, CA-signed, keep-key, validity constraints, error handling, and JSON output.
+```

@@ -11,6 +11,7 @@ Implement `--ephemeral` flag for in-memory certificate generation (no disk write
 ## Project Context
 
 This is a .NET 10 CLI tool using:
+
 - **System.CommandLine** for command parsing
 - **Spectre.Console** for display formatting
 - **Record types** for options and results
@@ -18,20 +19,24 @@ This is a .NET 10 CLI tool using:
 ### Established Patterns
 
 **Command Structure:** `Commands/<Feature>/<Feature>Command.cs`
+
 - Static class with `Build<Feature>Command()` method
 - Returns `Command` with options and `SetAction` handler
 - Uses `OptionBuilders` for standard options
 - Calls service layer, formats with `FormatterFactory.Create(format)`
 
 **Service Layer:** `Services/<Feature>Service.cs`
+
 - Static class with internal methods
 - Returns result record types
 - Contains business logic
 
 **Models:** `Models/<Feature>Options.cs` and `Models/<Feature>Result.cs`
+
 - Record types with `required` and `init` properties
 
 **Testing:** `test/test-<feature>.ps1`
+
 - PowerShell 7.5+ scripts
 - Each test invokes certz.exe exactly ONCE
 - Setup/cleanup in PowerShell only
@@ -53,6 +58,7 @@ When creating certificates with `certz create dev` or `certz create ca`, files a
 ### Solution
 
 Add two complementary flags:
+
 - `--ephemeral` - Generate certificate in memory, display properties, never write to disk
 - `--pipe` - Stream certificate content to stdout for piping to other tools
 
@@ -109,64 +115,64 @@ Restrictions (mutually exclusive with --pipe):
 
 ### Development & Testing
 
-| Use Case | Command | Benefit |
-|----------|---------|---------|
-| **Validate certificate settings** | `certz create dev app.local --ephemeral --san "*.app.local"` | See exact output before committing to files |
-| **Unit test fixtures** | `certz create dev test.local --ephemeral --format json` | Generate certificates as test data without cleanup |
-| **Integration test isolation** | `certz create dev test-$ID.local --ephemeral` | Each test run gets fresh certs; no state leakage |
-| **Load testing** | Loop with `--ephemeral` | Rapidly generate unique certificates for stress testing |
-| **Mocking HTTPS endpoints** | `certz create dev mock.local --pipe \| start-server` | Spin up temporary HTTPS servers |
+| Use Case                          | Command                                                      | Benefit                                                 |
+| --------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------- |
+| **Validate certificate settings** | `certz create dev app.local --ephemeral --san "*.app.local"` | See exact output before committing to files             |
+| **Unit test fixtures**            | `certz create dev test.local --ephemeral --format json`      | Generate certificates as test data without cleanup      |
+| **Integration test isolation**    | `certz create dev test-$ID.local --ephemeral`                | Each test run gets fresh certs; no state leakage        |
+| **Load testing**                  | Loop with `--ephemeral`                                      | Rapidly generate unique certificates for stress testing |
+| **Mocking HTTPS endpoints**       | `certz create dev mock.local --pipe \| start-server`         | Spin up temporary HTTPS servers                         |
 
 ### Security & Compliance
 
-| Use Case | Command | Benefit |
-|----------|---------|---------|
-| **Air-gapped validation** | `certz create ca "Test CA" --ephemeral` | Verify generation works without creating artifacts |
-| **Key ceremony dry runs** | `certz create ca "Root CA" --ephemeral --key-type rsa-4096` | Practice workflows without real keys |
-| **Audit trail verification** | `certz create dev audit.local --ephemeral` | Confirm expected properties without persistence |
-| **PCI-DSS/HIPAA environments** | `certz create dev secure.local --ephemeral` | Keys never touch disk |
+| Use Case                       | Command                                                     | Benefit                                            |
+| ------------------------------ | ----------------------------------------------------------- | -------------------------------------------------- |
+| **Air-gapped validation**      | `certz create ca "Test CA" --ephemeral`                     | Verify generation works without creating artifacts |
+| **Key ceremony dry runs**      | `certz create ca "Root CA" --ephemeral --key-type rsa-4096` | Practice workflows without real keys               |
+| **Audit trail verification**   | `certz create dev audit.local --ephemeral`                  | Confirm expected properties without persistence    |
+| **PCI-DSS/HIPAA environments** | `certz create dev secure.local --ephemeral`                 | Keys never touch disk                              |
 
 ### DevOps & Automation
 
-| Use Case | Command | Benefit |
-|----------|---------|---------|
-| **Pipeline validation** | `certz create dev $APP.local --ephemeral` | Validate config before actual generation |
-| **Docker container builds** | `certz create dev app.local --pipe \| ...` | Certs die with the container |
-| **Kubernetes secrets** | `certz create dev app.local --pipe --pipe-format pem \| kubectl create secret tls` | Direct secret creation |
-| **Terraform preview** | `certz create dev $DOMAIN --ephemeral --format json` | Show what would be created |
-| **GitOps dry-run** | `certz create dev prod.local --ephemeral` | Preview before commit |
+| Use Case                    | Command                                                                            | Benefit                                  |
+| --------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Pipeline validation**     | `certz create dev $APP.local --ephemeral`                                          | Validate config before actual generation |
+| **Docker container builds** | `certz create dev app.local --pipe \| ...`                                         | Certs die with the container             |
+| **Kubernetes secrets**      | `certz create dev app.local --pipe --pipe-format pem \| kubectl create secret tls` | Direct secret creation                   |
+| **Terraform preview**       | `certz create dev $DOMAIN --ephemeral --format json`                               | Show what would be created               |
+| **GitOps dry-run**          | `certz create dev prod.local --ephemeral`                                          | Preview before commit                    |
 
 ### Education & Debugging
 
-| Use Case | Command | Benefit |
-|----------|---------|---------|
-| **Teaching PKI concepts** | `certz create ca "Demo CA" --ephemeral` | No student machine clutter |
-| **Debugging SAN configs** | `certz create dev test.local --ephemeral --san "a,b,c"` | Quick iteration |
-| **Comparing key types** | `certz create dev test.local --ephemeral --key-type rsa-2048` | Side-by-side comparison |
-| **Troubleshooting chains** | `certz create dev signed.local --ephemeral --issuer-cert ca.pfx` | Verify signing works |
+| Use Case                   | Command                                                          | Benefit                    |
+| -------------------------- | ---------------------------------------------------------------- | -------------------------- |
+| **Teaching PKI concepts**  | `certz create ca "Demo CA" --ephemeral`                          | No student machine clutter |
+| **Debugging SAN configs**  | `certz create dev test.local --ephemeral --san "a,b,c"`          | Quick iteration            |
+| **Comparing key types**    | `certz create dev test.local --ephemeral --key-type rsa-2048`    | Side-by-side comparison    |
+| **Troubleshooting chains** | `certz create dev signed.local --ephemeral --issuer-cert ca.pfx` | Verify signing works       |
 
 ### Advanced Scenarios
 
-| Use Case | Command | Benefit |
-|----------|---------|---------|
-| **In-memory TLS termination** | Application calls certz with `--pipe` | Service mesh sidecars |
-| **Ephemeral mTLS** | Both ends use `--ephemeral` certs | Short-lived connections only |
-| **Certificate rotation testing** | Loop with `--ephemeral` | Simulate rotation scenarios |
-| **Thumbprint pre-calculation** | `certz create dev test.local --ephemeral \| grep Thumbprint` | Get thumbprint before persisting |
-| **Process substitution** | `nginx -c <(certz create dev test.local --pipe)` | Direct configuration |
+| Use Case                         | Command                                                      | Benefit                          |
+| -------------------------------- | ------------------------------------------------------------ | -------------------------------- |
+| **In-memory TLS termination**    | Application calls certz with `--pipe`                        | Service mesh sidecars            |
+| **Ephemeral mTLS**               | Both ends use `--ephemeral` certs                            | Short-lived connections only     |
+| **Certificate rotation testing** | Loop with `--ephemeral`                                      | Simulate rotation scenarios      |
+| **Thumbprint pre-calculation**   | `certz create dev test.local --ephemeral \| grep Thumbprint` | Get thumbprint before persisting |
+| **Process substitution**         | `nginx -c <(certz create dev test.local --pipe)`             | Direct configuration             |
 
 ---
 
 ## Design Decisions
 
-| Area | Decision | Rationale |
-|------|----------|-----------|
-| **Flag names** | `--ephemeral` and `--pipe` | Clear intent, common terminology |
-| **Default pipe format** | PEM (cert + key) | Most versatile, works with most tools |
-| **PFX password handling** | Required `--pipe-password` or generated to stderr | Security: don't embed passwords in stdout |
-| **Mutual exclusivity** | `--ephemeral`/`--pipe` conflict with file options | Prevents confusion about output location |
-| **Existing infrastructure** | Reuse `X509KeyStorageFlags.EphemeralKeySet` | Already in src/certz/Services/CertificateUtilities.cs line 80 |
-| **Output channels** | Cert to stdout, metadata to stderr | Standard Unix convention for piping |
+| Area                        | Decision                                          | Rationale                                                     |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
+| **Flag names**              | `--ephemeral` and `--pipe`                        | Clear intent, common terminology                              |
+| **Default pipe format**     | PEM (cert + key)                                  | Most versatile, works with most tools                         |
+| **PFX password handling**   | Required `--pipe-password` or generated to stderr | Security: don't embed passwords in stdout                     |
+| **Mutual exclusivity**      | `--ephemeral`/`--pipe` conflict with file options | Prevents confusion about output location                      |
+| **Existing infrastructure** | Reuse `X509KeyStorageFlags.EphemeralKeySet`       | Already in src/certz/Services/CertificateUtilities.cs line 80 |
+| **Output channels**         | Cert to stdout, metadata to stderr                | Standard Unix convention for piping                           |
 
 ---
 
@@ -179,6 +185,7 @@ certz create dev example.com --pipe
 ```
 
 **stdout:**
+
 ```
 -----BEGIN CERTIFICATE-----
 MIIBkTCB+wIJAK...
@@ -195,11 +202,13 @@ certz create dev example.com --pipe --pipe-format pfx --pipe-password "MySecret"
 ```
 
 **stdout:** Base64-encoded PFX data
+
 ```
 MIIJqQIBAzCCCW8GCSqGSIb3DQEHAaCCCWAEgglcMIIJWDCCA88GCSqGSIb3DQEH...
 ```
 
 **If no `--pipe-password` specified:**
+
 - Generate random password
 - Write password to stderr: `PASSWORD: ABC123XYZ`
 - User can capture separately: `certz create dev x.com --pipe --pipe-format pfx 2>password.txt | base64 -d > cert.pfx`
@@ -224,21 +233,21 @@ certz create dev example.com --pipe --pipe-format key
 
 ## Progress Tracker
 
-| # | Step | Status | Notes |
-|---|------|--------|-------|
-| 1 | Add Ephemeral property to DevCertificateOptions | [x] | src/certz/Models/DevCertificateOptions.cs |
-| 2 | Add Ephemeral property to CACertificateOptions | [x] | src/certz/Models/CACertificateOptions.cs |
-| 3 | Add IsEphemeral to CertificateCreationResult | [x] | src/certz/Models/CertificateCreationResult.cs |
-| 4 | Add pipe-related properties to options | [x] | Pipe, PipeFormat, PipePassword |
-| 5 | Create option builders | [x] | OptionBuilders.cs |
-| 6 | Update CreateDevCommand | [x] | Add options, validation |
-| 7 | Update CreateCaCommand | [x] | Add options, validation |
-| 8 | Update CreateService | [x] | Conditional file writing |
-| 9 | Add PipeOutputService | [x] | Handle pipe format output |
-| 10 | Update TextFormatter | [x] | Ephemeral warning display |
-| 11 | Update JsonFormatter | [x] | Add isEphemeral field |
-| 12 | Create tests | [x] | test/test-ephemeral.ps1 |
-| 13 | Update documentation | [x] | README.md |
+| #   | Step                                            | Status | Notes                                         |
+| --- | ----------------------------------------------- | ------ | --------------------------------------------- |
+| 1   | Add Ephemeral property to DevCertificateOptions | [x]    | src/certz/Models/DevCertificateOptions.cs     |
+| 2   | Add Ephemeral property to CACertificateOptions  | [x]    | src/certz/Models/CACertificateOptions.cs      |
+| 3   | Add IsEphemeral to CertificateCreationResult    | [x]    | src/certz/Models/CertificateCreationResult.cs |
+| 4   | Add pipe-related properties to options          | [x]    | Pipe, PipeFormat, PipePassword                |
+| 5   | Create option builders                          | [x]    | OptionBuilders.cs                             |
+| 6   | Update CreateDevCommand                         | [x]    | Add options, validation                       |
+| 7   | Update CreateCaCommand                          | [x]    | Add options, validation                       |
+| 8   | Update CreateService                            | [x]    | Conditional file writing                      |
+| 9   | Add PipeOutputService                           | [x]    | Handle pipe format output                     |
+| 10  | Update TextFormatter                            | [x]    | Ephemeral warning display                     |
+| 11  | Update JsonFormatter                            | [x]    | Add isEphemeral field                         |
+| 12  | Create tests                                    | [x]    | test/test-ephemeral.ps1                       |
+| 13  | Update documentation                            | [x]    | README.md                                     |
 
 ---
 
@@ -711,7 +720,7 @@ Update the method that creates this output to include the new fields.
 **Create:** `test/test-ephemeral.ps1`
 
 ```powershell
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS
@@ -981,7 +990,7 @@ exit $exitCode
 
 Add section after Certificate Creation:
 
-```markdown
+````markdown
 ## Ephemeral & Pipe Modes
 
 ### Ephemeral Mode
@@ -1001,8 +1010,10 @@ certz create ca "Test CA" --ephemeral
 # JSON output for scripting
 certz create dev test.local --ephemeral --format json
 ```
+````
 
 **Use cases:**
+
 - Testing certificate settings before committing to files
 - CI/CD pipelines without cleanup requirements
 - Security-sensitive environments (keys never touch disk)
@@ -1034,21 +1045,23 @@ certz create dev example.com --pipe --pipe-format pfx 2>password.txt > cert.b64
 
 **Pipe Formats:**
 
-| Format | Output |
-|--------|--------|
-| `pem` (default) | Certificate + private key in PEM format |
-| `pfx` | Base64-encoded PFX (password required or auto-generated to stderr) |
-| `cert` | Certificate only (PEM format) |
-| `key` | Private key only (PEM format) |
+| Format          | Output                                                             |
+| --------------- | ------------------------------------------------------------------ |
+| `pem` (default) | Certificate + private key in PEM format                            |
+| `pfx`           | Base64-encoded PFX (password required or auto-generated to stderr) |
+| `cert`          | Certificate only (PEM format)                                      |
+| `key`           | Private key only (PEM format)                                      |
 
 ### Restrictions
 
 Both `--ephemeral` and `--pipe` are mutually exclusive with:
+
 - `--file`, `--cert`, `--key` (file output options)
 - `--trust` (cannot install in-memory certificate)
 - `--password-file` (no file to protect)
 
 You cannot use both `--ephemeral` and `--pipe` together.
+
 ```
 
 **Status:** [ ] Not Started
@@ -1111,3 +1124,4 @@ The codebase already has foundational support for ephemeral certificates:
 - Both flags default to `false`, preserving existing behavior
 - Existing tests remain unaffected
 - File output remains the default mode
+```

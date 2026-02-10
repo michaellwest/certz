@@ -1,4 +1,4 @@
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS
@@ -352,16 +352,22 @@ function Invoke-Test {
 function Build-Certz {
     <#
     .SYNOPSIS
-        Builds and publishes certz to the docker\tools directory.
+        Builds and publishes certz to the debug directory.
     .PARAMETER Verbose
         Show detailed build output.
     .PARAMETER OutputPath
-        The output path for the build. Defaults to "..\docker\tools" for test folder location.
+        The output path for the build. Defaults to "..\debug" for test folder location.
     #>
     param(
         [bool]$Verbose = $false,
-        [string]$OutputPath = "..\docker\tools"
+        [string]$OutputPath = "..\debug"
     )
+
+    # Skip building in container environment (certz.exe is pre-built)
+    if ($env:DOTNET_ENVIRONMENT -eq "Test") {
+        Write-Host "Container detected - using pre-built certz.exe" -ForegroundColor Yellow
+        return
+    }
 
     Write-Host "Building and publishing certz..." -ForegroundColor Cyan
 
@@ -401,15 +407,26 @@ function Build-Certz {
 function Enter-ToolsDirectory {
     <#
     .SYNOPSIS
-        Changes to the docker\tools directory, syncing both PowerShell and .NET directories.
+        Changes to the debug directory, syncing both PowerShell and .NET directories.
     .DESCRIPTION
         When using Push-Location in PowerShell, the .NET Environment.CurrentDirectory is not
         updated. This causes issues with certz (and other .NET apps) that use System.IO.FileInfo
         to resolve relative paths. This function syncs both directories and saves the original
         state for restoration via Exit-ToolsDirectory.
+
+        In container environments (DOTNET_ENVIRONMENT=Test), certz.exe is already in the
+        working directory, so no directory change is needed.
     #>
     $script:OriginalNetDirectory = [System.IO.Directory]::GetCurrentDirectory()
-    Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
+    $script:InsideContainer = $env:DOTNET_ENVIRONMENT -eq "Test"
+
+    if ($script:InsideContainer) {
+        # In container, certz.exe is in the current directory - just sync .NET directory
+        [System.IO.Directory]::SetCurrentDirectory((Get-Location).Path)
+        return
+    }
+
+    Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\debug")
     [System.IO.Directory]::SetCurrentDirectory((Get-Location).Path)
 }
 
@@ -418,7 +435,9 @@ function Exit-ToolsDirectory {
     .SYNOPSIS
         Returns to the original directory, restoring both PowerShell and .NET directories.
     #>
-    Pop-Location
+    if (-not $script:InsideContainer) {
+        Pop-Location
+    }
     if ($script:OriginalNetDirectory) {
         [System.IO.Directory]::SetCurrentDirectory($script:OriginalNetDirectory)
     }

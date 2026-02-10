@@ -1,10 +1,20 @@
 # certz Release Notes
 
 **Version:** 0.3.0.0
-**Release Date:** 2026-02-09
+**Release Date:** 2026-02-10
 **Previous Version:** 0.2
 
 ## Changes Since 0.2
+- test: add test/test-all.ps1 runner that invokes individual test suites
+- test: restore -UseDocker and -DockerVerbose parameters for Docker container testing
+- docker: copy all test scripts into container, update ENTRYPOINT to test/test-all.ps1
+- test: add container detection to test-helper.ps1 (Build-Certz, Enter/Exit-ToolsDirectory)
+- Merge branch 'feature/efficiency' into upgrade
+- test: add export/verify/install test suites, fix renew isolation, remove legacy test-all.ps1
+- feat: add examples command to display usage examples
+- docs: mark medium priority test gaps as complete
+- docs: update test coverage analysis to reflect current state
+- refactor: move source code to src/certz directory
 - docs: add workflow prompts for commands, tests, and releases
 - chore: remove obsolete prompts and deprecated script
 - docs: add passive context index to CLAUDE.md
@@ -113,4 +123,4 @@
 ## File Verification
 
 **File:** certz.exe
-**SHA256 Hash:** `95501C0B513E8E9E5B725C8AE803AF31AE0B738497B2BDD44D68E240A59C4D5A`
+**SHA256 Hash:** `B2C6C7505B9ED816D0F3C0F3CB7ACA4F8439E1BA5480D82D9AC88885494B342E`

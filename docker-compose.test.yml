@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # Standard test runner with baked-in files (rebuild required for changes)
@@ -29,9 +29,9 @@ services:
       - DOTNET_ENVIRONMENT=Test
     volumes:
       # Mount certz.exe and test script from host (changes reflected immediately)
-      - ./docker/tools/certz.exe:/app/certz.exe:ro
-      - ./docker/tools/certz.pdb:/app/certz.pdb:ro
-      - ./test-all.ps1:/app/test-all.ps1:ro
+      - ./debug/certz.exe:/app/certz.exe:ro
+      - ./debug/certz.pdb:/app/certz.pdb:ro
+      - ./test:/app/test:ro
       # Mount test results output (optional)
       - ./test-results:/app/test-results:rw
     isolation: process

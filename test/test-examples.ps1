@@ -1,4 +1,4 @@
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS
@@ -60,9 +60,9 @@ Invoke-Test -TestId "ex-1.1" -TestName "Show all examples (no arguments)" -TestS
     $outputText = $output -join "`n"
 
     if ($outputText -match "create dev" -and $outputText -match "trust add" -and $outputText -match "inspect") {
-        return @{ Success = $true; Details = "All command categories shown" }
+        return [PSCustomObject]@{ Success = $true; Details = "All command categories shown" }
     }
-    return @{ Success = $false; Details = "Missing expected command categories" }
+    return [PSCustomObject]@{ Success = $false; Details = "Missing expected command categories" }
 }
 
 # ex-1.2: Show examples for specific command
@@ -71,9 +71,9 @@ Invoke-Test -TestId "ex-1.2" -TestName "Show examples for 'create dev'" -TestScr
     $outputText = $output -join "`n"
 
     if ($outputText -match "certz create dev" -and $outputText -match "localhost") {
-        return @{ Success = $true; Details = "Create dev examples shown" }
+        return [PSCustomObject]@{ Success = $true; Details = "Create dev examples shown" }
     }
-    return @{ Success = $false; Details = "Missing create dev examples" }
+    return [PSCustomObject]@{ Success = $false; Details = "Missing create dev examples" }
 }
 
 # ex-1.3: Show examples for nested command (trust add)
@@ -82,9 +82,9 @@ Invoke-Test -TestId "ex-1.3" -TestName "Show examples for 'trust add'" -TestScri
     $outputText = $output -join "`n"
 
     if ($outputText -match "certz trust add" -and $outputText -match "Root") {
-        return @{ Success = $true; Details = "Trust add examples shown" }
+        return [PSCustomObject]@{ Success = $true; Details = "Trust add examples shown" }
     }
-    return @{ Success = $false; Details = "Missing trust add examples" }
+    return [PSCustomObject]@{ Success = $false; Details = "Missing trust add examples" }
 }
 
 # ex-1.4: Show examples for convert
@@ -93,9 +93,9 @@ Invoke-Test -TestId "ex-1.4" -TestName "Show examples for 'convert'" -TestScript
     $outputText = $output -join "`n"
 
     if ($outputText -match "certz convert" -and $outputText -match "--to pem") {
-        return @{ Success = $true; Details = "Convert examples shown" }
+        return [PSCustomObject]@{ Success = $true; Details = "Convert examples shown" }
     }
-    return @{ Success = $false; Details = "Missing convert examples" }
+    return [PSCustomObject]@{ Success = $false; Details = "Missing convert examples" }
 }
 
 # ex-1.5: Show examples for lint
@@ -104,9 +104,9 @@ Invoke-Test -TestId "ex-1.5" -TestName "Show examples for 'lint'" -TestScript {
     $outputText = $output -join "`n"
 
     if ($outputText -match "certz lint" -and $outputText -match "--policy") {
-        return @{ Success = $true; Details = "Lint examples shown" }
+        return [PSCustomObject]@{ Success = $true; Details = "Lint examples shown" }
     }
-    return @{ Success = $false; Details = "Missing lint examples" }
+    return [PSCustomObject]@{ Success = $false; Details = "Missing lint examples" }
 }
 
 # ex-1.6: Show examples for store list
@@ -115,9 +115,9 @@ Invoke-Test -TestId "ex-1.6" -TestName "Show examples for 'store list'" -TestScr
     $outputText = $output -join "`n"
 
     if ($outputText -match "certz store list" -and $outputText -match "--store Root") {
-        return @{ Success = $true; Details = "Store list examples shown" }
+        return [PSCustomObject]@{ Success = $true; Details = "Store list examples shown" }
     }
-    return @{ Success = $false; Details = "Missing store list examples" }
+    return [PSCustomObject]@{ Success = $false; Details = "Missing store list examples" }
 }
 
 # ============================================================================
@@ -133,12 +133,12 @@ Invoke-Test -TestId "ex-2.1" -TestName "Examples command with --format json (spe
     try {
         $json = $output | ConvertFrom-Json
         if ($json.success -and $json.examples.Count -gt 0 -and $json.commandPath -eq "create dev") {
-            return @{ Success = $true; Details = "JSON output valid with $($json.examples.Count) examples" }
+            return [PSCustomObject]@{ Success = $true; Details = "JSON output valid with $($json.examples.Count) examples" }
         }
-        return @{ Success = $false; Details = "JSON missing expected fields" }
+        return [PSCustomObject]@{ Success = $false; Details = "JSON missing expected fields" }
     }
     catch {
-        return @{ Success = $false; Details = "Invalid JSON: $_" }
+        return [PSCustomObject]@{ Success = $false; Details = "Invalid JSON: $_" }
     }
 }
 
@@ -150,12 +150,12 @@ Invoke-Test -TestId "ex-2.2" -TestName "All examples with --format json" -TestSc
         $json = $output | ConvertFrom-Json
         if ($json.success -and $json.commands) {
             $commandCount = ($json.commands | Get-Member -MemberType NoteProperty).Count
-            return @{ Success = $true; Details = "JSON output valid with $commandCount command groups" }
+            return [PSCustomObject]@{ Success = $true; Details = "JSON output valid with $commandCount command groups" }
         }
-        return @{ Success = $false; Details = "JSON missing expected fields" }
+        return [PSCustomObject]@{ Success = $false; Details = "JSON missing expected fields" }
     }
     catch {
-        return @{ Success = $false; Details = "Invalid JSON: $_" }
+        return [PSCustomObject]@{ Success = $false; Details = "Invalid JSON: $_" }
     }
 }
 
@@ -171,9 +171,9 @@ Invoke-Test -TestId "ex-3.1" -TestName "Unknown command shows available commands
     $outputText = $output -join "`n"
 
     if ($outputText -match "No examples found" -and $outputText -match "Available") {
-        return @{ Success = $true; Details = "Helpful message for unknown command" }
+        return [PSCustomObject]@{ Success = $true; Details = "Helpful message for unknown command" }
     }
-    return @{ Success = $false; Details = "Expected helpful error message. Got: $outputText" }
+    return [PSCustomObject]@{ Success = $false; Details = "Expected helpful error message. Got: $outputText" }
 }
 
 # ============================================================================

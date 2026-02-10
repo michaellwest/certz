@@ -8,10 +8,10 @@ This guide provides quick commands and troubleshooting for running certz tests i
 
 ```powershell
 # Run tests in Docker
-.\test-all.ps1 -UseDocker
+.\test\test-all.ps1 -UseDocker
 
 # Run with verbose output
-.\test-all.ps1 -UseDocker -DockerVerbose
+.\test\test-all.ps1 -UseDocker -DockerVerbose
 ```
 
 ## Prerequisites
@@ -33,26 +33,30 @@ This guide provides quick commands and troubleshooting for running certz tests i
 
 ## Understanding Docker File Management
 
-The Docker test setup copies certz.exe and test-all.ps1 into the container image during build.
+The Docker test setup copies certz.exe and all test scripts into the container image during build.
 
 ### How Baked-In Files Work
 
 **How it works:**
+
 - Files are copied into the Docker image during build using `COPY` commands
 - Files become part of the image layers
 - Changes to source files require rebuilding the image
 
 **When to use:**
+
 - CI/CD pipelines
 - Production testing
 - When you want consistent, reproducible builds
 
 **Command:**
+
 ```powershell
-.\test-all.ps1 -UseDocker
+.\test\test-all.ps1 -UseDocker
 ```
 
 **Pros:**
+
 - Self-contained image (no external dependencies)
 - Guaranteed consistency
 - Faster container startup
@@ -61,12 +65,13 @@ The Docker test setup copies certz.exe and test-all.ps1 into the container image
 ## Docker Testing Commands
 
 ### Basic Testing
+
 ```powershell
 # Run all tests in Docker
-.\test-all.ps1 -UseDocker
+.\test\test-all.ps1 -UseDocker
 
 # Run with verbose output for debugging
-.\test-all.ps1 -UseDocker -DockerVerbose
+.\test\test-all.ps1 -UseDocker -DockerVerbose
 ```
 
 ### Manual Docker Commands
@@ -118,6 +123,7 @@ docker-compose -f docker-compose.test.yml down
 **Problem:** Docker is in Linux containers mode, but certz requires Windows containers.
 
 **Solution:**
+
 ```powershell
 # Switch to Windows containers
 # Right-click Docker Desktop icon > Switch to Windows containers
@@ -128,6 +134,7 @@ docker-compose -f docker-compose.test.yml down
 **Problem:** Docker is not installed or not in PATH.
 
 **Solution:**
+
 1. Install Docker Desktop for Windows
 2. Restart PowerShell/Terminal
 3. Verify: `docker --version`
@@ -137,6 +144,7 @@ docker-compose -f docker-compose.test.yml down
 **Problem:** Docker Desktop is not running.
 
 **Solution:**
+
 1. Start Docker Desktop
 2. Wait for it to fully start (icon turns green)
 3. Try command again
@@ -146,12 +154,13 @@ docker-compose -f docker-compose.test.yml down
 **Problem:** Base image cannot be pulled or network issues.
 
 **Solution:**
+
 ```powershell
 # Pull the base image manually
 docker pull mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 
 # Then retry the build
-.\test-all.ps1 -UseDocker
+.\test\test-all.ps1 -UseDocker
 ```
 
 ### Error: "Insufficient memory"
@@ -159,6 +168,7 @@ docker pull mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 **Problem:** Docker doesn't have enough RAM allocated.
 
 **Solution:**
+
 1. Open Docker Desktop
 2. Settings -> Resources
 3. Increase Memory to at least 4GB
@@ -166,9 +176,9 @@ docker pull mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 
 ### Path Issues Inside Container
 
-**Problem:** "Cannot find path 'C:\app\docker\tools'" error
+**Problem:** "Cannot find path 'C:\app\debug'" error
 
-**Explanation:** This error occurs when the test script tries to navigate to `docker\tools` subdirectory inside the container, but files are directly in `/app`.
+**Explanation:** This error occurs when the test script tries to navigate to `debug` subdirectory inside the container, but files are directly in `/app`.
 
 **Solution:** This is now automatically handled by the script detecting when it's running inside a container (via `DOTNET_ENVIRONMENT=Test` environment variable). If you still see this error:
 
@@ -180,7 +190,7 @@ git pull
 docker build --no-cache -t certz-test:latest -f Dockerfile.test .
 
 # Run tests again
-.\test-all.ps1 -UseDocker
+.\test\test-all.ps1 -UseDocker
 ```
 
 ### Tests Fail Inside Container
@@ -191,12 +201,15 @@ docker build --no-cache -t certz-test:latest -f Dockerfile.test .
 # Run container interactively (baked-in files)
 docker run --rm -it --isolation=process certz-test:latest powershell
 
-# Inside container, run tests manually
-.\test-all.ps1 -Verbose
+# Inside container, run all tests manually
+pwsh -File ./test/test-all.ps1 -Verbose
 
-# Or run individual commands
+# Or run a specific test suite
+pwsh -File ./test/test-create.ps1
+
+# Or run individual certz commands
 .\certz.exe list
-.\certz.exe create --f test.pfx
+.\certz.exe create dev --cn test.local -f test.pfx
 ```
 
 ### Build is Very Slow
@@ -221,12 +234,12 @@ You're actively developing certz and want to test changes:
 # 1. Build your changes
 dotnet build -c Release
 
-# 2. Copy to docker/tools
-Copy-Item bin/Release/net7.0/win-x64/publish/certz.exe docker/tools/
-Copy-Item bin/Release/net7.0/win-x64/publish/certz.pdb docker/tools/
+# 2. Copy to debug
+Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.exe debug/
+Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.pdb debug/
 
 # 3. Run tests in Docker
-.\test-all.ps1 -UseDocker
+.\test\test-all.ps1 -UseDocker
 ```
 
 ### Scenario 2: CI/CD Pipeline
@@ -238,10 +251,10 @@ You're running tests in a CI/CD pipeline:
 dotnet build -c Release
 
 # 2. Copy binaries
-Copy-Item bin/Release/net7.0/win-x64/publish/* docker/tools/
+Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/* debug/
 
 # 3. Run tests (image is built with files baked in)
-.\test-all.ps1 -UseDocker -DockerVerbose
+.\test\test-all.ps1 -UseDocker -DockerVerbose
 
 # Image is self-contained and reproducible
 ```
@@ -257,18 +270,18 @@ cd certz
 dotnet build -c Release
 
 # 3. Copy binaries
-Copy-Item bin/Release/net7.0/win-x64/publish/certz.exe docker/tools/
-Copy-Item bin/Release/net7.0/win-x64/publish/certz.pdb docker/tools/
+Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.exe debug/
+Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.pdb debug/
 
 # 4. Run tests
-.\test-all.ps1 -UseDocker
+.\test\test-all.ps1 -UseDocker
 ```
 
 ## Advanced Usage
 
-### Running Specific Test Scenarios
+### Running Specific Test Suites
 
-Since the test script is comprehensive, you might want to run only certain tests:
+All test scripts are available in the container under `/app/test/`:
 
 ```powershell
 # Build the image
@@ -277,10 +290,14 @@ docker build -t certz-test:latest -f Dockerfile.test .
 # Run container interactively
 docker run --rm -it --isolation=process certz-test:latest powershell
 
-# Inside container, run individual certz commands
-.\certz.exe create --f test.pfx
+# Inside container, run a specific test suite
+pwsh -File ./test/test-create.ps1
+pwsh -File ./test/test-lint.ps1
+pwsh -File ./test/test-convert.ps1
+
+# Or run individual certz commands
+.\certz.exe create dev --cn test.local --ephemeral
 .\certz.exe list
-# etc.
 ```
 
 ### Mounting Local Directories
@@ -322,34 +339,34 @@ name: Certz Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Build project
-      run: dotnet build -c Release
+      - name: Build project
+        run: dotnet build -c Release
 
-    - name: Copy binaries to docker/tools
-      run: |
-        Copy-Item bin/Release/net7.0/win-x64/publish/* docker/tools/
+      - name: Copy binaries to debug
+        run: |
+          Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/* debug/
 
-    - name: Run tests in Docker
-      run: .\test-all.ps1 -UseDocker -DockerVerbose
+      - name: Run tests in Docker
+        run: .\test\test-all.ps1 -UseDocker -DockerVerbose
 
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: test-results/
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: test-results/
 ```
 
 ### Azure DevOps
@@ -360,42 +377,42 @@ Create `azure-pipelines.yml`:
 trigger:
   branches:
     include:
-    - main
-    - develop
+      - main
+      - develop
 
 pool:
-  vmImage: 'windows-latest'
+  vmImage: "windows-latest"
 
 steps:
-- task: DotNetCoreCLI@2
-  displayName: 'Build project'
-  inputs:
-    command: 'build'
-    configuration: 'Release'
+  - task: DotNetCoreCLI@2
+    displayName: "Build project"
+    inputs:
+      command: "build"
+      configuration: "Release"
 
-- task: CopyFiles@2
-  displayName: 'Copy binaries'
-  inputs:
-    SourceFolder: 'bin/Release/net7.0/win-x64/publish'
-    Contents: '**'
-    TargetFolder: 'docker/tools'
+  - task: CopyFiles@2
+    displayName: "Copy binaries"
+    inputs:
+      SourceFolder: "src/certz/bin/Release/net10.0/win-x64/publish"
+      Contents: "**"
+      TargetFolder: "debug"
 
-- task: PowerShell@2
-  displayName: 'Run Docker tests'
-  inputs:
-    targetType: 'inline'
-    script: |
-      .\test-all.ps1 -UseDocker -DockerVerbose
-      if ($LASTEXITCODE -ne 0) {
-        throw "Tests failed"
-      }
+  - task: PowerShell@2
+    displayName: "Run Docker tests"
+    inputs:
+      targetType: "inline"
+      script: |
+        .\test\test-all.ps1 -UseDocker -DockerVerbose
+        if ($LASTEXITCODE -ne 0) {
+          throw "Tests failed"
+        }
 
-- task: PublishTestResults@2
-  condition: always()
-  displayName: 'Publish test results'
-  inputs:
-    testResultsFormat: 'NUnit'
-    testResultsFiles: '**/test-results/*.xml'
+  - task: PublishTestResults@2
+    condition: always()
+    displayName: "Publish test results"
+    inputs:
+      testResultsFormat: "NUnit"
+      testResultsFiles: "**/test-results/*.xml"
 ```
 
 ## Performance Tips
@@ -418,12 +435,15 @@ steps:
 
 - **Dockerfile.test** - Test container definition
 - **docker-compose.test.yml** - Compose configuration
-- **test-all.ps1** - Test script (works both locally and in Docker)
+- **test/test-all.ps1** - Test runner (invokes all individual test suites)
+- **test/test-helper.ps1** - Shared test utilities (container-aware)
+- **test/test-*.ps1** - Individual test suites (create, inspect, lint, etc.)
 - **.dockerignore** - Files excluded from Docker build context
 
 ## Support
 
 For issues or questions:
+
 1. Check this troubleshooting guide
 2. Review [TESTING.md](TESTING.md) for detailed test documentation
 3. Check Docker Desktop logs
@@ -431,9 +451,9 @@ For issues or questions:
 
 ## Version Compatibility
 
-| Component | Version | Notes |
-|-----------|---------|-------|
-| Docker Desktop | 4.0+ | Windows containers support |
-| Windows | 10/11, Server 2019/2022 | Container host |
-| .NET SDK | 7.0 | Base image |
-| PowerShell | 5.1+ | Script execution |
+| Component      | Version                 | Notes                      |
+| -------------- | ----------------------- | -------------------------- |
+| Docker Desktop | 4.0+                    | Windows containers support |
+| Windows        | 10/11, Server 2019/2022 | Container host             |
+| .NET SDK       | 10.0                    | Base image                 |
+| PowerShell     | 7.5+                    | Script execution           |

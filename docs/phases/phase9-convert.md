@@ -10,6 +10,7 @@ Enhance the `certz convert` command with DER format support and a simplified, in
 ## Project Context
 
 This is a .NET 10 CLI tool using:
+
 - **System.CommandLine** for command parsing
 - **Spectre.Console** for display formatting
 - **Record types** for options and results
@@ -17,20 +18,24 @@ This is a .NET 10 CLI tool using:
 ### Established Patterns
 
 **Command Structure:** `src/certz/Commands/<Feature>/<Feature>Command.cs`
+
 - Static class with `Build<Feature>Command()` method
 - Returns `Command` with options and `SetAction` handler
 - Uses `OptionBuilders` for standard options
 - Calls service layer, formats with `FormatterFactory.Create(format)`
 
 **Service Layer:** `src/certz/Services/<Feature>Service.cs`
+
 - Static class with internal methods
 - Returns result record types
 - Contains business logic
 
 **Models:** `src/certz/Models/<Feature>Options.cs` and `src/certz/Models/<Feature>Result.cs`
+
 - Record types with `required` and `init` properties
 
 **Testing:** `test/test-<feature>.ps1`
+
 - PowerShell 7.5+ scripts
 - Each test invokes certz.exe exactly ONCE
 - Setup/cleanup in PowerShell only
@@ -44,12 +49,13 @@ This is a .NET 10 CLI tool using:
 
 The current `certz convert` command in `src/certz/Commands/src/certz/Commands/ConvertCommand.cs` supports:
 
-| Conversion | Command |
-|------------|---------|
-| PEM → PFX | `certz convert --cert cert.pem --key key.pem --file output.pfx` |
-| PFX → PEM | `certz convert --file input.pfx --out-cert cert.pem --out-key key.pem --password X` |
+| Conversion | Command                                                                             |
+| ---------- | ----------------------------------------------------------------------------------- |
+| PEM → PFX  | `certz convert --cert cert.pem --key key.pem --file output.pfx`                     |
+| PFX → PEM  | `certz convert --file input.pfx --out-cert cert.pem --out-key key.pem --password X` |
 
 **Limitations:**
+
 1. No DER format support
 2. Complex flag combinations required
 3. Must specify separate --cert and --key for input
@@ -58,6 +64,7 @@ The current `certz convert` command in `src/certz/Commands/src/certz/Commands/Co
 ### Existing ConvertService
 
 `src/certz/Services/src/certz/Services/ConvertService.cs` provides:
+
 - `ConvertToPfx()` - Combines PEM cert + key into PFX
 - `ConvertFromPfx()` - Extracts PEM cert + key from PFX
 - RSA and ECDSA key support
@@ -95,6 +102,7 @@ Exit Codes:
 ### Backward Compatibility
 
 The existing flag-based interface remains functional:
+
 ```bash
 # Old syntax still works
 certz convert --cert cert.pem --key key.pem --file output.pfx
@@ -132,11 +140,11 @@ certz convert server.der --to pfx --key server.key
 
 ### Supported Formats
 
-| Format | Extensions | Description | Contains Key? |
-|--------|------------|-------------|---------------|
-| PEM | .pem, .crt, .cer | Base64 with BEGIN/END headers | Optional |
-| DER | .der, .cer (binary) | Binary ASN.1 encoding | Optional |
-| PFX | .pfx, .p12 | PKCS#12 bundle | Yes (typically) |
+| Format | Extensions          | Description                   | Contains Key?   |
+| ------ | ------------------- | ----------------------------- | --------------- |
+| PEM    | .pem, .crt, .cer    | Base64 with BEGIN/END headers | Optional        |
+| DER    | .der, .cer (binary) | Binary ASN.1 encoding         | Optional        |
+| PFX    | .pfx, .p12          | PKCS#12 bundle                | Yes (typically) |
 
 ### Format Detection
 
@@ -148,6 +156,7 @@ certz convert server.der --to pfx --key server.key
 | .pem, .crt, .cer, .key | PEM (content-based) |
 
 **By Content (for ambiguous extensions like .cer):**
+
 - Starts with `-----BEGIN` → PEM
 - Binary content → DER
 - Contains PKCS#12 structure → PFX
@@ -156,42 +165,42 @@ certz convert server.der --to pfx --key server.key
 
 When `--output` is not specified, derive from input:
 
-| Input | --to | Output |
-|-------|------|--------|
-| server.pfx | pem | server.pem, server.key |
-| server.pem | der | server.der |
-| server.der | pem | server.pem |
-| server.pem | pfx | server.pfx |
+| Input      | --to | Output                 |
+| ---------- | ---- | ---------------------- |
+| server.pfx | pem  | server.pem, server.key |
+| server.pem | der  | server.der             |
+| server.der | pem  | server.pem             |
+| server.pem | pfx  | server.pfx             |
 
 ---
 
 ## Design Decisions
 
-| Area | Decision | Rationale |
-|------|----------|-----------|
-| **Primary interface** | `<input> --to <format>` | Intuitive, matches common tools |
-| **Format detection** | Extension first, content fallback | Fast, reliable |
-| **Key auto-discovery** | Look for `<name>.key` if not provided | Common convention |
-| **Default output path** | Same directory, new extension | Convenient |
-| **Backward compatibility** | Keep old flags working | No breaking changes |
-| **DER key format** | PKCS#8 DER | Standard format |
-| **Combined PEM output** | Cert + key in single file option | Flexibility |
+| Area                       | Decision                              | Rationale                       |
+| -------------------------- | ------------------------------------- | ------------------------------- |
+| **Primary interface**      | `<input> --to <format>`               | Intuitive, matches common tools |
+| **Format detection**       | Extension first, content fallback     | Fast, reliable                  |
+| **Key auto-discovery**     | Look for `<name>.key` if not provided | Common convention               |
+| **Default output path**    | Same directory, new extension         | Convenient                      |
+| **Backward compatibility** | Keep old flags working                | No breaking changes             |
+| **DER key format**         | PKCS#8 DER                            | Standard format                 |
+| **Combined PEM output**    | Cert + key in single file option      | Flexibility                     |
 
 ---
 
 ## Progress Tracker
 
-| # | Step | Status | Notes |
-|---|------|--------|-------|
-| 1 | Add FormatType enum | [x] | src/certz/Models/FormatType.cs |
-| 2 | Add ConvertOptions model | [x] | src/certz/Models/ConvertOptions.cs |
-| 3 | Add format detection service | [x] | src/certz/Services/FormatDetectionService.cs |
-| 4 | Add DER conversion methods | [x] | Services/src/certz/Services/ConvertService.cs |
-| 5 | Update ConvertCommand | [x] | Add new simplified interface |
-| 6 | Update TextFormatter | [x] | Enhanced conversion output |
-| 7 | Update JsonFormatter | [x] | Add format info fields |
-| 8 | Create tests | [x] | test/test-convert.ps1 |
-| 9 | Update documentation | [x] | README.md |
+| #   | Step                         | Status | Notes                                         |
+| --- | ---------------------------- | ------ | --------------------------------------------- |
+| 1   | Add FormatType enum          | [x]    | src/certz/Models/FormatType.cs                |
+| 2   | Add ConvertOptions model     | [x]    | src/certz/Models/ConvertOptions.cs            |
+| 3   | Add format detection service | [x]    | src/certz/Services/FormatDetectionService.cs  |
+| 4   | Add DER conversion methods   | [x]    | Services/src/certz/Services/ConvertService.cs |
+| 5   | Update ConvertCommand        | [x]    | Add new simplified interface                  |
+| 6   | Update TextFormatter         | [x]    | Enhanced conversion output                    |
+| 7   | Update JsonFormatter         | [x]    | Add format info fields                        |
+| 8   | Create tests                 | [x]    | test/test-convert.ps1                         |
+| 9   | Update documentation         | [x]    | README.md                                     |
 
 ---
 
@@ -1185,7 +1194,7 @@ public void WriteConversionResult(ConversionResult result)
 **Create:** `test/test-convert.ps1`
 
 ```powershell
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS
@@ -1540,7 +1549,7 @@ exit $exitCode
 
 Add or update the Convert section:
 
-```markdown
+````markdown
 ## Certificate Format Conversion
 
 Convert certificates between PEM, DER, and PFX formats with automatic format detection.
@@ -1550,6 +1559,7 @@ Convert certificates between PEM, DER, and PFX formats with automatic format det
 ```bash
 certz convert <input> --to <format> [options]
 ```
+````
 
 ### Examples
 
@@ -1580,25 +1590,25 @@ certz convert server.pfx --to pem --password secret --include-key:false
 
 The input format is automatically detected:
 
-| Extension | Detected Format |
-|-----------|-----------------|
-| .pfx, .p12 | PFX (PKCS#12) |
-| .der | DER (binary) |
-| .pem | PEM (text) |
+| Extension  | Detected Format          |
+| ---------- | ------------------------ |
+| .pfx, .p12 | PFX (PKCS#12)            |
+| .der       | DER (binary)             |
+| .pem       | PEM (text)               |
 | .crt, .cer | Auto-detect from content |
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `--to, -t` | Output format: `pem`, `der`, `pfx` (required) |
-| `--output, -o` | Output file path (default: auto-generated) |
-| `--key` | Private key file (for PFX output) |
-| `--password, -p` | Password for PFX input/output |
-| `--password-file` | Read/write password from file |
-| `--pfx-encryption` | `modern` (default) or `legacy` |
-| `--include-key` | Include private key in output |
-| `--format` | Display format: `text`, `json` |
+| Option             | Description                                   |
+| ------------------ | --------------------------------------------- |
+| `--to, -t`         | Output format: `pem`, `der`, `pfx` (required) |
+| `--output, -o`     | Output file path (default: auto-generated)    |
+| `--key`            | Private key file (for PFX output)             |
+| `--password, -p`   | Password for PFX input/output                 |
+| `--password-file`  | Read/write password from file                 |
+| `--pfx-encryption` | `modern` (default) or `legacy`                |
+| `--include-key`    | Include private key in output                 |
+| `--format`         | Display format: `text`, `json`                |
 
 ### Legacy Syntax
 
@@ -1614,12 +1624,13 @@ certz convert --file input.pfx --out-cert cert.pem --out-key key.pem -p secret
 
 ### Format Reference
 
-| Format | Description | Use Case |
-|--------|-------------|----------|
-| **PEM** | Base64 text with headers | Web servers, most Linux tools |
-| **DER** | Binary ASN.1 encoding | Java keystores, some Windows apps |
-| **PFX** | Password-protected bundle | Windows, IIS, certificate export |
-```
+| Format  | Description               | Use Case                          |
+| ------- | ------------------------- | --------------------------------- |
+| **PEM** | Base64 text with headers  | Web servers, most Linux tools     |
+| **DER** | Binary ASN.1 encoding     | Java keystores, some Windows apps |
+| **PFX** | Password-protected bundle | Windows, IIS, certificate export  |
+
+````
 
 **Status:** [x] Complete
 
@@ -1699,7 +1710,7 @@ rsa.ImportPkcs8PrivateKey(keyData, out _);
 // Write DER private key
 var derKey = rsa.ExportPkcs8PrivateKey();
 await File.WriteAllBytesAsync(keyPath, derKey);
-```
+````
 
 ### Backward Compatibility
 

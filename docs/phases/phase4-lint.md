@@ -5,30 +5,31 @@
 **Completed:** 2026-02-08
 
 ## Overview
+
 Implement Phase 4 of the certz v2.0 roadmap: add `lint` command for certificate validation against industry standards (CA/B Forum Baseline Requirements, Mozilla NSS Policy). This phase also prepares for future `renew` and chain visualization features.
 
 ## Design Decisions
 
-| Area | Decision | Rationale |
-|------|----------|-----------|
-| **Command Structure** | `certz lint <source>` | Consistent with `inspect` pattern |
-| **Policy Sets** | CA/B Forum BR + Mozilla NSS | Industry-standard requirements |
-| **Output** | Structured results with severity levels | Actionable feedback for users |
-| **Formatters** | Text + JSON output | CI/CD integration support |
-| **Service Pattern** | `LintService.cs` with `LintResult` | Consistent with existing architecture |
+| Area                  | Decision                                | Rationale                             |
+| --------------------- | --------------------------------------- | ------------------------------------- |
+| **Command Structure** | `certz lint <source>`                   | Consistent with `inspect` pattern     |
+| **Policy Sets**       | CA/B Forum BR + Mozilla NSS             | Industry-standard requirements        |
+| **Output**            | Structured results with severity levels | Actionable feedback for users         |
+| **Formatters**        | Text + JSON output                      | CI/CD integration support             |
+| **Service Pattern**   | `LintService.cs` with `LintResult`      | Consistent with existing architecture |
 
 ## Progress Tracker
 
-| # | Step | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create LintResult model | [x] | src/certz/Models/LintResult.cs |
-| 2 | Create LintService.cs | [x] | src/certz/Services/LintService.cs |
-| 3 | Implement CA/B Forum checks | [x] | In LintService.cs |
-| 4 | Implement Mozilla NSS checks | [x] | In LintService.cs |
-| 5 | Add LintCommand.cs | [x] | src/certz/Commands/Lint/LintCommand.cs |
-| 6 | Add formatter methods | [x] | WriteLintResult in formatters |
-| 7 | Create test-lint.ps1 | [x] | test/test-lint.ps1 |
-| 8 | Update documentation | [x] | README.md, TESTING.md |
+| #   | Step                         | Status | Notes                                  |
+| --- | ---------------------------- | ------ | -------------------------------------- |
+| 1   | Create LintResult model      | [x]    | src/certz/Models/LintResult.cs         |
+| 2   | Create LintService.cs        | [x]    | src/certz/Services/LintService.cs      |
+| 3   | Implement CA/B Forum checks  | [x]    | In LintService.cs                      |
+| 4   | Implement Mozilla NSS checks | [x]    | In LintService.cs                      |
+| 5   | Add LintCommand.cs           | [x]    | src/certz/Commands/Lint/LintCommand.cs |
+| 6   | Add formatter methods        | [x]    | WriteLintResult in formatters          |
+| 7   | Create test-lint.ps1         | [x]    | test/test-lint.ps1                     |
+| 8   | Update documentation         | [x]    | README.md, TESTING.md                  |
 
 ---
 
@@ -38,55 +39,56 @@ Implement Phase 4 of the certz v2.0 roadmap: add `lint` command for certificate 
 
 These are mandatory requirements for publicly-trusted TLS certificates:
 
-| Rule ID | Category | Description | Severity |
-|---------|----------|-------------|----------|
-| `BR-001` | Validity | Maximum validity 398 days for leaf certs | Error |
-| `BR-002` | Validity | CA certs may have longer validity | Info |
-| `BR-003` | Key Size | RSA minimum 2048 bits | Error |
-| `BR-004` | Key Size | ECDSA minimum P-256 | Error |
-| `BR-005` | Signature | SHA-1 prohibited for new certs | Error |
-| `BR-006` | Signature | SHA-256 or stronger required | Error |
-| `BR-007` | SAN | Subject Alternative Name required | Error |
-| `BR-008` | SAN | CN must be in SAN if present | Warning |
-| `BR-009` | Extensions | Basic Constraints required for CA | Error |
-| `BR-010` | Extensions | Key Usage required | Warning |
-| `BR-011` | Extensions | Extended Key Usage recommended | Info |
-| `BR-012` | Extensions | Authority Key Identifier required (non-root) | Warning |
-| `BR-013` | Extensions | Subject Key Identifier recommended | Info |
-| `BR-014` | Extensions | CRL Distribution Points or OCSP required (public) | Warning |
-| `BR-015` | Subject | Country code must be 2 letters if present | Error |
-| `BR-016` | Subject | Organization requires Country | Error |
-| `BR-017` | Wildcards | Wildcard only in leftmost label | Error |
-| `BR-018` | Wildcards | No wildcards in public suffix | Error |
+| Rule ID  | Category   | Description                                       | Severity |
+| -------- | ---------- | ------------------------------------------------- | -------- |
+| `BR-001` | Validity   | Maximum validity 398 days for leaf certs          | Error    |
+| `BR-002` | Validity   | CA certs may have longer validity                 | Info     |
+| `BR-003` | Key Size   | RSA minimum 2048 bits                             | Error    |
+| `BR-004` | Key Size   | ECDSA minimum P-256                               | Error    |
+| `BR-005` | Signature  | SHA-1 prohibited for new certs                    | Error    |
+| `BR-006` | Signature  | SHA-256 or stronger required                      | Error    |
+| `BR-007` | SAN        | Subject Alternative Name required                 | Error    |
+| `BR-008` | SAN        | CN must be in SAN if present                      | Warning  |
+| `BR-009` | Extensions | Basic Constraints required for CA                 | Error    |
+| `BR-010` | Extensions | Key Usage required                                | Warning  |
+| `BR-011` | Extensions | Extended Key Usage recommended                    | Info     |
+| `BR-012` | Extensions | Authority Key Identifier required (non-root)      | Warning  |
+| `BR-013` | Extensions | Subject Key Identifier recommended                | Info     |
+| `BR-014` | Extensions | CRL Distribution Points or OCSP required (public) | Warning  |
+| `BR-015` | Subject    | Country code must be 2 letters if present         | Error    |
+| `BR-016` | Subject    | Organization requires Country                     | Error    |
+| `BR-017` | Wildcards  | Wildcard only in leftmost label                   | Error    |
+| `BR-018` | Wildcards  | No wildcards in public suffix                     | Error    |
 
 ### Mozilla NSS Policy (v2.8.x)
 
 Additional requirements for Firefox/Thunderbird trust:
 
-| Rule ID | Category | Description | Severity |
-|---------|----------|-------------|----------|
-| `NSS-001` | Key Size | RSA minimum 2048 bits (aligned with BR) | Error |
-| `NSS-002` | Validity | Root CA max 25 years recommended | Warning |
-| `NSS-003` | Validity | Intermediate CA max 10 years recommended | Warning |
-| `NSS-004` | Extensions | Name Constraints recommended for intermediates | Info |
-| `NSS-005` | Extensions | CRL/OCSP must be accessible | Warning |
-| `NSS-006` | Revocation | OCSP must staple not required | Info |
+| Rule ID   | Category   | Description                                    | Severity |
+| --------- | ---------- | ---------------------------------------------- | -------- |
+| `NSS-001` | Key Size   | RSA minimum 2048 bits (aligned with BR)        | Error    |
+| `NSS-002` | Validity   | Root CA max 25 years recommended               | Warning  |
+| `NSS-003` | Validity   | Intermediate CA max 10 years recommended       | Warning  |
+| `NSS-004` | Extensions | Name Constraints recommended for intermediates | Info     |
+| `NSS-005` | Extensions | CRL/OCSP must be accessible                    | Warning  |
+| `NSS-006` | Revocation | OCSP must staple not required                  | Info     |
 
 ### Development Certificate Checks
 
 For self-signed/development certificates, use relaxed rules:
 
-| Rule ID | Category | Description | Severity |
-|---------|----------|-------------|----------|
-| `DEV-001` | Validity | Warn if > 398 days | Warning |
-| `DEV-002` | Trust | Warn if not in trusted store | Info |
-| `DEV-003` | SAN | Recommend localhost + 127.0.0.1 | Info |
+| Rule ID   | Category | Description                     | Severity |
+| --------- | -------- | ------------------------------- | -------- |
+| `DEV-001` | Validity | Warn if > 398 days              | Warning  |
+| `DEV-002` | Trust    | Warn if not in trusted store    | Info     |
+| `DEV-003` | SAN      | Recommend localhost + 127.0.0.1 | Info     |
 
 ---
 
 ## Implementation Steps
 
 ### Step 1: Create LintResult Model
+
 **New file:** `src/certz/Models/LintResult.cs`
 
 ```csharp
@@ -205,6 +207,7 @@ internal record LintResult
 ---
 
 ### Step 2: Create LintOptions Model
+
 **New file:** `src/certz/Models/LintOptions.cs`
 
 ```csharp
@@ -252,6 +255,7 @@ internal record LintOptions
 ---
 
 ### Step 3: Create LintService.cs
+
 **New file:** `src/certz/Services/LintService.cs`
 
 ```csharp
@@ -345,6 +349,7 @@ internal static class LintService
 ---
 
 ### Step 4: Implement CA/B Forum Checks
+
 **Add to:** `src/certz/Services/LintService.cs`
 
 ```csharp
@@ -488,6 +493,7 @@ private static List<LintFinding> CheckCaBForumRules(X509Certificate2 cert, bool 
 ---
 
 ### Step 5: Implement Mozilla NSS Checks
+
 **Add to:** `src/certz/Services/LintService.cs`
 
 ```csharp
@@ -553,6 +559,7 @@ private static List<LintFinding> CheckMozillaNssRules(X509Certificate2 cert, boo
 ---
 
 ### Step 6: Implement Development Certificate Checks
+
 **Add to:** `src/certz/Services/LintService.cs`
 
 ```csharp
@@ -621,6 +628,7 @@ private static List<LintFinding> CheckDevCertRules(X509Certificate2 cert)
 ---
 
 ### Step 7: Add LintCommand.cs
+
 **New file:** `src/certz/Commands/Lint/LintCommand.cs`
 
 ```csharp
@@ -778,14 +786,17 @@ internal static class LintCommand
 ---
 
 ### Step 8: Add Formatter Methods
+
 **Modify:** `src/certz/Formatters/IOutputFormatter.cs`, `src/certz/Formatters/TextFormatter.cs`, `src/certz/Formatters/JsonFormatter.cs`
 
 Add to interface:
+
 ```csharp
 void WriteLintResult(LintResult result);
 ```
 
 Text formatter implementation:
+
 ```csharp
 public void WriteLintResult(LintResult result)
 {
@@ -854,10 +865,11 @@ public void WriteLintResult(LintResult result)
 ---
 
 ### Step 9: Create test-lint.ps1
+
 **New file:** `test/test-lint.ps1`
 
 ```powershell
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS
@@ -941,13 +953,13 @@ Examples:
 
 ## New Files Reference
 
-| File | Purpose |
-|------|---------|
-| `src/certz/Models/LintResult.cs` | Lint finding and result models |
-| `src/certz/Models/LintOptions.cs` | Lint command options |
-| `src/certz/Services/LintService.cs` | Lint logic and rule checks |
-| `src/certz/Commands/Lint/LintCommand.cs` | Command definition |
-| `test/test-lint.ps1` | Test suite |
+| File                                     | Purpose                        |
+| ---------------------------------------- | ------------------------------ |
+| `src/certz/Models/LintResult.cs`         | Lint finding and result models |
+| `src/certz/Models/LintOptions.cs`        | Lint command options           |
+| `src/certz/Services/LintService.cs`      | Lint logic and rule checks     |
+| `src/certz/Commands/Lint/LintCommand.cs` | Command definition             |
+| `test/test-lint.ps1`                     | Test suite                     |
 
 ---
 
@@ -970,6 +982,7 @@ Examples:
 ## Future Phase 4 Features (After Lint)
 
 ### Renew Command
+
 ```
 certz renew <source> [options]
   --issuer            Issuing CA certificate (for re-signing)
@@ -978,6 +991,7 @@ certz renew <source> [options]
 ```
 
 ### Chain Visualization
+
 ```
 certz inspect <source> --chain --tree
 
@@ -991,6 +1005,7 @@ Output:
 ```
 
 ### Expiration Monitoring
+
 ```
 certz monitor <directory|url> [options]
   --warn              Warning threshold (days)
@@ -1002,6 +1017,6 @@ certz monitor <directory|url> [options]
 
 ## Notes & Adjustments
 
-*Record any changes to the plan during implementation:*
+_Record any changes to the plan during implementation:_
 
 1. _(none yet)_

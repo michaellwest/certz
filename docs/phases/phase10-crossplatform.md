@@ -10,6 +10,7 @@ Enable certz to build and run on Linux with full support for file-based operatio
 ## Project Context
 
 This is a .NET 10 CLI tool using:
+
 - **System.CommandLine** for command parsing
 - **Spectre.Console** for display formatting
 - **Record types** for options and results
@@ -18,55 +19,55 @@ This is a .NET 10 CLI tool using:
 
 The codebase currently has these Windows-specific dependencies:
 
-| Dependency | Location | Impact |
-|------------|----------|--------|
-| `win-x64` RuntimeIdentifier | src/certz/certz.csproj | Cannot build for Linux |
-| `X509Store` API | TrustService, TrustHandler, StoreListHandler | Trust store operations fail |
-| `WindowsIdentity` | TrustService, TrustHandler | Admin detection fails |
-| Hardcoded `\` in paths | Multiple formatters/services | Display issues only |
-| `[SupportedOSPlatform("windows")]` | TrustService | Methods unavailable |
+| Dependency                         | Location                                     | Impact                      |
+| ---------------------------------- | -------------------------------------------- | --------------------------- |
+| `win-x64` RuntimeIdentifier        | src/certz/certz.csproj                       | Cannot build for Linux      |
+| `X509Store` API                    | TrustService, TrustHandler, StoreListHandler | Trust store operations fail |
+| `WindowsIdentity`                  | TrustService, TrustHandler                   | Admin detection fails       |
+| Hardcoded `\` in paths             | Multiple formatters/services                 | Display issues only         |
+| `[SupportedOSPlatform("windows")]` | TrustService                                 | Methods unavailable         |
 
 ### What Already Works on Linux
 
 These operations use cross-platform .NET APIs and require no changes:
 
-| Command | Notes |
-|---------|-------|
-| `create dev` | File-based certificate generation |
-| `create ca` | File-based CA certificate generation |
-| `inspect <file>` | Certificate file inspection |
-| `inspect <url>` | HTTPS certificate retrieval |
-| `lint <file>` | File-based linting |
-| `convert` | PEM/DER/PFX conversion |
-| `renew <file>` | File-based renewal |
-| `monitor <dir>` | Directory/file monitoring |
+| Command          | Notes                                |
+| ---------------- | ------------------------------------ |
+| `create dev`     | File-based certificate generation    |
+| `create ca`      | File-based CA certificate generation |
+| `inspect <file>` | Certificate file inspection          |
+| `inspect <url>`  | HTTPS certificate retrieval          |
+| `lint <file>`    | File-based linting                   |
+| `convert`        | PEM/DER/PFX conversion               |
+| `renew <file>`   | File-based renewal                   |
+| `monitor <dir>`  | Directory/file monitoring            |
 
 ---
 
 ## Design Decisions
 
-| Area | Decision | Rationale |
-|------|----------|-----------|
-| **Scope** | Option A - Minimal Linux support | File operations work; trust store deferred |
-| **Trust store commands** | Return error with clear message | Better than silent failure |
-| **Admin detection** | Use `geteuid() == 0` on Linux | Standard Unix root check |
-| **Path display** | Use `Path.DirectorySeparatorChar` | Cross-platform consistency |
-| **Build targets** | Add `linux-x64`, `linux-arm64` | Cover common Linux platforms |
-| **macOS** | Not included in this phase | Can be added later with similar approach |
+| Area                     | Decision                          | Rationale                                  |
+| ------------------------ | --------------------------------- | ------------------------------------------ |
+| **Scope**                | Option A - Minimal Linux support  | File operations work; trust store deferred |
+| **Trust store commands** | Return error with clear message   | Better than silent failure                 |
+| **Admin detection**      | Use `geteuid() == 0` on Linux     | Standard Unix root check                   |
+| **Path display**         | Use `Path.DirectorySeparatorChar` | Cross-platform consistency                 |
+| **Build targets**        | Add `linux-x64`, `linux-arm64`    | Cover common Linux platforms               |
+| **macOS**                | Not included in this phase        | Can be added later with similar approach   |
 
 ---
 
 ## Progress Tracker
 
-| # | Step | Status | Notes |
-|---|------|--------|-------|
-| 1 | Update src/certz/certz.csproj for multi-platform builds | [ ] | Add Linux runtime identifiers |
-| 2 | Create platform abstraction for privilege detection | [ ] | Replace WindowsIdentity |
-| 3 | Add platform guards to trust store operations | [ ] | Clear error messages |
-| 4 | Fix hardcoded path separators | [ ] | Display strings only |
-| 5 | Create Linux build scripts | [ ] | CI/CD integration |
-| 6 | Create Docker-based test environment | [ ] | Verify Linux functionality |
-| 7 | Update documentation | [ ] | README, testing docs |
+| #   | Step                                                    | Status | Notes                         |
+| --- | ------------------------------------------------------- | ------ | ----------------------------- |
+| 1   | Update src/certz/certz.csproj for multi-platform builds | [ ]    | Add Linux runtime identifiers |
+| 2   | Create platform abstraction for privilege detection     | [ ]    | Replace WindowsIdentity       |
+| 3   | Add platform guards to trust store operations           | [ ]    | Clear error messages          |
+| 4   | Fix hardcoded path separators                           | [ ]    | Display strings only          |
+| 5   | Create Linux build scripts                              | [ ]    | CI/CD integration             |
+| 6   | Create Docker-based test environment                    | [ ]    | Verify Linux functionality    |
+| 7   | Update documentation                                    | [ ]    | README, testing docs          |
 
 ---
 
@@ -300,6 +301,7 @@ storeListCommand.SetAction(async (parseResult) =>
 ### Step 4: Fix Hardcoded Path Separators
 
 **Files to update:**
+
 - `src/certz/Services/CertificateUtilities.cs`
 - `src/certz/Services/CertificateInspector.cs`
 - `src/certz/Services/ExportService.cs`
@@ -573,20 +575,21 @@ Write-Host "`nLinux tests complete!" -ForegroundColor Green
 
 Add a "Supported Platforms" section:
 
-```markdown
+````markdown
 ## Supported Platforms
 
 certz is available for the following platforms:
 
-| Platform | Architecture | Trust Store | File Operations |
-|----------|--------------|-------------|-----------------|
-| Windows | x64 | ✅ Full | ✅ Full |
-| Linux | x64 | ❌ Not supported | ✅ Full |
-| Linux | ARM64 | ❌ Not supported | ✅ Full |
+| Platform | Architecture | Trust Store      | File Operations |
+| -------- | ------------ | ---------------- | --------------- |
+| Windows  | x64          | ✅ Full          | ✅ Full         |
+| Linux    | x64          | ❌ Not supported | ✅ Full         |
+| Linux    | ARM64        | ❌ Not supported | ✅ Full         |
 
 ### Linux Notes
 
 On Linux, all file-based operations work fully:
+
 - `create dev`, `create ca` - Generate certificates
 - `inspect` - Inspect files and URLs
 - `lint` - Validate certificates
@@ -598,17 +601,21 @@ Trust store operations (`trust add`, `trust remove`, `store list`) are not suppo
 To add certificates to your system trust store manually:
 
 **Debian/Ubuntu:**
+
 ```bash
 sudo cp ca.crt /usr/local/share/ca-certificates/
 sudo update-ca-certificates
 ```
+````
 
 **RHEL/Fedora:**
+
 ```bash
 sudo cp ca.crt /etc/pki/ca-trust/source/anchors/
 sudo update-ca-trust
 ```
-```
+
+````
 
 **Status:** [ ] Not started
 
@@ -630,7 +637,7 @@ sudo update-ca-trust
 **Create:** `test/test-crossplatform.ps1`
 
 ```powershell
-#Requires -Version 7.5
+#requires -version 7
 
 <#
 .SYNOPSIS
@@ -824,7 +831,7 @@ finally {
 
 $exitCode = Write-TestSummary
 exit $exitCode
-```
+````
 
 **Status:** [ ] Not started
 
@@ -833,6 +840,7 @@ exit $exitCode
 ## Verification Checklist
 
 ### Build
+
 - [ ] `dotnet publish -r linux-x64` succeeds
 - [ ] `dotnet publish -r linux-arm64` succeeds
 - [ ] Output is single-file executable
@@ -840,6 +848,7 @@ exit $exitCode
 - [ ] Executable runs on Debian 12+
 
 ### File Operations (Linux)
+
 - [ ] `certz create dev` works
 - [ ] `certz create ca` works
 - [ ] `certz inspect <file>` works
@@ -850,12 +859,14 @@ exit $exitCode
 - [ ] `certz monitor <dir>` works
 
 ### Trust Store Guards
+
 - [ ] `certz trust add` returns clear "not supported" message
 - [ ] `certz trust remove` returns clear "not supported" message
 - [ ] `certz store list` returns clear "not supported" message
 - [ ] Exit code is non-zero for unsupported operations
 
 ### Path Handling
+
 - [ ] Error messages use `/` on Linux
 - [ ] File operations work with both `/` and `\` in paths
 
@@ -869,13 +880,13 @@ exit $exitCode
 
 Linux does not have a unified certificate store like Windows. There are multiple locations and mechanisms:
 
-| Location | Purpose | Update Command |
-|----------|---------|----------------|
-| `/etc/ssl/certs/` | System CA certificates | Varies by distro |
-| `/usr/local/share/ca-certificates/` | User-added CAs (Debian) | `update-ca-certificates` |
-| `/etc/pki/ca-trust/source/anchors/` | User-added CAs (RHEL) | `update-ca-trust` |
-| `~/.pki/nssdb/` | NSS database (Chrome, user) | `certutil` |
-| `/etc/pki/nssdb/` | NSS database (system) | `certutil` |
+| Location                            | Purpose                     | Update Command           |
+| ----------------------------------- | --------------------------- | ------------------------ |
+| `/etc/ssl/certs/`                   | System CA certificates      | Varies by distro         |
+| `/usr/local/share/ca-certificates/` | User-added CAs (Debian)     | `update-ca-certificates` |
+| `/etc/pki/ca-trust/source/anchors/` | User-added CAs (RHEL)       | `update-ca-trust`        |
+| `~/.pki/nssdb/`                     | NSS database (Chrome, user) | `certutil`               |
+| `/etc/pki/nssdb/`                   | NSS database (system)       | `certutil`               |
 
 ### Proposed Architecture
 
@@ -944,15 +955,15 @@ internal class LinuxSystemTrustStore : ITrustStore
 
 ### Estimated Effort for Option B
 
-| Work Item | Hours | Notes |
-|-----------|-------|-------|
-| ITrustStore interface | 2 | Define abstraction |
-| Refactor Windows implementation | 4 | Extract to WindowsTrustStore |
-| Linux distro detection | 2 | Debian vs RHEL |
-| LinuxSystemTrustStore | 8 | update-ca-certificates integration |
-| LinuxNssTrustStore | 12 | certutil integration |
-| Testing across distros | 8 | Ubuntu, Debian, Fedora, Alpine |
-| Documentation | 4 | Per-distro instructions |
+| Work Item                       | Hours | Notes                              |
+| ------------------------------- | ----- | ---------------------------------- |
+| ITrustStore interface           | 2     | Define abstraction                 |
+| Refactor Windows implementation | 4     | Extract to WindowsTrustStore       |
+| Linux distro detection          | 2     | Debian vs RHEL                     |
+| LinuxSystemTrustStore           | 8     | update-ca-certificates integration |
+| LinuxNssTrustStore              | 12    | certutil integration               |
+| Testing across distros          | 8     | Ubuntu, Debian, Fedora, Alpine     |
+| Documentation                   | 4     | Per-distro instructions            |
 
 **Total: ~40 hours**
 
@@ -980,6 +991,7 @@ internal class LinuxSystemTrustStore : ITrustStore
 ### P/Invoke for geteuid()
 
 The `geteuid()` function is available on all Unix-like systems and returns:
+
 - `0` for root
 - Non-zero UID for regular users
 
