@@ -1,6 +1,6 @@
 # Test Coverage Analysis
 
-**Date:** 2026-02-09
+**Date:** 2026-02-10
 **Purpose:** Analyze test coverage gaps and provide recommendations for new tests
 
 ---
@@ -11,12 +11,18 @@
 |-----------|-----------------|------------|--------|
 | `test-create.ps1` | `create dev`, `create ca` | 14 tests | ✅ Modern v2 |
 | `test-inspect.ps1` | `inspect` (file, URL, store, chain, save) | 17 tests | ✅ Modern v2 |
-| `test-trust.ps1` | `trust add`, `trust remove`, `store list` | 11 tests | ✅ Modern v2 |
+| `test-trust.ps1` | `trust add`, `trust remove`, `store list` | 15 tests | ✅ Modern v2 |
 | `test-convert.ps1` | `convert` (PEM, DER, PFX conversions) | 23 tests | ✅ Modern v2 |
-| `test-lint.ps1` | `lint` (CA/B Forum, Mozilla NSS) | 12 tests | ✅ Modern v2 |
-| `test-monitor.ps1` | `monitor` (expiration tracking) | 8 tests | ✅ Modern v2 |
-| `test-renew.ps1` | `renew` (certificate renewal) | 6 tests | ✅ Modern v2 |
-| `test-ephemeral.ps1` | `--ephemeral`, `--pipe` modes | 10 tests | ✅ Modern v2 |
+| `test-lint.ps1` | `lint` (CA/B Forum, Mozilla NSS) | 10 tests | ✅ Modern v2 |
+| `test-monitor.ps1` | `monitor` (expiration tracking) | 12 tests | ✅ Modern v2 |
+| `test-renew.ps1` | `renew` (certificate renewal) | 11 tests | ✅ Modern v2 |
+| `test-ephemeral.ps1` | `--ephemeral`, `--pipe` modes | 14 tests | ✅ Modern v2 |
+| `test-examples.ps1` | `examples` (usage examples display) | 9 tests | ✅ Modern v2 |
+| `test-export.ps1` | `export` (from store, from URL) | 9 tests | ✅ Modern v2 |
+| `test-verify.ps1` | `verify` (file, store validation) | 7 tests | ✅ Modern v2 |
+| `test-install.ps1` | `install` (store install, exportable flag) | 6 tests | ✅ Modern v2 |
+
+**Total: 147 tests across 12 test files**
 
 ---
 
@@ -26,38 +32,36 @@
 
 | Command | Test File | Coverage Status |
 |---------|-----------|-----------------|
-| `create dev` | test-create.ps1 | ✅ Covered (5 tests) |
-| `create ca` | test-create.ps1 | ✅ Covered (3 tests) |
-| `create dev --guided` | test-create.ps1 | ⚠️ Manual only (gui-1.1) |
-| `create ca --guided` | test-create.ps1 | ❌ Not covered |
-| `inspect <file>` | test-inspect.ps1 | ✅ Covered (5 tests) |
-| `inspect <url>` | test-inspect.ps1 | ✅ Covered (3 tests) |
-| `inspect <thumbprint>` | test-inspect.ps1 | ✅ Covered (2 tests) |
-| `inspect --chain` | test-inspect.ps1 | ✅ Covered (2 tests) |
-| `inspect --save` | test-inspect.ps1 | ✅ Covered (5 tests) |
-| `inspect --format json` | test-inspect.ps1 | ✅ Covered (2 tests) |
-| `trust add` | test-trust.ps1 | ✅ Covered (4 tests) |
-| `trust remove` | test-trust.ps1 | ✅ Covered (4 tests) |
-| `store list` | test-trust.ps1 | ✅ Covered (3 tests) |
+| `create dev` | test-create.ps1 | ✅ Covered (5 tests: dev-1.1–1.5) |
+| `create ca` | test-create.ps1 | ✅ Covered (3 tests: ca-1.1–1.3) |
+| `create dev --guided` | test-create.ps1 | ⚠️ Manual only (gui-1.1, skipped by default) |
+| `inspect <file>` | test-inspect.ps1 | ✅ Covered (5 tests: ins-1.1–1.5) |
+| `inspect <url>` | test-inspect.ps1 | ✅ Covered (3 tests: ins-2.1–2.3) |
+| `inspect <thumbprint>` | test-inspect.ps1 | ✅ Covered (2 tests: ins-3.1–3.2) |
+| `inspect --chain` | test-inspect.ps1 | ✅ Covered (4 tests: chn-1.1–1.4) |
+| `inspect --save` | test-inspect.ps1 | ✅ Covered (5 tests: sav-1.1–1.5) |
+| `inspect --format json` | test-inspect.ps1 | ✅ Covered (2 tests: fmt-2.1–2.2) |
+| `trust add` | test-trust.ps1 | ✅ Covered (4 tests: tru-1.1–1.4) |
+| `trust remove` | test-trust.ps1 | ✅ Covered (4 tests: trm-1.1–1.4) |
+| `trust remove` (multi) | test-trust.ps1 | ✅ Covered (4 tests: trm-2.1–2.4) |
+| `store list` | test-trust.ps1 | ✅ Covered (3 tests: sto-1.1–1.3) |
 | `convert` | test-convert.ps1 | ✅ Covered (23 tests) |
-| `lint` | test-lint.ps1 | ✅ Covered (12 tests) |
-| `monitor` | test-monitor.ps1 | ✅ Covered (8 tests) |
-| `renew` | test-renew.ps1 | ✅ Covered (6 tests) |
-| `--ephemeral` / `--pipe` | test-ephemeral.ps1 | ✅ Covered (10 tests) |
+| `lint` | test-lint.ps1 | ✅ Covered (10 tests) |
+| `monitor` | test-monitor.ps1 | ✅ Covered (12 tests) |
+| `renew` | test-renew.ps1 | ✅ Covered (11 tests: ren-1.1–6.1) |
+| `--ephemeral` / `--pipe` | test-ephemeral.ps1 | ✅ Covered (14 tests) |
+| `examples` | test-examples.ps1 | ✅ Covered (9 tests: ex-1.1–3.1) |
+| `export` | test-export.ps1 | ✅ Covered (9 tests: exp-1.1–4.1) |
+| `verify` | test-verify.ps1 | ✅ Covered (7 tests: ver-1.1–4.1) |
+| `install` | test-install.ps1 | ✅ Covered (6 tests: ist-1.1–3.2) |
 
----
+### Legacy Commands
 
-## Completed Test Files
-
-All v2 commands now have dedicated test files:
-
-| Test File | Categories | Test Count |
-|-----------|------------|------------|
-| `test-convert.ps1` | pem-to-pfx, pfx-to-pem, encryption, format, simplified conversions, errors | 23 tests |
-| `test-lint.ps1` | CA/B Forum, Mozilla NSS, JSON output | 12 tests |
-| `test-monitor.ps1` | directory scan, expiration tracking, JSON output | 8 tests |
-| `test-renew.ps1` | auto-detect parameters, preserve SANs, custom validity | 6 tests |
-| `test-ephemeral.ps1` | ephemeral mode, pipe mode, mutual exclusion | 10 tests |
+| Command | Source File | Notes |
+|---------|------------|-------|
+| `remove` (legacy) | RemoveCommand.cs | Superseded by `trust remove` (tested) |
+| `list` (legacy) | ListCommand.cs | Superseded by `store list` (tested) |
+| `info` (legacy) | InfoCommand.cs | Superseded by `inspect` (tested) |
 
 ---
 
@@ -67,54 +71,74 @@ All v2 commands now have dedicated test files:
 
 | Gap | Priority | Status |
 |-----|----------|--------|
-| `--guided` for CA | Medium | ✅ Covered (gui-1.2) |
-| `--issuer` with password file | Low | Add iss-1.3 for `--issuer-password-file` |
+| `create ca --guided` wizard | Low | Not covered (manual/interactive) |
+| `--issuer-password-file` | Low | Not covered |
+| `--hash-algorithm` (SHA-256/SHA-384/SHA-512) | Medium | Not covered |
+| `--rsa-padding` (pss/pkcs1) | Low | Not covered |
+| `--cert` / `--key` PEM output | Medium | Not covered |
+| `--crl-url`, `--ocsp-url`, `--ca-issuers-url` (CA) | Medium | Not covered |
 
 ### test-inspect.ps1 Gaps
 
 | Gap | Priority | Status |
 |-----|----------|--------|
-| `--crl` revocation check | Medium | ✅ Covered (crl-1.1) |
-| `--warn` with JSON | Low | Add fmt-2.3 for warn + JSON combo |
-| Save chain to file | Low | Add sav-1.6 for `--save --chain` |
+| `--warn` with `--format json` combined | Low | Not covered |
+| `--save --chain` (save chain to file) | Low | Not covered |
 
 ### test-trust.ps1 Gaps
 
 | Gap | Priority | Status |
 |-----|----------|--------|
-| `--expired` filter | Medium | ✅ Covered (sto-1.4) |
-| `--expiring` filter | Medium | ✅ Covered (sto-1.5) |
-| Browser trust stores | Phase 5 | Deferred until browser support added |
+| `store list --expired` filter | Low | Not covered |
+| `store list --expiring` filter | Low | Not covered |
+
+### test-monitor.ps1 Gaps
+
+| Gap | Priority | Status |
+|-----|----------|--------|
+| URL monitoring with `--format json` | Low | Not covered |
+| `--store` + `--expired` filter | Low | Not covered |
+
+---
+
+## Test Isolation Compliance
+
+All test files follow [test-isolation-plan.md](isolation-plan.md):
+
+| Principle | Status |
+|-----------|--------|
+| Each test invokes certz.exe exactly ONCE | ✅ All files compliant |
+| Setup uses pure PowerShell | ✅ All files compliant |
+| Cleanup uses pure PowerShell | ✅ All files compliant |
+| Assert against system state, not console output | ✅ (ephemeral/pipe tests exempt -- no system state) |
+| Unique test identifiers | ✅ All tests use unique IDs |
 
 ---
 
 ## Recommendations
 
+### Medium Priority
+
+1. **Add `--hash-algorithm` tests** to test-create.ps1
+   - Test SHA-384 and SHA-512 hash algorithms
+   - Test with both ECDSA and RSA key types
+
+2. **Add PEM output tests** to test-create.ps1
+   - Test `--cert` / `--key` output options for both dev and CA
+
 ### Low Priority
 
-1. **Add remaining low-priority coverage**
-   - Add `--issuer-password-file` test to test-create.ps1
-   - Add `--warn` with JSON test to test-inspect.ps1
-   - Add `--save --chain` test to test-inspect.ps1
+3. **Add remaining low-priority coverage**
+   - `--issuer-password-file` test to test-create.ps1
+   - `--warn` with JSON test to test-inspect.ps1
+   - `--save --chain` test to test-inspect.ps1
+   - `store list --expired` / `--expiring` filters to test-trust.ps1
 
 ### Future Work
 
-2. **Phase 10: Cross-Platform Support**
+4. **Phase 10: Cross-Platform Support**
    - Create `test-crossplatform.ps1` when Linux support is implemented
    - Test platform guards for trust store operations
-   - Test file-based operations on Linux
-
----
-
-## Test Isolation Principles (Reference)
-
-All new tests must follow [test-isolation-plan.md](test-isolation-plan.md):
-
-1. **Each test invokes certz.exe exactly ONCE**
-2. **Setup uses pure PowerShell** (New-SelfSignedCertificate, etc.)
-3. **Cleanup uses pure PowerShell** (Remove-Item, etc.)
-4. **Assert against system state**, not console output
-5. **Use unique test identifiers** (GUID suffixes for subjects)
 
 ---
 
@@ -150,21 +174,34 @@ param(
     [string[]]$Category
 )
 
-# ... (copy helper functions from existing test files)
+$ErrorActionPreference = "Stop"
+. "$PSScriptRoot\test-helper.ps1"
 
-# Test categories
-$script:TestCategories = @{
+$TestCategories = @{
     "category-1" = @("xxx-1.1", "xxx-1.2")
     "category-2" = @("xxx-2.1", "xxx-2.2")
 }
 
+Initialize-TestEnvironment -TestId $TestId -Category $Category -TestCategories $TestCategories
+Set-VerboseOutput -Enabled $Verbose
+Build-Certz -Verbose:$Verbose
+Enter-ToolsDirectory
+Remove-TestFiles "xxx-"
+
 # Tests follow the pattern:
-# Invoke-Test -TestId "xxx-1.1" -TestName "Description" -TestScript {
-#     # SETUP: PowerShell only
+# Invoke-Test -TestId "xxx-1.1" -TestName "Description" -FilePrefix "xxx" -TestScript {
+#     # SETUP: PowerShell only (New-SelfSignedCertificate, Export-PfxCertificate, etc.)
 #     # ACTION: Single certz.exe call
-#     # ASSERTION: PowerShell verification
-#     # CLEANUP: In finally block
+#     # ASSERTIONS: PowerShell verification (Assert-FileExists, cert properties, etc.)
+#     # CLEANUP: In finally block if needed
 # }
+
+if (-not $SkipCleanup) {
+    Remove-TestFiles "xxx-"
+}
+Exit-ToolsDirectory
+$exitCode = Write-TestSummary -SkipCleanup:$SkipCleanup
+exit $exitCode
 ```
 
 ---
@@ -173,8 +210,8 @@ $script:TestCategories = @{
 
 | Status | Count | Description |
 |--------|-------|-------------|
-| ✅ Covered | 8 | test-create, test-inspect, test-trust, test-convert, test-lint, test-monitor, test-renew, test-ephemeral |
-| ⚠️ Gaps | 3 | Low priority only (see above) |
-| ⏳ Future | 1 | test-crossplatform.ps1 (Phase 10) |
+| ✅ Covered | 12 files | All commands have dedicated test files |
+| ⚠️ Gaps | ~10 | Medium and low priority (see above) |
+| ⏳ Future | 1 | `test-crossplatform.ps1` (Phase 10) |
 
-**Next Action:** Begin Phase 10 cross-platform support, or fill remaining low-priority test gaps.
+**Total tests: 147 across 12 files**

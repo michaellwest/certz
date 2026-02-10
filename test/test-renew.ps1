@@ -92,12 +92,19 @@ Write-TestHeader "Testing Self-Signed Certificate Renewal"
 
 # Test ren-1.1: Renew self-signed certificate with default options
 Invoke-Test -TestId "ren-1.1" -TestName "Renew self-signed cert (defaults)" -FilePrefix "ren" -TestScript {
-    # SETUP: Create self-signed certificate using certz
-    & .\certz.exe create dev renew-test.local --f ren-original.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
-    Assert-FileExists "ren-original.pfx"
+    # SETUP: Create self-signed certificate using PowerShell (NOT certz)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=renew-test.local" `
+        -DnsName "renew-test.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(365) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "ren-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
 
-    # ACTION: Renew the certificate
+    # ACTION: Renew the certificate (single certz.exe call)
     $output = & .\certz.exe renew ren-original.pfx --password TestPass123 --out ren-renewed.pfx --out-password TestPass123 2>&1
     $exitCode = $LASTEXITCODE
 
@@ -142,11 +149,19 @@ Invoke-Test -TestId "ren-1.1" -TestName "Renew self-signed cert (defaults)" -Fil
 
 # Test ren-1.2: Renew with custom days
 Invoke-Test -TestId "ren-1.2" -TestName "Renew with custom validity days" -FilePrefix "ren" -TestScript {
-    # SETUP: Create self-signed certificate
-    & .\certz.exe create dev renew-days.local --f ren-days-original.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
+    # SETUP: Create self-signed certificate using PowerShell (NOT certz)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=renew-days.local" `
+        -DnsName "renew-days.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(365) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "ren-days-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
 
-    # ACTION: Renew with 180 days validity
+    # ACTION: Renew with 180 days validity (single certz.exe call)
     $output = & .\certz.exe renew ren-days-original.pfx --password TestPass123 --days 180 --out ren-days-renewed.pfx --out-password TestPass123 2>&1
     $exitCode = $LASTEXITCODE
 
@@ -173,11 +188,19 @@ Invoke-Test -TestId "ren-1.2" -TestName "Renew with custom validity days" -FileP
 
 # Test ren-1.3: Renew with auto-generated password
 Invoke-Test -TestId "ren-1.3" -TestName "Renew with auto-generated password" -FilePrefix "ren" -TestScript {
-    # SETUP: Create self-signed certificate
-    & .\certz.exe create dev renew-autopass.local --f ren-autopass-original.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
+    # SETUP: Create self-signed certificate using PowerShell (NOT certz)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=renew-autopass.local" `
+        -DnsName "renew-autopass.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(365) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "ren-autopass-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
 
-    # ACTION: Renew without specifying output password (should auto-generate)
+    # ACTION: Renew without specifying output password (should auto-generate) (single certz.exe call)
     $output = & .\certz.exe renew ren-autopass-original.pfx --password TestPass123 --out ren-autopass-renewed.pfx --format json 2>&1
     $exitCode = $LASTEXITCODE
 
@@ -208,42 +231,140 @@ Write-TestHeader "Testing CA-Signed Certificate Renewal"
 
 # Test ren-2.1: Renew CA-signed certificate with issuer
 Invoke-Test -TestId "ren-2.1" -TestName "Renew CA-signed cert with issuer" -FilePrefix "ren" -TestScript {
-    # SETUP: Create CA and signed certificate using certz
-    & .\certz.exe create ca --name "Test CA" --f ren-ca.pfx --p CaPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
-    Assert-FileExists "ren-ca.pfx"
-
-    & .\certz.exe create dev signed.local --issuer-cert ren-ca.pfx --issuer-password CaPass123 --f ren-signed.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
-    Assert-FileExists "ren-signed.pfx"
-
-    # ACTION: Renew the CA-signed certificate
-    $output = & .\certz.exe renew ren-signed.pfx --password TestPass123 --issuer-cert ren-ca.pfx --issuer-password CaPass123 --out ren-signed-renewed.pfx --out-password TestPass123 2>&1
-    $exitCode = $LASTEXITCODE
-
-    # ASSERTIONS
-    if ($exitCode -ne 0) {
-        throw "Expected exit code 0, got $exitCode"
+    # SETUP: Create CA and signed certificate using PowerShell (NOT certz)
+    $caParams = @{
+        Subject = "CN=certz-Renew Test CA"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddYears(5)
+        KeyUsage = "CertSign", "CRLSign"
+        TextExtension = @("2.5.29.19={critical}{text}CA=TRUE")
     }
+    $caCert = New-SelfSignedCertificate @caParams
 
-    Assert-FileExists "ren-signed-renewed.pfx"
+    $signedParams = @{
+        Subject = "CN=signed.local"
+        DnsName = "signed.local"
+        Signer = $caCert
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(365)
+    }
+    $signedCert = New-SelfSignedCertificate @signedParams
 
-    # Verify renewed certificate is signed by the CA
-    $ca = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
-        (Resolve-Path "ren-ca.pfx").Path, "CaPass123")
-    $renewed = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
-        (Resolve-Path "ren-signed-renewed.pfx").Path, "TestPass123")
+    $caPw = ConvertTo-SecureString "CaPass123" -AsPlainText -Force
+    $signedPw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $caCert -FilePath "ren-ca.pfx" -Password $caPw | Out-Null
+    Export-PfxCertificate -Cert $signedCert -FilePath "ren-signed.pfx" -Password $signedPw | Out-Null
 
-    if ($renewed.Issuer -ne $ca.Subject) {
+    try {
+        Remove-Item $caCert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $signedCert.PSPath -Force -ErrorAction SilentlyContinue
+
+        # ACTION: Renew the CA-signed certificate (single certz.exe call)
+        $output = & .\certz.exe renew ren-signed.pfx --password TestPass123 --issuer-cert ren-ca.pfx --issuer-password CaPass123 --out ren-signed-renewed.pfx --out-password TestPass123 2>&1
+        $exitCode = $LASTEXITCODE
+
+        # ASSERTIONS
+        if ($exitCode -ne 0) {
+            throw "Expected exit code 0, got $exitCode"
+        }
+
+        Assert-FileExists "ren-signed-renewed.pfx"
+
+        # Verify renewed certificate is signed by the CA
+        $ca = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "ren-ca.pfx").Path, "CaPass123")
+        $renewed = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "ren-signed-renewed.pfx").Path, "TestPass123")
+
+        if ($renewed.Issuer -ne $ca.Subject) {
+            $ca.Dispose()
+            $renewed.Dispose()
+            throw "Renewed cert should be issued by CA"
+        }
+
         $ca.Dispose()
         $renewed.Dispose()
-        throw "Renewed cert should be issued by CA"
+
+        [PSCustomObject]@{ Success = $true; Details = "CA-signed certificate renewed with issuer" }
     }
+    finally {
+        Remove-Item "ren-ca.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "ren-signed.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "ren-signed-renewed.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
 
-    $ca.Dispose()
-    $renewed.Dispose()
+# Test ren-2.2: Renew CA-signed cert preserving SANs
+Invoke-Test -TestId "ren-2.2" -TestName "Renew CA-signed cert preserving SANs" -FilePrefix "ren" -TestScript {
+    # SETUP: Create CA and signed certificate with multiple SANs using PowerShell (NOT certz)
+    $caParams = @{
+        Subject = "CN=certz-SAN Test CA"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddYears(5)
+        KeyUsage = "CertSign", "CRLSign"
+        TextExtension = @("2.5.29.19={critical}{text}CA=TRUE")
+    }
+    $caCert = New-SelfSignedCertificate @caParams
 
-    [PSCustomObject]@{ Success = $true; Details = "CA-signed certificate renewed with issuer" }
+    $signedParams = @{
+        Subject = "CN=san-renew.local"
+        DnsName = "san-renew.local", "www.san-renew.local", "api.san-renew.local"
+        Signer = $caCert
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(365)
+    }
+    $signedCert = New-SelfSignedCertificate @signedParams
+
+    $caPw = ConvertTo-SecureString "CaPass123" -AsPlainText -Force
+    $signedPw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $caCert -FilePath "ren-san-ca.pfx" -Password $caPw | Out-Null
+    Export-PfxCertificate -Cert $signedCert -FilePath "ren-san-signed.pfx" -Password $signedPw | Out-Null
+
+    try {
+        Remove-Item $caCert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $signedCert.PSPath -Force -ErrorAction SilentlyContinue
+
+        # ACTION: Renew the CA-signed certificate (single certz.exe call)
+        $output = & .\certz.exe renew ren-san-signed.pfx --password TestPass123 --issuer-cert ren-san-ca.pfx --issuer-password CaPass123 --out ren-san-renewed.pfx --out-password TestPass123 2>&1
+        $exitCode = $LASTEXITCODE
+
+        # ASSERTIONS
+        if ($exitCode -ne 0) {
+            throw "Expected exit code 0, got $exitCode"
+        }
+
+        Assert-FileExists "ren-san-renewed.pfx"
+
+        # Verify SANs are preserved in the renewed certificate
+        $renewed = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "ren-san-renewed.pfx").Path, "TestPass123")
+        $sanExt = $renewed.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" }
+        if (-not $sanExt) {
+            $renewed.Dispose()
+            throw "Renewed certificate should have SAN extension"
+        }
+        $sanText = $sanExt.Format($false)
+        $renewed.Dispose()
+
+        if ($sanText -notmatch "san-renew\.local") {
+            throw "Renewed cert should preserve original SANs. Got: $sanText"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "SANs preserved after CA-signed renewal" }
+    }
+    finally {
+        Remove-Item "ren-san-ca.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "ren-san-signed.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "ren-san-renewed.pfx" -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ============================================================================
@@ -253,9 +374,17 @@ Write-TestHeader "Testing Key Preservation"
 
 # Test ren-3.1: Renew with --keep-key preserves private key
 Invoke-Test -TestId "ren-3.1" -TestName "Renew with --keep-key preserves key" -FilePrefix "ren" -TestScript {
-    # SETUP: Create self-signed certificate
-    & .\certz.exe create dev keepkey.local --f ren-keepkey-original.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
+    # SETUP: Create self-signed certificate using PowerShell (NOT certz)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=keepkey.local" `
+        -DnsName "keepkey.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(365) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "ren-keepkey-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
 
     # Get original public key
     $original = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
@@ -263,7 +392,7 @@ Invoke-Test -TestId "ren-3.1" -TestName "Renew with --keep-key preserves key" -F
     $originalPubKey = $original.GetPublicKeyString()
     $original.Dispose()
 
-    # ACTION: Renew with --keep-key
+    # ACTION: Renew with --keep-key (single certz.exe call)
     $output = & .\certz.exe renew ren-keepkey-original.pfx --password TestPass123 --keep-key --out ren-keepkey-renewed.pfx --out-password TestPass123 2>&1
     $exitCode = $LASTEXITCODE
 
@@ -294,11 +423,19 @@ Write-TestHeader "Testing Validity Constraints"
 
 # Test ren-4.1: Validity capped at 398 days
 Invoke-Test -TestId "ren-4.1" -TestName "Validity capped at 398 days" -FilePrefix "ren" -TestScript {
-    # SETUP: Create self-signed certificate
-    & .\certz.exe create dev cap-test.local --f ren-cap-original.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
+    # SETUP: Create self-signed certificate using PowerShell (NOT certz)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=cap-test.local" `
+        -DnsName "cap-test.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(365) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "ren-cap-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
 
-    # ACTION: Try to renew with 500 days (should be capped at 398)
+    # ACTION: Try to renew with 500 days (should be capped at 398) (single certz.exe call)
     $output = & .\certz.exe renew ren-cap-original.pfx --password TestPass123 --days 500 --out ren-cap-renewed.pfx --out-password TestPass123 2>&1
     $exitCode = $LASTEXITCODE
 
@@ -321,6 +458,44 @@ Invoke-Test -TestId "ren-4.1" -TestName "Validity capped at 398 days" -FilePrefi
     [PSCustomObject]@{ Success = $true; Details = "Validity constraint enforced" }
 }
 
+# Test ren-4.2: Renew preserves original validity period (capped at 398)
+Invoke-Test -TestId "ren-4.2" -TestName "Renew preserves original validity (capped at 398)" -FilePrefix "ren" -TestScript {
+    # SETUP: Create self-signed cert with 180-day validity using PowerShell (NOT certz)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=validity-preserve.local" `
+        -DnsName "validity-preserve.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(180) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "ren-validity-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    # ACTION: Renew without specifying --days (should preserve 180 days) (single certz.exe call)
+    $output = & .\certz.exe renew ren-validity-original.pfx --password TestPass123 --out ren-validity-renewed.pfx --out-password TestPass123 2>&1
+    $exitCode = $LASTEXITCODE
+
+    # ASSERTIONS
+    if ($exitCode -ne 0) {
+        throw "Expected exit code 0, got $exitCode"
+    }
+
+    Assert-FileExists "ren-validity-renewed.pfx"
+
+    $renewed = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "ren-validity-renewed.pfx").Path, "TestPass123")
+    $validityDays = ($renewed.NotAfter - $renewed.NotBefore).Days
+    $renewed.Dispose()
+
+    # Original was 180 days, which is under 398 cap, so should be preserved
+    if ($validityDays -lt 178 -or $validityDays -gt 182) {
+        throw "Expected ~180 days validity (preserved from original), got $validityDays days"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "Original validity of $validityDays days preserved" }
+}
+
 # ============================================================================
 # ERROR HANDLING TESTS
 # ============================================================================
@@ -328,28 +503,55 @@ Write-TestHeader "Testing Error Handling"
 
 # Test ren-5.1: Error when CA-signed cert renewed without issuer
 Invoke-Test -TestId "ren-5.1" -TestName "Error: CA-signed cert without issuer" -FilePrefix "ren" -TestScript {
-    # SETUP: Create CA and signed certificate using certz
-    & .\certz.exe create ca --name "Error Test CA" --f ren-err-ca.pfx --p CaPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
-
-    & .\certz.exe create dev error-signed.local --issuer-cert ren-err-ca.pfx --issuer-password CaPass123 --f ren-err-signed.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
-
-    # ACTION: Try to renew without issuer (should fail)
-    $output = & .\certz.exe renew ren-err-signed.pfx --password TestPass123 2>&1
-    $exitCode = $LASTEXITCODE
-
-    # ASSERTIONS
-    if ($exitCode -ne 2) {
-        throw "Expected exit code 2 (missing issuer), got $exitCode"
+    # SETUP: Create CA and signed certificate using PowerShell (NOT certz)
+    $caParams = @{
+        Subject = "CN=certz-Error Test CA"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddYears(5)
+        KeyUsage = "CertSign", "CRLSign"
+        TextExtension = @("2.5.29.19={critical}{text}CA=TRUE")
     }
+    $caCert = New-SelfSignedCertificate @caParams
 
-    [PSCustomObject]@{ Success = $true; Details = "Correctly failed with exit code 2 for missing issuer" }
+    $signedParams = @{
+        Subject = "CN=error-signed.local"
+        DnsName = "error-signed.local"
+        Signer = $caCert
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(365)
+    }
+    $signedCert = New-SelfSignedCertificate @signedParams
+
+    $signedPw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $signedCert -FilePath "ren-err-signed.pfx" -Password $signedPw | Out-Null
+
+    try {
+        Remove-Item $caCert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $signedCert.PSPath -Force -ErrorAction SilentlyContinue
+
+        # ACTION: Try to renew without issuer (should fail) (single certz.exe call)
+        $output = & .\certz.exe renew ren-err-signed.pfx --password TestPass123 2>&1
+        $exitCode = $LASTEXITCODE
+
+        # ASSERTIONS
+        if ($exitCode -ne 2) {
+            throw "Expected exit code 2 (missing issuer), got $exitCode"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Correctly failed with exit code 2 for missing issuer" }
+    }
+    finally {
+        Remove-Item "ren-err-signed.pfx" -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # Test ren-5.2: Error when source file not found
 Invoke-Test -TestId "ren-5.2" -TestName "Error: Source file not found" -FilePrefix "ren" -TestScript {
-    # ACTION: Try to renew non-existent file
+    # ACTION: Try to renew non-existent file (single certz.exe call)
     $output = & .\certz.exe renew nonexistent.pfx --password TestPass123 2>&1
     $exitCode = $LASTEXITCODE
 
@@ -368,11 +570,19 @@ Write-TestHeader "Testing Output Formats"
 
 # Test ren-6.1: JSON output format
 Invoke-Test -TestId "ren-6.1" -TestName "JSON output format" -FilePrefix "ren" -TestScript {
-    # SETUP: Create self-signed certificate
-    & .\certz.exe create dev json-test.local --f ren-json-original.pfx --p TestPass123 2>&1 | Out-Null
-    Assert-ExitCode -Expected 0
+    # SETUP: Create self-signed certificate using PowerShell (NOT certz)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=json-test.local" `
+        -DnsName "json-test.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(365) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "ren-json-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
 
-    # ACTION: Renew with JSON output
+    # ACTION: Renew with JSON output (single certz.exe call)
     $output = & .\certz.exe renew ren-json-original.pfx --password TestPass123 --out ren-json-renewed.pfx --out-password TestPass123 --format json 2>&1
     $exitCode = $LASTEXITCODE
 

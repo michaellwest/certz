@@ -52,69 +52,25 @@ Run the dedicated test scripts for each command group:
 .\test-lint.ps1 -Category cabf
 ```
 
-### Legacy Testing (v1.x Commands)
+### Run All Test Suites
 
-Run the comprehensive test script to validate all legacy features:
+Run every dedicated test file to validate all features:
 
 ```powershell
-# From the project root directory (requires Administrator privileges)
-.\test-all.ps1
+# From the test/ directory (PowerShell 7.5+ required)
+pwsh -File test/test-create.ps1
+pwsh -File test/test-inspect.ps1
+pwsh -File test/test-trust.ps1
+pwsh -File test/test-convert.ps1
+pwsh -File test/test-lint.ps1
+pwsh -File test/test-monitor.ps1
+pwsh -File test/test-renew.ps1
+pwsh -File test/test-ephemeral.ps1
+pwsh -File test/test-examples.ps1
+pwsh -File test/test-export.ps1
+pwsh -File test/test-verify.ps1
+pwsh -File test/test-install.ps1
 ```
-
-This will automatically test all commands and options with detailed output.
-
-### Docker Container Testing (Isolated Environment)
-
-For isolated testing in a containerized environment, use the Docker option.
-
-**Two modes available:**
-
-1. **Standard Mode** (files baked into image - best for CI/CD):
-```powershell
-# Run tests in a Windows Docker container
-.\test-all.ps1 -UseDocker
-
-# Run with verbose output
-.\test-all.ps1 -UseDocker -DockerVerbose
-```
-
-**Docker Testing Prerequisites:**
-- Docker Desktop for Windows installed
-- Windows containers enabled in Docker Desktop (switch from Linux containers if needed)
-- At least 4GB of RAM allocated to Docker
-- Internet connection (for pulling base images on first run)
-
-**Benefits of Docker Testing:**
-- Complete isolation from your host system
-- No administrator privileges required on host (Docker handles elevation)
-- Clean environment for each test run
-- No leftover certificates or files on your system
-- Consistent test environment across different machines
-- Easy CI/CD integration
-
-**Docker Testing Notes:**
-- The `-SkipCleanup` flag is ignored in Docker mode (container is ephemeral)
-- Test results will be displayed in the console output
-- Container is automatically removed after tests complete
-- Exit code reflects test success (0) or failure (1)
-
-#### Switching Docker to Windows Containers
-
-If you encounter errors about incompatible image platforms:
-
-1. Right-click Docker Desktop icon in system tray
-2. Select "Switch to Windows containers..."
-3. Wait for Docker to restart
-4. Run the test command again
-
-#### Docker Test Architecture
-
-The Docker testing setup uses:
-- **Dockerfile.test** - Specialized test container configuration
-- **docker-compose.test.yml** - Docker Compose configuration for test orchestration
-- Base image: `mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022`
-- Runs as ContainerAdministrator for certificate operations
-- Executes the same test-all.ps1 script in isolated environment
 
 ---
 
@@ -1250,27 +1206,17 @@ For ongoing development, run the automated test suite:
 
 ### Local Testing
 ```powershell
-# Run all tests locally
-.\test-all.ps1
+# Run a specific test suite
+pwsh -File test/test-create.ps1
 
 # Run with verbose output
-.\test-all.ps1 -Verbose
+pwsh -File test/test-create.ps1 -Verbose
 
-# Check for failures
-echo $LASTEXITCODE
-```
+# Run specific test by ID
+pwsh -File test/test-create.ps1 -TestId "dev-1.1"
 
-### Docker Testing (Recommended for CI/CD)
-```powershell
-# Run tests in isolated Docker container
-.\test-all.ps1 -UseDocker
-
-# CI/CD pipeline example
-.\test-all.ps1 -UseDocker -DockerVerbose
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Tests failed!"
-    exit 1
-}
+# Run tests by category
+pwsh -File test/test-trust.ps1 -Category trust-add
 ```
 
 ### CI/CD Integration Examples
@@ -1286,8 +1232,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Run tests in Docker
-        run: .\test-all.ps1 -UseDocker -DockerVerbose
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $scripts = Get-ChildItem test/test-*.ps1 -Exclude test-helper.ps1
+          foreach ($script in $scripts) {
+            pwsh -File $script.FullName
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
 ```
 
 **Azure DevOps:**
@@ -1297,10 +1249,12 @@ steps:
   displayName: 'Run Certz Tests'
   inputs:
     targetType: 'inline'
+    pwsh: true
     script: |
-      .\test-all.ps1 -UseDocker -DockerVerbose
-      if ($LASTEXITCODE -ne 0) {
-        throw "Tests failed"
+      $scripts = Get-ChildItem test/test-*.ps1 -Exclude test-helper.ps1
+      foreach ($script in $scripts) {
+        pwsh -File $script.FullName
+        if ($LASTEXITCODE -ne 0) { throw "Tests failed: $($script.Name)" }
       }
 ```
 
