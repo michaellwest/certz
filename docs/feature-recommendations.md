@@ -117,16 +117,20 @@ Implement `--guided` flag that invokes a full wizard using Spectre.Console promp
 
 **Plan:** See `phase3-implementation-plan.md`
 
-### Phase 4: Advanced Diagnostics
+### Phase 4: Advanced Diagnostics ✅ COMPLETE
 - `lint` command for CA/B Forum Baseline Requirements validation
 - Mozilla NSS Policy validation
 - `renew` command for certificate renewal with auto-detection
 
-### Phase 5: Browser Trust Store Integration
-Extend `trust add/remove` to support:
-- Chrome (Windows certificate store, NSS for Linux)
-- Firefox (NSS certutil)
-- Edge (Windows certificate store)
+### Phase 5: Browser Trust Store Integration ⏸️ DEFERRED
+**Status:** Back burner — not planned for implementation.
+
+**Rationale:** Chrome and Edge on Windows already use the Windows certificate store, so `certz trust add` works automatically. Firefox uses its own NSS database, but given Firefox's low market share (~3-6%) and the ability to manually add exceptions, the development effort doesn't justify the limited value.
+
+~~Extend `trust add/remove` to support:~~
+- ~~Chrome (Windows certificate store, NSS for Linux)~~
+- ~~Firefox (NSS certutil)~~
+- ~~Edge (Windows certificate store)~~
 
 ---
 
