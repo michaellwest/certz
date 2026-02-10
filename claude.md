@@ -1,3 +1,133 @@
+# Certz Passive Context Index
+
+> **CRITICAL RULE:** Before modifying any certificate logic, you MUST read this minified index and use the Read tool on relevant files to refresh your memory. Do NOT rely on pre-trained knowledge for certz's custom certificate lifecycle, validation rules, or CLI patterns.
+
+## Code Map (Pipe-Delimited)
+
+```
+[Certz Source Index v1.0]|root:c:\Projects\github\michaellwest\certz
+
+=== COMMANDS (CLI Entry Points) ===
+|Commands/CreateCommand.cs|routes to create subcommands
+|Commands/Create/{CreateDevCommand,CreateCaCommand}.cs|dev cert & CA creation handlers
+|Commands/Inspect/InspectCommand.cs|inspect file,url,store,chain
+|Commands/Trust/TrustCommand.cs|trust add,remove,list ops
+|Commands/Lint/LintCommand.cs|CA/B Forum+Mozilla validation
+|Commands/Monitor/MonitorCommand.cs|expiration tracking
+|Commands/Renew/RenewCommand.cs|cert renewal logic
+|Commands/ConvertCommand.cs|PEM↔DER↔PFX conversion
+|Commands/Store/StoreListCommand.cs|list certs in store
+|Commands/{Install,Export,Info,List,Remove,Verify}Command.cs|store operations
+
+=== SERVICES (Business Logic) ===
+|Services/CreateService.cs|high-level cert creation (dev+CA)
+|Services/CertificateGeneration.cs|★CORE: key pairs, signing, extensions
+|Services/CertificateUtilities.cs|password gen, parsing, file type detection
+|Services/CertificateInspector.cs|deep property+extension inspection
+|Services/CertificateDisplay.cs|console formatting of cert info
+|Services/InspectService.cs|route to file/url/store/chain inspect
+|Services/TrustService.cs|trust store add/remove
+|Services/LintService.cs|validation rules (398-day, SAN, SHA-2)
+|Services/MonitorService.cs|expiry scanning
+|Services/RenewService.cs|renewal with param detection
+|Services/ConvertService.cs|format conversions
+|Services/ExportService.cs|export from store/url
+|Services/FormatDetectionService.cs|auto-detect PEM/DER/PFX
+|Services/PipeOutputService.cs|stdout streaming (ephemeral)
+|Services/CertificateWizard.cs|interactive --guided mode
+|Services/Validation/{ChainValidator,ChainVisualizer}.cs|chain verify+tree viz
+
+=== MODELS (Options + Results) ===
+|Models/DevCertificateOptions.cs|create dev params
+|Models/CACertificateOptions.cs|create ca params
+|Models/CertificateCreationResult.cs|creation output record
+|Models/InspectOptions.cs|inspect params
+|Models/CertificateInspectResult.cs|inspect output
+|Models/LintOptions.cs + LintResult.cs|lint params+output
+|Models/MonitorOptions.cs + MonitorResult.cs|monitor params+output
+|Models/RenewOptions.cs + RenewResult.cs|renew params+output
+|Models/ConvertOptions.cs + ConversionResult.cs|convert params+output
+|Models/{AddToTrustStore,Export*,Verify*,List*,Remove*}Options.cs|store ops
+|Models/CertificateFileType.cs|enum: PEM,DER,PFX
+|Models/FormatType.cs|enum: Text,Json
+|Models/InspectSource.cs|enum: File,Url,Store,Chain
+|Models/ChainElementInfo.cs|chain element record
+
+=== OPTIONS & FORMATTERS ===
+|Options/OptionBuilders.cs|★528 lines: all CLI option factories w/validators
+|Formatters/{IOutputFormatter,FormatterFactory}.cs|output interface+factory
+|Formatters/{TextFormatter,JsonFormatter}.cs|text+json implementations
+
+=== INFRASTRUCTURE ===
+|Program.cs|entry point, global --format, exception handler
+|GlobalUsings.cs|common imports
+|certz.csproj|.NET 10, single-file, self-contained config
+|Exceptions/{CertificateException,LintFailedException}.cs|custom exceptions
+
+=== DOCUMENTATION ===
+|README.md|★28KB authoritative CLI reference
+|CLAUDE.md|project constraints+patterns (this file)
+|docs/README.md|documentation hub
+|docs/certz-spec.md|CLI specification
+|docs/architecture.md|design patterns, service structure
+|docs/phases/phase{1-9}-*.md|feature implementation plans
+|docs/testing.md|test execution procedures
+|docs/docker-*.md|container testing guides
+
+=== TESTING ===
+|test/isolation-plan.md|★single-call test principle
+|test/coverage-analysis.md|test gaps
+|test/test-helper.ps1|shared utilities
+|test/test-{create,inspect,trust,lint,monitor,renew,ephemeral,convert}.ps1|feature tests
+|test/test-all.ps1|★74KB comprehensive test runner
+```
+
+## Quick Build & Test Commands
+
+```powershell
+# Build debug
+dotnet build
+
+# Build release (single-file executable)
+.\build-release.ps1
+
+# Run all tests (PowerShell 7.5+)
+pwsh -File test/test-all.ps1
+
+# Run specific test suite
+pwsh -File test/test-create.ps1
+pwsh -File test/test-lint.ps1
+pwsh -File test/test-convert.ps1
+
+# Quick CLI test
+.\release\certz.exe --help
+.\release\certz.exe create dev --cn test.local --ephemeral
+.\release\certz.exe lint --file test.crt
+```
+
+## Index Refresh Protocol
+
+**When to refresh:** After adding/removing source files, commands, or services.
+
+**Manual refresh:** Update the Code Map section above by running:
+```powershell
+# List all source files for index update
+Get-ChildItem -Recurse -Include *.cs -Exclude obj,bin |
+    Select-Object -ExpandProperty FullName |
+    ForEach-Object { $_.Replace((Get-Location).Path + '\', '') }
+```
+
+**Auto-refresh hook (add to .git/hooks/post-commit):**
+```bash
+#!/bin/bash
+# Remind to update CLAUDE.md index when source files change
+if git diff --cached --name-only | grep -qE '\.(cs|md)$'; then
+    echo "⚠️  Source/docs changed - consider updating CLAUDE.md Code Map"
+fi
+```
+
+---
+
 # Project Requirements
 
 ## Tool Requirements
@@ -161,6 +291,14 @@ When asked to create a new phase implementation plan or prompt:
 - **Exit codes:** Use `throw new ArgumentException()` in async handlers (not `Environment.ExitCode`)
 
 ## Certz Reasoning Protocol
+
+**MANDATORY RETRIEVAL RULE:** Before modifying ANY certificate-related logic (creation, validation, signing, chain handling, linting, conversion), you MUST:
+
+1. **Read the Code Map** (above) to identify relevant files
+2. **Read the actual source files** using the Read tool - do NOT rely on cached or pre-trained knowledge
+3. **Verify current implementation** before proposing changes
+
+This rule exists because certz has custom lifecycle hooks, validation rules, and CLI patterns that differ from generic .NET/OpenSSL approaches.
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning for any certz tasks.
 
