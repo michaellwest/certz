@@ -32,6 +32,19 @@
 - PKCS#12 / PFX Easy Handling: Simple conversion commands between PEM, DER, and PFX that don't require memorizing complex "export" flags.
 - Sandbox/Ephemeral Mode: A flag to generate a "throwaway" certificate in memory for testing that is never written to disk.
 
+### 6. Distribution Requirements
+
+- **Single-File Executable**: certz.exe MUST be a single, self-contained executable with no external dependencies. Users should be able to copy and run the executable without installing .NET runtime or any additional files.
+- **No Configuration Files Required**: The tool must work out-of-the-box without requiring configuration files, environment variables, or registry entries.
+- **Portable**: The executable can be placed anywhere on the filesystem and run from any directory.
+
+Build settings that enforce this (in certz.csproj):
+```xml
+<PublishSingleFile>true</PublishSingleFile>
+<SelfContained>true</SelfContained>
+<PublishTrimmed>true</PublishTrimmed>
+```
+
 ## Documentation Requirements
 
 ### 1. Testing Documentation
