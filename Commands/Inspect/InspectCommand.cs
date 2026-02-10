@@ -36,6 +36,12 @@ internal static class InspectCommand
             DefaultValueFactory = _ => false
         };
 
+        var treeOption = new Option<bool>("--tree", "-t")
+        {
+            Description = "Show detailed tree with key info, SANs, and signatures (requires --chain)",
+            DefaultValueFactory = _ => false
+        };
+
         var crlOption = new Option<bool>("--crl")
         {
             Description = "Check certificate revocation status (OCSP preferred, CRL fallback)",
@@ -101,6 +107,7 @@ internal static class InspectCommand
             sourceArgument,
             passwordOption,
             chainOption,
+            treeOption,
             crlOption,
             warnOption,
             saveOption,
@@ -117,6 +124,7 @@ internal static class InspectCommand
                 ?? throw new ArgumentException("Source argument is required.");
             var password = parseResult.GetValue(passwordOption);
             var showChain = parseResult.GetValue(chainOption);
+            var showTree = parseResult.GetValue(treeOption);
             var checkCrl = parseResult.GetValue(crlOption);
             var warnDays = parseResult.GetValue(warnOption);
             var savePath = parseResult.GetValue(saveOption);
@@ -126,6 +134,12 @@ internal static class InspectCommand
             var storeLocation = parseResult.GetValue(locationOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
 
+            // --tree implies --chain
+            if (showTree && !showChain)
+            {
+                showChain = true;
+            }
+
             var formatter = FormatterFactory.Create(format);
 
             var options = new InspectOptions
@@ -133,6 +147,7 @@ internal static class InspectCommand
                 Source = source,
                 Password = password,
                 ShowChain = showChain,
+                DetailedTree = showTree,
                 CheckCrl = checkCrl,
                 WarnDays = warnDays,
                 SavePath = savePath,

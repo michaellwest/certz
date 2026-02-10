@@ -106,6 +106,11 @@ internal record CertificateInspectResult
     public bool ChainIsValid { get; init; }
 
     /// <summary>
+    /// Whether to display detailed tree view (with key info, SANs, signatures).
+    /// </summary>
+    public bool DetailedTree { get; init; }
+
+    /// <summary>
     /// Any warnings or issues found during inspection.
     /// </summary>
     public List<string> Warnings { get; init; } = [];

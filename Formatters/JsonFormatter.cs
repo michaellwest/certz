@@ -21,7 +21,9 @@ internal record CertificateCreatedOutput(
     CertificateDto Certificate,
     string[]? Files,
     string? Password,
-    bool WasTrusted
+    bool WasTrusted,
+    bool IsEphemeral,
+    bool WasPiped
 );
 
 internal record CertificateInspectedOutput(
@@ -62,6 +64,14 @@ internal record ChainElementDto(
     string NotAfter,
     bool IsCa,
     bool IsSelfSigned,
+    string? KeyAlgorithm,
+    int KeySize,
+    string? SignatureAlgorithm,
+    string[]? SubjectAlternativeNames,
+    int DaysRemaining,
+    string? RevocationStatus,
+    string[]? CrlDistributionPoints,
+    string? OcspResponder,
     string[]? ValidationErrors
 );
 
@@ -119,6 +129,7 @@ internal record MultipleMatchesOutput(
 internal record ConversionOutput(
     bool Success,
     string OutputFile,
+    string? OutputFormat,
     string? InputCertificate,
     string? InputKey,
     string? InputPfx,
@@ -209,6 +220,53 @@ internal record LintFindingDto(
     string? ExpectedValue
 );
 
+// Monitor result DTOs
+internal record MonitorOutput(
+    bool Success,
+    int TotalScanned,
+    int ValidCount,
+    int ExpiringCount,
+    int ExpiredCount,
+    int WarnThreshold,
+    MonitorCertificateDto[] Certificates,
+    MonitorErrorDto[]? Errors
+);
+
+internal record MonitorCertificateDto(
+    string Source,
+    string Subject,
+    string Thumbprint,
+    string NotAfter,
+    int DaysRemaining,
+    string Status,
+    bool IsWarning
+);
+
+internal record MonitorErrorDto(
+    string Source,
+    string Message
+);
+
+// Renew result DTO
+internal record RenewOutput(
+    bool Success,
+    string? Error,
+    string OriginalSubject,
+    string OriginalThumbprint,
+    string OriginalNotAfter,
+    string? NewSubject,
+    string? NewThumbprint,
+    string? NewNotBefore,
+    string? NewNotAfter,
+    string? OutputFile,
+    string? Password,
+    bool PasswordWasGenerated,
+    string[]? SANs,
+    string? KeyType,
+    bool KeyWasPreserved,
+    bool WasResigned
+);
+
 // Source generator context for AOT compatibility
 [JsonSourceGenerationOptions(
     WriteIndented = false,
@@ -223,6 +281,8 @@ internal record LintFindingDto(
 [JsonSerializable(typeof(ExportOutput))]
 [JsonSerializable(typeof(VerificationOutput))]
 [JsonSerializable(typeof(LintOutput))]
+[JsonSerializable(typeof(MonitorOutput))]
+[JsonSerializable(typeof(RenewOutput))]
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
@@ -250,7 +310,9 @@ internal class JsonFormatter : IOutputFormatter
             Certificate: certificate,
             Files: result.OutputFiles.Length > 0 ? result.OutputFiles : null,
             Password: result.PasswordWasGenerated ? result.Password : null,
-            WasTrusted: result.WasTrusted
+            WasTrusted: result.WasTrusted,
+            IsEphemeral: result.IsEphemeral,
+            WasPiped: result.WasPiped
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.CertificateCreatedOutput));
@@ -291,6 +353,14 @@ internal class JsonFormatter : IOutputFormatter
                 c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 c.IsCa,
                 c.IsSelfSigned,
+                c.KeyAlgorithm,
+                c.KeySize,
+                c.SignatureAlgorithm,
+                c.SubjectAlternativeNames.Count > 0 ? c.SubjectAlternativeNames.ToArray() : null,
+                c.DaysRemaining,
+                c.RevocationStatus,
+                c.CrlDistributionPoints.Count > 0 ? c.CrlDistributionPoints.ToArray() : null,
+                c.OcspResponder,
                 c.ValidationErrors.Count > 0 ? c.ValidationErrors.ToArray() : null
             )).ToArray();
         }
@@ -377,6 +447,7 @@ internal class JsonFormatter : IOutputFormatter
         var output = new ConversionOutput(
             Success: result.Success,
             OutputFile: result.OutputFile,
+            OutputFormat: result.OutputFormat,
             InputCertificate: result.InputCertificate,
             InputKey: result.InputKey,
             InputPfx: result.InputPfx,
@@ -502,6 +573,64 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.LintOutput));
+    }
+
+    public void WriteMonitorResult(MonitorResult result, bool quietMode)
+    {
+        var certs = quietMode
+            ? result.Certificates.Where(c => c.IsWarning)
+            : result.Certificates;
+
+        var certificates = certs.Select(c => new MonitorCertificateDto(
+            c.Source,
+            c.Subject,
+            c.Thumbprint,
+            c.NotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            c.DaysRemaining,
+            c.Status,
+            c.IsWarning
+        )).ToArray();
+
+        var errors = result.Errors.Count > 0
+            ? result.Errors.Select(e => new MonitorErrorDto(e.Source, e.Message)).ToArray()
+            : null;
+
+        var output = new MonitorOutput(
+            Success: true,
+            TotalScanned: result.TotalScanned,
+            ValidCount: result.ValidCount,
+            ExpiringCount: result.ExpiringCount,
+            ExpiredCount: result.ExpiredCount,
+            WarnThreshold: result.WarnThreshold,
+            Certificates: certificates,
+            Errors: errors
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.MonitorOutput));
+    }
+
+    public void WriteRenewResult(RenewResult result)
+    {
+        var output = new RenewOutput(
+            Success: result.Success,
+            Error: result.ErrorMessage,
+            OriginalSubject: result.OriginalSubject,
+            OriginalThumbprint: result.OriginalThumbprint,
+            OriginalNotAfter: result.OriginalNotAfter.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            NewSubject: result.NewSubject,
+            NewThumbprint: result.NewThumbprint,
+            NewNotBefore: result.NewNotBefore?.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            NewNotAfter: result.NewNotAfter?.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            OutputFile: result.OutputFile,
+            Password: result.PasswordWasGenerated ? result.Password : null,
+            PasswordWasGenerated: result.PasswordWasGenerated,
+            SANs: result.SANs?.Length > 0 ? result.SANs : null,
+            KeyType: result.KeyType,
+            KeyWasPreserved: result.KeyWasPreserved,
+            WasResigned: result.WasResigned
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.RenewOutput));
     }
 
     public void WriteError(string message)

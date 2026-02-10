@@ -53,7 +53,7 @@ $TestCategories = @{
     "inspect-file" = @("ins-1.1", "ins-1.2", "ins-1.3", "ins-1.4", "ins-1.5")
     "inspect-url" = @("ins-2.1", "ins-2.2", "ins-2.3")
     "inspect-store" = @("ins-3.1", "ins-3.2")
-    "chain" = @("chn-1.1", "chn-1.2")
+    "chain" = @("chn-1.1", "chn-1.2", "chn-1.3", "chn-1.4")
     "save" = @("sav-1.1", "sav-1.2", "sav-1.3", "sav-1.4", "sav-1.5")
     "format" = @("fmt-2.1", "fmt-2.2")
 }
@@ -81,8 +81,8 @@ if ($TestId -or $Category) {
 # Build certz
 Build-Certz -Verbose:$Verbose
 
-# Change to tools directory
-Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
+# Change to tools directory (syncs both PowerShell and .NET current directories)
+Enter-ToolsDirectory
 
 # Initial cleanup
 Write-Host "Initializing test environment..." -ForegroundColor Yellow
@@ -541,6 +541,147 @@ Invoke-Test -TestId "chn-1.2" -TestName "Chain with revocation check" -FilePrefi
     }
 }
 
+# Test chn-1.3: Display detailed certificate chain tree with --tree flag
+Invoke-Test -TestId "chn-1.3" -TestName "Display detailed chain tree (--tree)" -FilePrefix "chn-tree-detail" -TestScript {
+    # SETUP: Create a CA and signed certificate chain using PowerShell
+    $caParams = @{
+        Subject = "CN=certz-Detail Chain Test CA"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddYears(1)
+        KeyUsage = "CertSign", "CRLSign"
+        TextExtension = @("2.5.29.19={critical}{text}CA=TRUE")
+    }
+    $caCert = New-SelfSignedCertificate @caParams
+
+    $endParams = @{
+        Subject = "CN=certz-chain-detail-end.local"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+        Signer = $caCert
+        DnsName = "certz-chain-detail-end.local", "localhost"
+    }
+    $endCert = New-SelfSignedCertificate @endParams
+
+    $password = ConvertTo-SecureString "ChainDetailPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $endCert -FilePath "chn-tree-detail.pfx" -Password $password -ChainOption BuildChain | Out-Null
+
+    try {
+        # ACTION: Single certz.exe call with --chain --tree
+        $output = & .\certz.exe inspect chn-tree-detail.pfx --password ChainDetailPass123 --chain --tree 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Output shows detailed chain structure with key info
+        if ($outputStr -notmatch "Key:") {
+            throw "Detailed chain should show key algorithm"
+        }
+        if ($outputStr -notmatch "Signature:") {
+            throw "Detailed chain should show signature algorithm"
+        }
+        if ($outputStr -notmatch "Valid:") {
+            throw "Detailed chain should show validity period"
+        }
+
+        # ASSERTION 3: End entity shows SANs
+        if ($outputStr -notmatch "SANs:") {
+            throw "Detailed chain should show SANs for end entity"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Detailed chain tree with --tree flag displayed correctly" }
+    }
+    finally {
+        # CLEANUP: PowerShell only
+        Remove-Item $caCert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $endCert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item "chn-tree-detail.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test chn-1.4: Chain JSON output includes new fields
+Invoke-Test -TestId "chn-1.4" -TestName "Chain JSON output with detailed fields" -FilePrefix "chn-json-detail" -TestScript {
+    # SETUP: Create a CA and signed certificate chain using PowerShell
+    $caParams = @{
+        Subject = "CN=certz-JSON Chain Test CA"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddYears(1)
+        KeyUsage = "CertSign", "CRLSign"
+        TextExtension = @("2.5.29.19={critical}{text}CA=TRUE")
+    }
+    $caCert = New-SelfSignedCertificate @caParams
+
+    $endParams = @{
+        Subject = "CN=certz-chain-json-end.local"
+        KeyAlgorithm = "ECDSA_nistP256"
+        KeyExportPolicy = "Exportable"
+        CertStoreLocation = "Cert:\CurrentUser\My"
+        NotAfter = (Get-Date).AddDays(90)
+        Signer = $caCert
+        DnsName = "certz-chain-json-end.local", "localhost"
+    }
+    $endCert = New-SelfSignedCertificate @endParams
+
+    $password = ConvertTo-SecureString "ChainJsonPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $endCert -FilePath "chn-json-detail.pfx" -Password $password -ChainOption BuildChain | Out-Null
+
+    try {
+        # ACTION: Single certz.exe call with --chain --format json
+        $output = & .\certz.exe inspect chn-json-detail.pfx --password ChainJsonPass123 --chain --format json 2>&1
+        $outputStr = $output -join ""
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Parse JSON and check for new fields
+        try {
+            $json = $outputStr | ConvertFrom-Json
+            if (-not $json.chain) {
+                throw "JSON should contain chain array"
+            }
+
+            # Check that chain elements have new fields
+            $endEntity = $json.chain[0]
+            if (-not $endEntity.keyAlgorithm) {
+                throw "Chain element should have keyAlgorithm field"
+            }
+            if ($null -eq $endEntity.keySize) {
+                throw "Chain element should have keySize field"
+            }
+            if (-not $endEntity.signatureAlgorithm) {
+                throw "Chain element should have signatureAlgorithm field"
+            }
+            if ($null -eq $endEntity.daysRemaining) {
+                throw "Chain element should have daysRemaining field"
+            }
+            # End entity should have SANs
+            if ($null -eq $endEntity.subjectAlternativeNames) {
+                throw "End entity should have subjectAlternativeNames field"
+            }
+        }
+        catch {
+            if ($_.Exception.Message -match "JSON") {
+                throw "Output is not valid JSON: $outputStr"
+            }
+            throw $_
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Chain JSON output includes all new fields" }
+    }
+    finally {
+        # CLEANUP: PowerShell only
+        Remove-Item $caCert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $endCert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item "chn-json-detail.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # ============================================================================
 # SAVE TESTS
 # ============================================================================
@@ -844,7 +985,7 @@ if (-not $SkipCleanup) {
 }
 
 # Return to original directory
-Pop-Location
+Exit-ToolsDirectory
 
 # Display summary and exit
 $exitCode = Write-TestSummary -SkipCleanup:$SkipCleanup

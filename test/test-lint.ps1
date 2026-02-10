@@ -82,8 +82,8 @@ if ($TestId -or $Category) {
 # Build certz
 Build-Certz -Verbose:$Verbose
 
-# Change to tools directory
-Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
+# Change to tools directory (syncs both PowerShell and .NET current directories)
+Enter-ToolsDirectory
 
 # Initial cleanup
 Write-Host "Initializing test environment..." -ForegroundColor Yellow
@@ -482,14 +482,13 @@ Invoke-Test -TestId "fmt-1.2" -TestName "Lint with JSON output format" -FilePref
 # ============================================================================
 # CLEANUP AND REPORT
 # ============================================================================
-Pop-Location
-
 if (-not $SkipCleanup) {
     Write-Host "`nCleaning up test files..." -ForegroundColor Yellow
-    Push-Location -Path (Join-Path -Path $PSScriptRoot -ChildPath "..\docker\tools")
     Remove-TestFiles
-    Pop-Location
 }
+
+# Return to original directory
+Exit-ToolsDirectory
 
 # Show summary
 Write-TestSummary

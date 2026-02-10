@@ -46,6 +46,46 @@ internal record ChainElementInfo
     public required bool IsSelfSigned { get; init; }
 
     /// <summary>
+    /// Key algorithm (e.g., "ECDSA P-256", "RSA").
+    /// </summary>
+    public string? KeyAlgorithm { get; init; }
+
+    /// <summary>
+    /// Key size in bits.
+    /// </summary>
+    public int KeySize { get; init; }
+
+    /// <summary>
+    /// Signature algorithm (e.g., "sha256RSA").
+    /// </summary>
+    public string? SignatureAlgorithm { get; init; }
+
+    /// <summary>
+    /// Subject Alternative Names (for end-entity certificates).
+    /// </summary>
+    public List<string> SubjectAlternativeNames { get; init; } = [];
+
+    /// <summary>
+    /// Days until certificate expires.
+    /// </summary>
+    public int DaysRemaining { get; init; }
+
+    /// <summary>
+    /// Revocation status if checked.
+    /// </summary>
+    public string? RevocationStatus { get; init; }
+
+    /// <summary>
+    /// CRL Distribution Point URLs.
+    /// </summary>
+    public List<string> CrlDistributionPoints { get; init; } = [];
+
+    /// <summary>
+    /// OCSP responder URL.
+    /// </summary>
+    public string? OcspResponder { get; init; }
+
+    /// <summary>
     /// Any validation errors for this chain element.
     /// </summary>
     public List<string> ValidationErrors { get; init; } = [];

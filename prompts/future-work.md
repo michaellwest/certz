@@ -89,7 +89,7 @@ formatter.WriteCertificateCreated(result);
 ## Future Considerations
 
 While the core modernization is complete, potential future enhancements include:
-1. Browser trust store support (Phase 5 - separate effort)
-2. Additional output formats (YAML, etc.)
-3. Certificate renewal functionality
-4. Remote certificate monitoring
+1. ~~Browser trust store support~~ — **Deferred** (Chrome/Edge already use Windows store; Firefox integration has low value)
+2. ~~YAML output format~~ — **Deferred** (JSON covers CI/CD needs; users can pipe through `yq` if needed)
+3. Cross-platform support (Linux/macOS)
+4. Post-Quantum Cryptography (when .NET adds native support)

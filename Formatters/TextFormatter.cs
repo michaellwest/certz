@@ -37,9 +37,30 @@ internal class TextFormatter : IOutputFormatter
             .Header("[bold green]Certificate Created Successfully[/]")
             .Border(BoxBorder.Rounded));
 
-        // Output files section
-        if (result.OutputFiles.Length > 0)
+        // Ephemeral mode warning
+        if (result.IsEphemeral)
         {
+            AnsiConsole.WriteLine();
+            var warningPanel = new Panel(
+                new Rows(
+                    new Markup("[bold yellow]EPHEMERAL MODE[/]"),
+                    new Markup(""),
+                    new Markup("Certificate exists in memory only."),
+                    new Markup("No files were written to disk."),
+                    new Markup("[dim]Certificate will be discarded when this command exits.[/]")
+                ))
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(warningPanel);
+        }
+        else if (result.WasPiped)
+        {
+            // Pipe mode - minimal output, content went to stdout
+            // Don't display file list since there are none
+        }
+        else if (result.OutputFiles.Length > 0)
+        {
+            // Output files section (normal mode)
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[bold]Saved Files:[/]");
             foreach (var file in result.OutputFiles)
@@ -48,8 +69,9 @@ internal class TextFormatter : IOutputFormatter
             }
         }
 
-        // Password warning if generated
-        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.Password))
+        // Password warning if generated (not in ephemeral/pipe mode)
+        if (!result.IsEphemeral && !result.WasPiped &&
+            result.PasswordWasGenerated && !string.IsNullOrEmpty(result.Password))
         {
             AnsiConsole.WriteLine();
             var passwordPanel = new Panel(
@@ -146,7 +168,15 @@ internal class TextFormatter : IOutputFormatter
         if (result.Chain != null && result.Chain.Count > 0)
         {
             AnsiConsole.WriteLine();
-            RenderChainFromInfo(result.Chain, result.ChainIsValid);
+            if (result.DetailedTree)
+            {
+                var visualizer = new ChainVisualizer();
+                visualizer.RenderDetailedChain(result.Chain, result.ChainIsValid, AnsiConsole.Console);
+            }
+            else
+            {
+                RenderChainFromInfo(result.Chain, result.ChainIsValid);
+            }
         }
     }
 
@@ -344,44 +374,52 @@ internal class TextFormatter : IOutputFormatter
             return;
         }
 
-        AnsiConsole.MarkupLine("[green]Successfully converted certificate format![/]");
-        AnsiConsole.WriteLine();
+        var table = new Table();
+        table.Border(TableBorder.Rounded);
+        table.AddColumn("Property");
+        table.AddColumn("Value");
 
-        // Show input files
-        if (result.InputCertificate != null && result.InputKey != null)
+        table.AddRow("[bold]Status[/]", "[green]Success[/]");
+
+        if (!string.IsNullOrEmpty(result.Subject))
         {
-            AnsiConsole.MarkupLine("[bold]Input (PEM):[/]");
-            AnsiConsole.MarkupLine($"  [blue]-[/] Certificate: {Markup.Escape(Path.GetFileName(result.InputCertificate))}");
-            AnsiConsole.MarkupLine($"  [blue]-[/] Private Key: {Markup.Escape(Path.GetFileName(result.InputKey))}");
-        }
-        else if (result.InputPfx != null)
-        {
-            AnsiConsole.MarkupLine("[bold]Input (PFX):[/]");
-            AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.InputPfx))}");
+            table.AddRow("Subject", Markup.Escape(result.Subject));
         }
 
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[bold]Output:[/]");
-        AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(result.OutputFile))}");
+        if (!string.IsNullOrEmpty(result.OutputFormat))
+        {
+            table.AddRow("Output Format", result.OutputFormat);
+        }
 
-        // Show additional output files
+        // Input files
+        if (result.InputCertificate != null)
+        {
+            table.AddRow("Input Certificate", Markup.Escape(result.InputCertificate));
+        }
+        if (result.InputKey != null)
+        {
+            table.AddRow("Input Key", Markup.Escape(result.InputKey));
+        }
+        if (result.InputPfx != null)
+        {
+            table.AddRow("Input PFX", Markup.Escape(result.InputPfx));
+        }
+
+        // Output files
+        table.AddRow("[bold]Output File[/]", $"[blue]{Markup.Escape(result.OutputFile)}[/]");
+
         if (result.AdditionalOutputFiles.Length > 0)
         {
             foreach (var file in result.AdditionalOutputFiles)
             {
-                AnsiConsole.MarkupLine($"  [blue]-[/] {Markup.Escape(Path.GetFileName(file))}");
+                table.AddRow("Additional Output", $"[blue]{Markup.Escape(file)}[/]");
             }
         }
 
-        // Show certificate subject if available
-        if (!string.IsNullOrEmpty(result.Subject))
-        {
-            AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine($"[bold]Certificate Subject:[/] {Markup.Escape(result.Subject)}");
-        }
+        AnsiConsole.Write(table);
 
-        // Password warning if generated
-        if (result.PasswordWasGenerated && !string.IsNullOrEmpty(result.GeneratedPassword))
+        // Password handling
+        if (result.PasswordWasGenerated && result.GeneratedPassword != null)
         {
             AnsiConsole.WriteLine();
             var passwordPanel = new Panel(
@@ -620,6 +658,163 @@ internal class TextFormatter : IOutputFormatter
         }
 
         AnsiConsole.Write(table);
+    }
+
+    public void WriteRenewResult(RenewResult result)
+    {
+        if (!result.Success)
+        {
+            AnsiConsole.MarkupLine("[red]Renewal Failed[/]");
+            AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(result.ErrorMessage ?? "Unknown error")}");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold]Original Certificate:[/]");
+            AnsiConsole.MarkupLine($"  Subject: {Markup.Escape(result.OriginalSubject)}");
+            if (!string.IsNullOrEmpty(result.OriginalThumbprint))
+            {
+                AnsiConsole.MarkupLine($"  Thumbprint: {result.OriginalThumbprint}");
+            }
+            if (result.OriginalNotAfter != DateTime.MinValue)
+            {
+                AnsiConsole.MarkupLine($"  Expires: {result.OriginalNotAfter:yyyy-MM-dd}");
+            }
+            return;
+        }
+
+        AnsiConsole.Write(new Rule("[green]Certificate Renewed[/]").LeftJustified());
+        AnsiConsole.WriteLine();
+
+        // Original vs Renewed comparison table
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Property[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Original[/]"))
+            .AddColumn(new TableColumn("[bold]Renewed[/]"));
+
+        table.AddRow("Subject", Markup.Escape(result.OriginalSubject), Markup.Escape(result.NewSubject ?? "-"));
+        table.AddRow("Thumbprint",
+            $"[dim]{result.OriginalThumbprint[..Math.Min(16, result.OriginalThumbprint.Length)]}...[/]",
+            $"[cyan]{result.NewThumbprint?[..Math.Min(16, result.NewThumbprint?.Length ?? 0)]}...[/]");
+        table.AddRow("Expires",
+            $"[yellow]{result.OriginalNotAfter:yyyy-MM-dd}[/]",
+            $"[green]{result.NewNotAfter:yyyy-MM-dd}[/]");
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+
+        // Details
+        AnsiConsole.MarkupLine($"[bold]Key:[/] {result.KeyType} {(result.KeyWasPreserved ? "[dim](preserved)[/]" : "[dim](new)[/]")}");
+
+        if (result.SANs?.Length > 0)
+        {
+            AnsiConsole.MarkupLine($"[bold]SANs:[/] {string.Join(", ", result.SANs.Select(Markup.Escape))}");
+        }
+
+        AnsiConsole.MarkupLine($"[bold]Output:[/] {Markup.Escape(result.OutputFile ?? "")}");
+
+        if (result.PasswordWasGenerated && result.Password != null)
+        {
+            AnsiConsole.WriteLine();
+            var passwordPanel = new Panel(
+                new Rows(
+                    new Markup($"[bold cyan]{Markup.Escape(result.Password)}[/]"),
+                    new Markup(""),
+                    new Markup("[yellow]Store this password securely! This is your only chance to see it.[/]")
+                ))
+                .Header("[bold yellow]Generated Password[/]")
+                .Border(BoxBorder.Double)
+                .BorderColor(Color.Yellow);
+            AnsiConsole.Write(passwordPanel);
+        }
+    }
+
+    public void WriteMonitorResult(MonitorResult result, bool quietMode)
+    {
+        // Header
+        AnsiConsole.MarkupLine("[bold]Certificate Expiration Monitor[/]");
+        AnsiConsole.MarkupLine($"Threshold: [cyan]{result.WarnThreshold} days[/]");
+        AnsiConsole.WriteLine();
+
+        // Summary table
+        var summaryTable = new Table();
+        summaryTable.AddColumn("Status");
+        summaryTable.AddColumn("Count");
+        summaryTable.Border = TableBorder.Rounded;
+
+        summaryTable.AddRow("[green]Valid[/]", result.ValidCount.ToString());
+        summaryTable.AddRow("[yellow]Expiring[/]", result.ExpiringCount.ToString());
+        summaryTable.AddRow("[red]Expired[/]", result.ExpiredCount.ToString());
+        summaryTable.AddRow("[dim]Total[/]", result.TotalScanned.ToString());
+
+        AnsiConsole.Write(summaryTable);
+        AnsiConsole.WriteLine();
+
+        // Certificate details
+        var certs = quietMode
+            ? result.Certificates.Where(c => c.IsWarning)
+            : result.Certificates;
+
+        if (certs.Any())
+        {
+            var table = new Table();
+            table.AddColumn("Source");
+            table.AddColumn("Subject");
+            table.AddColumn("Expires");
+            table.AddColumn("Days");
+            table.AddColumn("Status");
+            table.Border = TableBorder.Rounded;
+
+            foreach (var cert in certs.OrderBy(c => c.DaysRemaining))
+            {
+                var statusColor = cert.Status switch
+                {
+                    "Expired" => "red",
+                    "Expiring" => "yellow",
+                    "NotYetValid" => "blue",
+                    _ => "green"
+                };
+
+                table.AddRow(
+                    TruncateSource(cert.Source, 30),
+                    GetSimpleName(cert.Subject),
+                    cert.NotAfter.ToString("yyyy-MM-dd"),
+                    cert.DaysRemaining.ToString(),
+                    $"[{statusColor}]{cert.Status}[/]"
+                );
+            }
+
+            AnsiConsole.Write(table);
+        }
+
+        // Errors
+        if (result.Errors.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[red]Errors:[/]");
+            foreach (var error in result.Errors)
+            {
+                AnsiConsole.MarkupLine($"  [dim]{Markup.Escape(error.Source)}:[/] {Markup.Escape(error.Message)}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Truncates a source path for display.
+    /// </summary>
+    private static string TruncateSource(string source, int maxLength)
+    {
+        if (source.Length <= maxLength)
+        {
+            return Markup.Escape(source);
+        }
+
+        // For file paths, try to preserve the filename
+        var fileName = Path.GetFileName(source);
+        if (fileName.Length < maxLength - 3)
+        {
+            return Markup.Escape("..." + source[(source.Length - maxLength + 3)..]);
+        }
+
+        return Markup.Escape(source[..maxLength] + "...");
     }
 
     public void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts)

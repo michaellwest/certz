@@ -13,6 +13,8 @@ internal interface IOutputFormatter
     void WriteExportResult(ExportResult result);
     void WriteVerificationResult(CertificateVerificationResult result);
     void WriteLintResult(LintResult result);
+    void WriteMonitorResult(MonitorResult result, bool quietMode);
+    void WriteRenewResult(RenewResult result);
     void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts);
     void WriteError(string message);
     void WriteWarning(string message);

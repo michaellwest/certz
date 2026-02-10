@@ -99,7 +99,7 @@ internal static class TrustCommand
     {
         var thumbprintArgument = new Argument<string?>("thumbprint")
         {
-            Description = "Certificate thumbprint to remove (optional if --subject is used)",
+            Description = "Certificate thumbprint to remove (full 40-char or partial 8+ char prefix). Optional if --subject is used.",
             Arity = ArgumentArity.ZeroOrOne
         };
 
@@ -165,12 +165,28 @@ internal static class TrustCommand
                 throw new InvalidOperationException("Either thumbprint argument or --subject option must be specified.");
             }
 
+            // Validate thumbprint length and format (minimum 8 characters for partial matching)
+            if (!string.IsNullOrEmpty(thumbprint))
+            {
+                var normalized = thumbprint.Replace(" ", "");
+                if (normalized.Length < 8)
+                {
+                    throw new InvalidOperationException(
+                        "Thumbprint must be at least 8 characters for partial matching, or 40 characters for exact match.");
+                }
+                if (!normalized.All(c => char.IsAsciiHexDigit(c)))
+                {
+                    throw new InvalidOperationException(
+                        "Thumbprint must contain only hexadecimal characters (0-9, A-F).");
+                }
+            }
+
             // Find matching certificates
             var matchingCerts = TrustHandler.FindMatchingCertificates(thumbprint, subject, storeName, storeLocation);
 
             if (matchingCerts.Count == 0)
             {
-                throw new InvalidOperationException("No matching certificates found.");
+                throw new InvalidOperationException($"No matching certificates found in {storeLocation}\\{storeName}.");
             }
 
             var formatter = FormatterFactory.Create(format);

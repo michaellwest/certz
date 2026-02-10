@@ -471,4 +471,58 @@ internal static class OptionBuilders
         };
         return nameOption;
     }
+
+    /// <summary>
+    /// Creates the --ephemeral option for in-memory certificate generation.
+    /// </summary>
+    internal static Option<bool> CreateEphemeralOption()
+    {
+        return new Option<bool>("--ephemeral", "-e")
+        {
+            Description = "Generate certificate in memory only (no files written to disk)",
+            DefaultValueFactory = _ => false
+        };
+    }
+
+    /// <summary>
+    /// Creates the --pipe option for streaming output to stdout.
+    /// </summary>
+    internal static Option<bool> CreatePipeOption()
+    {
+        return new Option<bool>("--pipe")
+        {
+            Description = "Stream certificate to stdout (no files written)"
+        };
+    }
+
+    /// <summary>
+    /// Creates the --pipe-format option.
+    /// </summary>
+    internal static Option<string?> CreatePipeFormatOption()
+    {
+        var option = new Option<string?>("--pipe-format")
+        {
+            Description = "Pipe output format: pem (default), pfx, cert, key"
+        };
+        option.Validators.Add(result =>
+        {
+            var value = result.GetValueOrDefault<string?>();
+            if (value != null && !new[] { "pem", "pfx", "cert", "key" }.Contains(value.ToLowerInvariant()))
+            {
+                result.AddError("--pipe-format must be one of: pem, pfx, cert, key");
+            }
+        });
+        return option;
+    }
+
+    /// <summary>
+    /// Creates the --pipe-password option for PFX pipe output.
+    /// </summary>
+    internal static Option<string?> CreatePipePasswordOption()
+    {
+        return new Option<string?>("--pipe-password")
+        {
+            Description = "Password for PFX pipe output (required for --pipe-format pfx)"
+        };
+    }
 }

@@ -79,6 +79,55 @@ internal static class CreateService
                 options.SubjectL);
         }
 
+        // Handle pipe mode - stream to stdout and return
+        if (options.Pipe)
+        {
+            await PipeOutputService.WritePipeOutput(
+                certificate,
+                options.PipeFormat ?? "pem",
+                options.PipePassword);
+
+            return new CertificateCreationResult
+            {
+                Subject = certificate.Subject,
+                Thumbprint = certificate.Thumbprint,
+                NotBefore = certificate.NotBefore,
+                NotAfter = certificate.NotAfter,
+                KeyType = options.KeyType,
+                SANs = sans.ToArray(),
+                OutputFiles = Array.Empty<string>(),
+                Password = null,
+                PasswordWasGenerated = false,
+                WasTrusted = false,
+                IsCA = false,
+                PathLength = -1,
+                IsEphemeral = false,
+                WasPiped = true
+            };
+        }
+
+        // Handle ephemeral mode - skip all file writing
+        if (options.Ephemeral)
+        {
+            return new CertificateCreationResult
+            {
+                Subject = certificate.Subject,
+                Thumbprint = certificate.Thumbprint,
+                NotBefore = certificate.NotBefore,
+                NotAfter = certificate.NotAfter,
+                KeyType = options.KeyType,
+                SANs = sans.ToArray(),
+                OutputFiles = Array.Empty<string>(),
+                Password = null,
+                PasswordWasGenerated = false,
+                WasTrusted = false,
+                IsCA = false,
+                PathLength = -1,
+                IsEphemeral = true,
+                WasPiped = false
+            };
+        }
+
         var outputFiles = new List<string>();
 
         // Save certificate files
@@ -152,7 +201,9 @@ internal static class CreateService
             PasswordWasGenerated = passwordWasGenerated,
             WasTrusted = wasTrusted,
             IsCA = false,
-            PathLength = -1
+            PathLength = -1,
+            IsEphemeral = false,
+            WasPiped = false
         };
     }
 
@@ -196,6 +247,55 @@ internal static class CreateService
             options.SubjectC,
             options.SubjectST,
             options.SubjectL);
+
+        // Handle pipe mode - stream to stdout and return
+        if (options.Pipe)
+        {
+            await PipeOutputService.WritePipeOutput(
+                certificate,
+                options.PipeFormat ?? "pem",
+                options.PipePassword);
+
+            return new CertificateCreationResult
+            {
+                Subject = certificate.Subject,
+                Thumbprint = certificate.Thumbprint,
+                NotBefore = certificate.NotBefore,
+                NotAfter = certificate.NotAfter,
+                KeyType = options.KeyType,
+                SANs = sans,
+                OutputFiles = Array.Empty<string>(),
+                Password = null,
+                PasswordWasGenerated = false,
+                WasTrusted = false,
+                IsCA = true,
+                PathLength = options.PathLength,
+                IsEphemeral = false,
+                WasPiped = true
+            };
+        }
+
+        // Handle ephemeral mode - skip all file writing
+        if (options.Ephemeral)
+        {
+            return new CertificateCreationResult
+            {
+                Subject = certificate.Subject,
+                Thumbprint = certificate.Thumbprint,
+                NotBefore = certificate.NotBefore,
+                NotAfter = certificate.NotAfter,
+                KeyType = options.KeyType,
+                SANs = sans,
+                OutputFiles = Array.Empty<string>(),
+                Password = null,
+                PasswordWasGenerated = false,
+                WasTrusted = false,
+                IsCA = true,
+                PathLength = options.PathLength,
+                IsEphemeral = true,
+                WasPiped = false
+            };
+        }
 
         var outputFiles = new List<string>();
 
@@ -270,7 +370,9 @@ internal static class CreateService
             PasswordWasGenerated = passwordWasGenerated,
             WasTrusted = wasTrusted,
             IsCA = true,
-            PathLength = options.PathLength
+            PathLength = options.PathLength,
+            IsEphemeral = false,
+            WasPiped = false
         };
     }
 
