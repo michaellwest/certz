@@ -65,37 +65,37 @@ All v2 commands now have dedicated test files:
 
 ### test-create.ps1 Gaps
 
-| Gap | Priority | Recommendation |
-|-----|----------|----------------|
-| `--guided` for CA | Medium | Add gui-1.2 test for CA wizard |
+| Gap | Priority | Status |
+|-----|----------|--------|
+| `--guided` for CA | Medium | ✅ Covered (gui-1.2) |
 | `--issuer` with password file | Low | Add iss-1.3 for `--issuer-password-file` |
 
 ### test-inspect.ps1 Gaps
 
-| Gap | Priority | Recommendation |
-|-----|----------|----------------|
-| `--crl` revocation check | Medium | Add crl-1.1 for OCSP/CRL checking |
+| Gap | Priority | Status |
+|-----|----------|--------|
+| `--crl` revocation check | Medium | ✅ Covered (crl-1.1) |
 | `--warn` with JSON | Low | Add fmt-2.3 for warn + JSON combo |
 | Save chain to file | Low | Add sav-1.6 for `--save --chain` |
 
 ### test-trust.ps1 Gaps
 
-| Gap | Priority | Recommendation |
-|-----|----------|----------------|
-| `--expired` filter | Medium | Add sto-1.4 for expired cert filter |
-| `--expiring` filter | Medium | Add sto-1.5 for expiring cert filter |
+| Gap | Priority | Status |
+|-----|----------|--------|
+| `--expired` filter | Medium | ✅ Covered (sto-1.4) |
+| `--expiring` filter | Medium | ✅ Covered (sto-1.5) |
 | Browser trust stores | Phase 5 | Deferred until browser support added |
 
 ---
 
 ## Recommendations
 
-### Medium Priority
+### Low Priority
 
-1. **Add missing coverage to existing test files**
-   - Add `--crl` revocation tests to test-inspect.ps1
-   - Add `--expired`/`--expiring` filter tests to test-trust.ps1
-   - Add CA `--guided` wizard test to test-create.ps1
+1. **Add remaining low-priority coverage**
+   - Add `--issuer-password-file` test to test-create.ps1
+   - Add `--warn` with JSON test to test-inspect.ps1
+   - Add `--save --chain` test to test-inspect.ps1
 
 ### Future Work
 
@@ -174,7 +174,7 @@ $script:TestCategories = @{
 | Status | Count | Description |
 |--------|-------|-------------|
 | ✅ Covered | 8 | test-create, test-inspect, test-trust, test-convert, test-lint, test-monitor, test-renew, test-ephemeral |
-| ⚠️ Gaps | 7 | 4 medium priority, 3 low priority (see above) |
+| ⚠️ Gaps | 3 | Low priority only (see above) |
 | ⏳ Future | 1 | test-crossplatform.ps1 (Phase 10) |
 
-**Next Action:** Fill test coverage gaps in existing files, or begin Phase 10 cross-platform support.
+**Next Action:** Begin Phase 10 cross-platform support, or fill remaining low-priority test gaps.
