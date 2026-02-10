@@ -96,10 +96,10 @@ if ($UseDocker) {
     # Resolve project root (parent of test/)
     $projectRoot = Split-Path -Parent $PSScriptRoot
 
-    # Build the Docker image
-    Write-Host "Building Docker test image..." -ForegroundColor Cyan
+    # Build the Docker image (Server Core for full PKI module support)
+    Write-Host "Building Docker test image (Server Core)..." -ForegroundColor Cyan
     try {
-        docker build -t certz-test:latest -f "$projectRoot\Dockerfile.test" $projectRoot 2>&1 | ForEach-Object {
+        docker build -t certz-test:latest -f "$projectRoot\Dockerfile.test.servercore" $projectRoot 2>&1 | ForEach-Object {
             if ($_ -match "error|failed") {
                 Write-Host $_ -ForegroundColor Red
             } elseif ($_ -match "successfully|complete") {
@@ -109,7 +109,7 @@ if ($UseDocker) {
             }
         }
         # debug container using:
-        # docker run -it --entrypoint cmd certz-test:latest
+        # docker run -it --entrypoint pwsh certz-test:latest
         if ($LASTEXITCODE -ne 0) {
             Write-Host "`nERROR: Docker build failed" -ForegroundColor Red
             exit 1

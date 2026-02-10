@@ -494,32 +494,32 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.WriteLine();
 
         // 1. Expiration Check
-        AnsiConsole.MarkupLine("[bold][1] Checking Expiration Status...[/]");
+        AnsiConsole.MarkupLine("[bold][[1]] Checking Expiration Status...[/]");
         var expCheck = result.ExpirationCheck;
         if (expCheck.IsExpired)
         {
-            AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(expCheck.Message ?? "Certificate expired")}");
+            AnsiConsole.MarkupLine($"    [red][[FAIL]][/] {Markup.Escape(expCheck.Message ?? "Certificate expired")}");
         }
         else if (expCheck.IsNotYetValid)
         {
-            AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(expCheck.Message ?? "Certificate not yet valid")}");
+            AnsiConsole.MarkupLine($"    [red][[FAIL]][/] {Markup.Escape(expCheck.Message ?? "Certificate not yet valid")}");
         }
         else if (expCheck.IsExpiringSoon)
         {
-            AnsiConsole.MarkupLine($"    [yellow][WARN][/] {Markup.Escape(expCheck.Message ?? "Certificate expiring soon")}");
+            AnsiConsole.MarkupLine($"    [yellow][[WARN]][/] {Markup.Escape(expCheck.Message ?? "Certificate expiring soon")}");
         }
         else
         {
-            AnsiConsole.MarkupLine($"    [green][PASS][/] {Markup.Escape(expCheck.Message ?? "Certificate is valid")}");
+            AnsiConsole.MarkupLine($"    [green][[PASS]][/] {Markup.Escape(expCheck.Message ?? "Certificate is valid")}");
         }
         AnsiConsole.WriteLine();
 
         // 2. Chain Validation
-        AnsiConsole.MarkupLine("[bold][2] Checking Certificate Chain...[/]");
+        AnsiConsole.MarkupLine("[bold][[2]] Checking Certificate Chain...[/]");
         var chainCheck = result.ChainValidation;
         if (chainCheck.Passed)
         {
-            AnsiConsole.MarkupLine($"    [green][PASS][/] Chain is valid");
+            AnsiConsole.MarkupLine($"    [green][[PASS]][/] Chain is valid");
             AnsiConsole.MarkupLine($"           Chain length: {chainCheck.ChainElements.Count} certificate(s)");
             for (int i = 0; i < chainCheck.ChainElements.Count; i++)
             {
@@ -529,7 +529,7 @@ internal class TextFormatter : IOutputFormatter
         }
         else
         {
-            AnsiConsole.MarkupLine("    [red][FAIL][/] Chain validation failed");
+            AnsiConsole.MarkupLine("    [red][[FAIL]][/] Chain validation failed");
             foreach (var error in chainCheck.Errors)
             {
                 AnsiConsole.MarkupLine($"           - {Markup.Escape(error)}");
@@ -538,38 +538,38 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.WriteLine();
 
         // 3. Trust Check
-        AnsiConsole.MarkupLine("[bold][3] Checking Trust Status...[/]");
+        AnsiConsole.MarkupLine("[bold][[3]] Checking Trust Status...[/]");
         var trustCheck = result.TrustCheck;
         if (trustCheck.Passed && trustCheck.IsTrusted)
         {
-            AnsiConsole.MarkupLine("    [green][PASS][/] Certificate chains to a trusted root");
+            AnsiConsole.MarkupLine("    [green][[PASS]][/] Certificate chains to a trusted root");
         }
         else if (trustCheck.Passed && !trustCheck.IsTrusted)
         {
-            AnsiConsole.MarkupLine($"    [yellow][WARN][/] {Markup.Escape(trustCheck.Message ?? "Root not trusted")}");
+            AnsiConsole.MarkupLine($"    [yellow][[WARN]][/] {Markup.Escape(trustCheck.Message ?? "Root not trusted")}");
         }
         else
         {
-            AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(trustCheck.Message ?? "Trust check failed")}");
+            AnsiConsole.MarkupLine($"    [red][[FAIL]][/] {Markup.Escape(trustCheck.Message ?? "Trust check failed")}");
         }
         AnsiConsole.WriteLine();
 
         // 4. Revocation Check (if requested)
         if (result.RevocationCheck != null)
         {
-            AnsiConsole.MarkupLine("[bold][4] Checking Revocation Status...[/]");
+            AnsiConsole.MarkupLine("[bold][[4]] Checking Revocation Status...[/]");
             var revCheck = result.RevocationCheck;
             if (revCheck.IsRevoked)
             {
-                AnsiConsole.MarkupLine($"    [red][FAIL][/] {Markup.Escape(revCheck.Message ?? "Certificate revoked")}");
+                AnsiConsole.MarkupLine($"    [red][[FAIL]][/] {Markup.Escape(revCheck.Message ?? "Certificate revoked")}");
             }
             else if (revCheck.IsOffline)
             {
-                AnsiConsole.MarkupLine($"    [yellow][WARN][/] {Markup.Escape(revCheck.Message ?? "Offline")}");
+                AnsiConsole.MarkupLine($"    [yellow][[WARN]][/] {Markup.Escape(revCheck.Message ?? "Offline")}");
             }
             else
             {
-                AnsiConsole.MarkupLine($"    [green][PASS][/] {Markup.Escape(revCheck.Message ?? "Not revoked")}");
+                AnsiConsole.MarkupLine($"    [green][[PASS]][/] {Markup.Escape(revCheck.Message ?? "Not revoked")}");
             }
             AnsiConsole.WriteLine();
         }
@@ -579,12 +579,12 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.MarkupLine("[dim]-------[/]");
         if (result.Success)
         {
-            AnsiConsole.MarkupLine("[green][PASS] Certificate validation SUCCESSFUL[/]");
+            AnsiConsole.MarkupLine("[green][[PASS]] Certificate validation SUCCESSFUL[/]");
             AnsiConsole.MarkupLine("        The certificate passed all validation checks.");
         }
         else
         {
-            AnsiConsole.MarkupLine("[red][FAIL] Certificate validation FAILED[/]");
+            AnsiConsole.MarkupLine("[red][[FAIL]] Certificate validation FAILED[/]");
             AnsiConsole.MarkupLine("        See details above for specific failures.");
         }
     }

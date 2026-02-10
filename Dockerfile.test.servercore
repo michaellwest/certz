@@ -1,0 +1,22 @@
+# Dockerfile for running the full certz test suite on Windows Server Core
+# Server Core provides the PKI module, certutil, and Cert:\ drive needed by tests
+# Requires Windows containers to be enabled in Docker Desktop
+
+FROM mcr.microsoft.com/powershell:lts-windowsservercore-ltsc2022
+SHELL ["pwsh", "-Command"]
+WORKDIR /app
+
+# Switch to Administrator for certificate store operations
+USER ContainerAdministrator
+
+# Set environment variable to indicate we're in a container
+ENV DOTNET_ENVIRONMENT=Test
+
+# Copy the built executable and test scripts
+COPY debug/certz.exe ./
+COPY debug/certz.pdb ./
+COPY test/ ./test/
+
+# Default command runs the full test suite
+ENTRYPOINT ["pwsh", "-File", "./test/test-all.ps1"]
+CMD ["-Verbose"]

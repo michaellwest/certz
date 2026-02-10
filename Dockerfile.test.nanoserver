@@ -1,0 +1,16 @@
+# Dockerfile for smoke testing certz.exe on Windows Nanoserver
+# Verifies the self-contained executable runs on a minimal Windows image
+# Requires Windows containers to be enabled in Docker Desktop
+
+FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
+WORKDIR /app
+
+# Switch to Administrator for certificate store operations
+USER ContainerAdministrator
+
+# Copy the built executable and smoke test script
+COPY debug/certz.exe ./
+COPY test/test-nanoserver.cmd ./test/
+
+# Run the smoke tests
+ENTRYPOINT ["cmd", "/c", "test\\test-nanoserver.cmd"]

@@ -7,11 +7,16 @@ This guide provides quick commands and troubleshooting for running certz tests i
 ### Quick Commands
 
 ```powershell
-# Run tests in Docker
+# Run full test suite in Docker (Server Core)
 .\test\test-all.ps1 -UseDocker
 
 # Run with verbose output
 .\test\test-all.ps1 -UseDocker -DockerVerbose
+
+# Run nanoserver smoke tests only (build certz first)
+dotnet publish src/certz/certz.csproj -c Debug -o debug
+docker build -t certz-test-smoke:latest -f Dockerfile.test.nanoserver .
+docker run --rm --isolation=process certz-test-smoke:latest
 ```
 
 ## Prerequisites
@@ -31,71 +36,68 @@ This guide provides quick commands and troubleshooting for running certz tests i
    docker info
    ```
 
-## Understanding Docker File Management
+## Two Docker Images
 
-The Docker test setup copies certz.exe and all test scripts into the container image during build.
+The project uses two Docker images for different testing purposes:
 
-### How Baked-In Files Work
+### Nanoserver Smoke Tests (`Dockerfile.test.nanoserver`)
 
-**How it works:**
+**Base image:** `mcr.microsoft.com/windows/nanoserver:ltsc2022`
 
-- Files are copied into the Docker image during build using `COPY` commands
-- Files become part of the image layers
-- Changes to source files require rebuilding the image
+Runs a simple CMD batch file ([test/test-nanoserver.cmd](../test/test-nanoserver.cmd)) that executes every certz command and verifies exit code 0. No PowerShell, no test framework -- just certz.exe on bare Nanoserver.
 
-**When to use:**
+**Purpose:** Validate that the self-contained certz.exe binary runs correctly on minimal Windows without any runtime dependencies.
 
-- CI/CD pipelines
-- Production testing
-- When you want consistent, reproducible builds
-
-**Command:**
+**Commands:**
 
 ```powershell
-.\test\test-all.ps1 -UseDocker
+# Build certz, then build and run the Docker image
+dotnet publish src/certz/certz.csproj -c Debug -o debug
+docker build -t certz-test-smoke:latest -f Dockerfile.test.nanoserver .
+docker run --rm --isolation=process certz-test-smoke:latest
+
+# Debug interactively
+docker run --rm -it --isolation=process --entrypoint cmd certz-test-smoke:latest
 ```
 
-**Pros:**
+### Server Core Full Suite (`Dockerfile.test.servercore`)
 
-- Self-contained image (no external dependencies)
-- Guaranteed consistency
-- Faster container startup
-- Works offline after initial build
+**Base image:** `mcr.microsoft.com/powershell:lts-windowsservercore-ltsc2022`
+
+Runs the full PowerShell test suite (`test-all.ps1`) with all individual test scripts. Server Core provides the PKI module, `certutil`, and `Cert:\` drive needed by the test infrastructure.
+
+**Purpose:** Run the comprehensive test suite with full certificate store operations, PKI setup/teardown, and detailed assertions.
+
+**Commands:**
+
+```powershell
+# Via test-all.ps1 (recommended)
+.\test\test-all.ps1 -UseDocker
+
+# Manual build and run
+docker build -t certz-test:latest -f Dockerfile.test.servercore .
+docker run --rm --isolation=process certz-test:latest
+
+# Run with verbose flag
+docker run --rm --isolation=process certz-test:latest -Verbose
+
+# Debug interactively
+docker run --rm -it --isolation=process --entrypoint pwsh certz-test:latest
+```
 
 ## Docker Testing Commands
 
 ### Basic Testing
 
 ```powershell
-# Run all tests in Docker
+# Run full test suite in Docker (Server Core)
 .\test\test-all.ps1 -UseDocker
 
 # Run with verbose output for debugging
 .\test\test-all.ps1 -UseDocker -DockerVerbose
-```
 
-### Manual Docker Commands
-
-If you want more control over the Docker container:
-
-```powershell
-# Build the test image
-docker build -t certz-test:latest -f Dockerfile.test .
-
-# Run the tests
-docker run --rm --isolation=process certz-test:latest
-
-# Run with verbose flag
-docker run --rm --isolation=process certz-test:latest -Verbose
-
-# Run tests and keep container for debugging (remove --rm)
-docker run --name certz-test-debug --isolation=process certz-test:latest
-
-# View logs from debug container
-docker logs certz-test-debug
-
-# Remove debug container when done
-docker rm certz-test-debug
+# Run specific test categories
+.\test\test-all.ps1 -UseDocker -Category create, lint
 ```
 
 ### Using Docker Compose
@@ -103,14 +105,14 @@ docker rm certz-test-debug
 The project includes Docker Compose configuration:
 
 ```powershell
-# Run tests with baked-in files
+# Run nanoserver smoke tests
+docker-compose -f docker-compose.test.yml up --build certz-test-smoke
+
+# Run full test suite (Server Core)
 docker-compose -f docker-compose.test.yml up --build certz-test
 
-# Run in detached mode
-docker-compose -f docker-compose.test.yml up --build -d certz-test
-
-# View logs
-docker-compose -f docker-compose.test.yml logs -f certz-test
+# Run both
+docker-compose -f docker-compose.test.yml up --build
 
 # Clean up
 docker-compose -f docker-compose.test.yml down
@@ -156,8 +158,9 @@ docker-compose -f docker-compose.test.yml down
 **Solution:**
 
 ```powershell
-# Pull the base image manually
-docker pull mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
+# Pull the base images manually
+docker pull mcr.microsoft.com/windows/nanoserver:ltsc2022
+docker pull mcr.microsoft.com/powershell:lts-windowsservercore-ltsc2022
 
 # Then retry the build
 .\test\test-all.ps1 -UseDocker
@@ -180,14 +183,11 @@ docker pull mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 
 **Explanation:** This error occurs when the test script tries to navigate to `debug` subdirectory inside the container, but files are directly in `/app`.
 
-**Solution:** This is now automatically handled by the script detecting when it's running inside a container (via `DOTNET_ENVIRONMENT=Test` environment variable). If you still see this error:
+**Solution:** This is automatically handled by the script detecting when it's running inside a container (via `DOTNET_ENVIRONMENT=Test` environment variable). If you still see this error:
 
 ```powershell
-# Ensure you're using the latest version of test-all.ps1
-git pull
-
 # Rebuild the Docker image
-docker build --no-cache -t certz-test:latest -f Dockerfile.test .
+docker build --no-cache -t certz-test:latest -f Dockerfile.test.servercore .
 
 # Run tests again
 .\test\test-all.ps1 -UseDocker
@@ -198,8 +198,8 @@ docker build --no-cache -t certz-test:latest -f Dockerfile.test .
 **Debugging Steps:**
 
 ```powershell
-# Run container interactively (baked-in files)
-docker run --rm -it --isolation=process certz-test:latest powershell
+# Server Core: Run container interactively
+docker run --rm -it --isolation=process --entrypoint pwsh certz-test:latest
 
 # Inside container, run all tests manually
 pwsh -File ./test/test-all.ps1 -Verbose
@@ -209,7 +209,14 @@ pwsh -File ./test/test-create.ps1
 
 # Or run individual certz commands
 .\certz.exe list
-.\certz.exe create dev --cn test.local -f test.pfx
+.\certz.exe create dev test.local --ephemeral
+
+# Nanoserver: Run container interactively
+docker run --rm -it --isolation=process --entrypoint cmd certz-test-smoke:latest
+
+# Inside container, run certz commands directly
+C:\app\certz.exe --version
+C:\app\certz.exe create dev test.local --ephemeral
 ```
 
 ### Build is Very Slow
@@ -221,83 +228,60 @@ pwsh -File ./test/test-create.ps1
 docker system prune -f
 
 # Rebuild without cache
-docker build --no-cache -t certz-test:latest -f Dockerfile.test .
+docker build --no-cache -t certz-test:latest -f Dockerfile.test.servercore .
 ```
 
 ## Development Workflow Examples
 
-### Scenario 1: Testing Code Changes
-
-You're actively developing certz and want to test changes:
+### Scenario 1: Quick Nanoserver Compatibility Check
 
 ```powershell
-# 1. Build your changes
-dotnet build -c Release
+# 1. Build certz
+dotnet publish src/certz/certz.csproj -c Debug -o debug
 
-# 2. Copy to debug
-Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.exe debug/
-Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.pdb debug/
+# 2. Run nanoserver smoke tests
+docker build -t certz-test-smoke:latest -f Dockerfile.test.nanoserver .
+docker run --rm --isolation=process certz-test-smoke:latest
+```
 
-# 3. Run tests in Docker
+### Scenario 2: Full Test Suite in Docker
+
+```powershell
+# 1. Build and run all tests (builds certz automatically)
 .\test\test-all.ps1 -UseDocker
 ```
 
-### Scenario 2: CI/CD Pipeline
-
-You're running tests in a CI/CD pipeline:
+### Scenario 3: CI/CD Pipeline
 
 ```powershell
 # 1. Build project
-dotnet build -c Release
+dotnet publish src/certz/certz.csproj -c Debug -o debug
 
-# 2. Copy binaries
-Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/* debug/
+# 2. Run nanoserver smoke tests (fast, validates binary compatibility)
+docker build -t certz-test-smoke:latest -f Dockerfile.test.nanoserver .
+docker run --rm --isolation=process certz-test-smoke:latest
 
-# 3. Run tests (image is built with files baked in)
+# 3. Run full test suite (comprehensive)
 .\test\test-all.ps1 -UseDocker -DockerVerbose
-
-# Image is self-contained and reproducible
-```
-
-### Scenario 3: First-Time Setup
-
-```powershell
-# 1. Clone repository
-git clone https://github.com/yourusername/certz.git
-cd certz
-
-# 2. Build project
-dotnet build -c Release
-
-# 3. Copy binaries
-Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.exe debug/
-Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/certz.pdb debug/
-
-# 4. Run tests
-.\test\test-all.ps1 -UseDocker
 ```
 
 ## Advanced Usage
 
 ### Running Specific Test Suites
 
-All test scripts are available in the container under `/app/test/`:
+All test scripts are available in the Server Core container under `/app/test/`:
 
 ```powershell
 # Build the image
-docker build -t certz-test:latest -f Dockerfile.test .
+docker build -t certz-test:latest -f Dockerfile.test.servercore .
 
 # Run container interactively
-docker run --rm -it --isolation=process certz-test:latest powershell
+docker run --rm -it --isolation=process --entrypoint pwsh certz-test:latest
 
 # Inside container, run a specific test suite
 pwsh -File ./test/test-create.ps1
 pwsh -File ./test/test-lint.ps1
 pwsh -File ./test/test-convert.ps1
-
-# Or run individual certz commands
-.\certz.exe create dev --cn test.local --ephemeral
-.\certz.exe list
 ```
 
 ### Mounting Local Directories
@@ -312,20 +296,6 @@ mkdir test-results
 docker run --rm --isolation=process `
   -v ${PWD}/test-results:c:/app/test-results `
   certz-test:latest
-```
-
-### Custom Base Image
-
-If you need a different Windows version:
-
-Edit `Dockerfile.test` and change the base image:
-
-```dockerfile
-# For Windows Server 2019
-FROM mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-1809
-
-# For Windows Server 2022 (default)
-FROM mcr.microsoft.com/dotnet/sdk:10.0-nanoserver-ltsc2022
 ```
 
 ## CI/CD Integration
@@ -344,23 +314,23 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  smoke-test:
     runs-on: windows-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v3
       - name: Build project
-        run: dotnet build -c Release
-
-      - name: Copy binaries to debug
+        run: dotnet publish src/certz/certz.csproj -c Debug -o debug
+      - name: Nanoserver smoke tests
         run: |
-          Copy-Item src/certz/bin/Release/net10.0/win-x64/publish/* debug/
+          docker build -t certz-test-smoke:latest -f Dockerfile.test.nanoserver .
+          docker run --rm --isolation=process certz-test-smoke:latest
 
-      - name: Run tests in Docker
+  full-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run full test suite in Docker
         run: .\test\test-all.ps1 -UseDocker -DockerVerbose
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v3
@@ -369,58 +339,11 @@ jobs:
           path: test-results/
 ```
 
-### Azure DevOps
-
-Create `azure-pipelines.yml`:
-
-```yaml
-trigger:
-  branches:
-    include:
-      - main
-      - develop
-
-pool:
-  vmImage: "windows-latest"
-
-steps:
-  - task: DotNetCoreCLI@2
-    displayName: "Build project"
-    inputs:
-      command: "build"
-      configuration: "Release"
-
-  - task: CopyFiles@2
-    displayName: "Copy binaries"
-    inputs:
-      SourceFolder: "src/certz/bin/Release/net10.0/win-x64/publish"
-      Contents: "**"
-      TargetFolder: "debug"
-
-  - task: PowerShell@2
-    displayName: "Run Docker tests"
-    inputs:
-      targetType: "inline"
-      script: |
-        .\test\test-all.ps1 -UseDocker -DockerVerbose
-        if ($LASTEXITCODE -ne 0) {
-          throw "Tests failed"
-        }
-
-  - task: PublishTestResults@2
-    condition: always()
-    displayName: "Publish test results"
-    inputs:
-      testResultsFormat: "NUnit"
-      testResultsFiles: "**/test-results/*.xml"
-```
-
 ## Performance Tips
 
 1. **Layer Caching:** Docker caches layers, so subsequent builds are faster
-2. **Multi-stage Builds:** Already optimized in Dockerfile.test
-3. **Minimal Base Image:** Using nanoserver for smaller image size
-4. **Clean Builds:** Run `docker system prune` periodically
+2. **Nanoserver First:** Run nanoserver smoke tests first (faster, catches binary issues early)
+3. **Clean Builds:** Run `docker system prune` periodically
 
 ## Benefits of Docker Testing
 
@@ -430,12 +353,15 @@ steps:
 - **No Admin Rights:** Docker handles elevation internally
 - **Reproducible:** Same results every time
 - **Clean State:** Fresh environment for each run
+- **Nanoserver Validation:** Confirms the binary works on minimal Windows
 
 ## File Reference
 
-- **Dockerfile.test** - Test container definition
-- **docker-compose.test.yml** - Compose configuration
-- **test/test-all.ps1** - Test runner (invokes all individual test suites)
+- **Dockerfile.test.nanoserver** - Nanoserver smoke test (bare certz.exe validation)
+- **Dockerfile.test.servercore** - Server Core full test suite
+- **docker-compose.test.yml** - Compose configuration for both images
+- **test/test-nanoserver.cmd** - CMD batch file for nanoserver smoke tests
+- **test/test-all.ps1** - PowerShell test runner (uses Server Core in Docker mode)
 - **test/test-helper.ps1** - Shared test utilities (container-aware)
 - **test/test-*.ps1** - Individual test suites (create, inspect, lint, etc.)
 - **.dockerignore** - Files excluded from Docker build context
@@ -445,15 +371,15 @@ steps:
 For issues or questions:
 
 1. Check this troubleshooting guide
-2. Review [TESTING.md](TESTING.md) for detailed test documentation
+2. Review [testing.md](testing.md) for detailed test documentation
 3. Check Docker Desktop logs
 4. Ensure Windows containers are enabled
 
 ## Version Compatibility
 
-| Component      | Version                 | Notes                      |
-| -------------- | ----------------------- | -------------------------- |
-| Docker Desktop | 4.0+                    | Windows containers support |
-| Windows        | 10/11, Server 2019/2022 | Container host             |
-| .NET SDK       | 10.0                    | Base image                 |
-| PowerShell     | 7.5+                    | Script execution           |
+| Component      | Version                 | Notes                                    |
+| -------------- | ----------------------- | ---------------------------------------- |
+| Docker Desktop | 4.0+                    | Windows containers support               |
+| Windows        | 10/11, Server 2019/2022 | Container host                           |
+| PowerShell     | 7.4+ (LTS image)        | Server Core base image & script execution |
+| Nanoserver     | ltsc2022                | Smoke test target (no PowerShell needed) |

@@ -1,34 +1,40 @@
 version: "3.8"
 
 services:
-  # Standard test runner with baked-in files (rebuild required for changes)
+  # Nanoserver smoke tests - validates certz.exe runs on minimal Windows
+  certz-test-smoke:
+    build:
+      context: .
+      dockerfile: Dockerfile.test.nanoserver
+    image: certz-test-smoke:latest
+    container_name: certz-test-smoke
+    isolation: process
+
+  # Full test suite on Server Core (PKI module, certutil, Cert:\ drive available)
   certz-test:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile.test.servercore
     image: certz-test:latest
-    container_name: certz-test-runner
+    container_name: certz-test
     environment:
       - DOTNET_ENVIRONMENT=Test
     volumes:
       # Mount test results output (optional)
       - ./test-results:/app/test-results:rw
-    # Use Windows containers
     isolation: process
-    # Auto-remove container after tests complete
-    # Exit code will reflect test results (0 = success, 1 = failure)
 
   # Development test runner with volume mounts (no rebuild needed for changes)
   certz-test-dev:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile: Dockerfile.test.servercore
     image: certz-test:latest
-    container_name: certz-test-runner-dev
+    container_name: certz-test-dev
     environment:
       - DOTNET_ENVIRONMENT=Test
     volumes:
-      # Mount certz.exe and test script from host (changes reflected immediately)
+      # Mount certz.exe and test scripts from host (changes reflected immediately)
       - ./debug/certz.exe:/app/certz.exe:ro
       - ./debug/certz.pdb:/app/certz.pdb:ro
       - ./test:/app/test:ro
