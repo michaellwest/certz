@@ -1,4 +1,5 @@
 using certz.Commands;
+using certz.Commands.Examples;
 using certz.Commands.Inspect;
 using certz.Commands.Lint;
 using certz.Commands.Monitor;
@@ -13,6 +14,7 @@ var rootCommand = new RootCommand("Certz: A Simple Certificate Utility");
 var formatOption = OptionBuilders.CreateFormatOption();
 rootCommand.Options.Add(formatOption);
 
+// Register all commands
 rootCommand.AddListCommand();
 rootCommand.AddInstallCommand();
 rootCommand.AddCreateCommand();
@@ -27,6 +29,7 @@ rootCommand.AddMonitorCommand();
 rootCommand.AddRenewCommand();
 rootCommand.AddStoreCommand();
 rootCommand.AddTrustCommand();
+rootCommand.AddExamplesCommand();
 
 try
 {

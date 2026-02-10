@@ -20,7 +20,7 @@ New-Item -ItemType Directory -Path $OutputPath | Out-Null
 
 # Build the project
 Write-Host "Publishing project..." -ForegroundColor Yellow
-dotnet publish "$ProjectRoot\certz.csproj" `
+dotnet publish "$ProjectRoot\src\certz\certz.csproj" `
     -c $Configuration `
     -o $OutputPath `
     --self-contained true `
@@ -42,7 +42,7 @@ if (-not (Test-Path $ExePath)) {
 Write-Host "Build successful!" -ForegroundColor Green
 
 # Get version from csproj
-$CsprojPath = Join-Path $ProjectRoot "certz.csproj"
+$CsprojPath = Join-Path $ProjectRoot "src\certz\certz.csproj"
 [xml]$Csproj = Get-Content $CsprojPath
 $Version = $Csproj.Project.PropertyGroup.AssemblyVersion
 if (-not $Version) {

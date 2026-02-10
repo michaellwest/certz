@@ -1,3 +1,4 @@
+using certz.Examples;
 using certz.Models;
 using certz.Services.Validation;
 using Spectre.Console;
@@ -869,5 +870,50 @@ internal class TextFormatter : IOutputFormatter
     public void WriteSuccess(string message)
     {
         AnsiConsole.MarkupLine($"[green]{Markup.Escape(message)}[/]");
+    }
+
+    public void WriteExamples(string commandPath, CommandExample[] examples)
+    {
+        var header = string.IsNullOrEmpty(commandPath)
+            ? "[bold]certz Examples[/]"
+            : $"[bold]Examples for: certz {Markup.Escape(commandPath)}[/]";
+
+        AnsiConsole.Write(new Rule(header).LeftJustified());
+        AnsiConsole.WriteLine();
+
+        foreach (var example in examples)
+        {
+            AnsiConsole.MarkupLine($"[green]#[/] {Markup.Escape(example.Description)}");
+            AnsiConsole.MarkupLine($"[cyan]{Markup.Escape(example.Command)}[/]");
+            if (!string.IsNullOrEmpty(example.Notes))
+            {
+                AnsiConsole.MarkupLine($"[dim]  {Markup.Escape(example.Notes)}[/]");
+            }
+            AnsiConsole.WriteLine();
+        }
+    }
+
+    public void WriteAllExamples(IReadOnlyDictionary<string, CommandExample[]> allExamples)
+    {
+        AnsiConsole.Write(new Rule("[bold]certz Examples[/]").LeftJustified());
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[dim]Use 'certz examples <command>' to see examples for a specific command.[/]");
+        AnsiConsole.WriteLine();
+
+        foreach (var (commandPath, examples) in allExamples.OrderBy(kvp => kvp.Key))
+        {
+            var header = string.IsNullOrEmpty(commandPath)
+                ? "[bold yellow]General[/]"
+                : $"[bold yellow]certz {Markup.Escape(commandPath)}[/]";
+
+            AnsiConsole.MarkupLine(header);
+
+            foreach (var example in examples)
+            {
+                AnsiConsole.MarkupLine($"  [green]#[/] {Markup.Escape(example.Description)}");
+                AnsiConsole.MarkupLine($"  [cyan]{Markup.Escape(example.Command)}[/]");
+            }
+            AnsiConsole.WriteLine();
+        }
     }
 }

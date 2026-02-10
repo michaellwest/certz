@@ -20,7 +20,7 @@ The codebase currently has these Windows-specific dependencies:
 
 | Dependency | Location | Impact |
 |------------|----------|--------|
-| `win-x64` RuntimeIdentifier | certz.csproj | Cannot build for Linux |
+| `win-x64` RuntimeIdentifier | src/certz/certz.csproj | Cannot build for Linux |
 | `X509Store` API | TrustService, TrustHandler, StoreListHandler | Trust store operations fail |
 | `WindowsIdentity` | TrustService, TrustHandler | Admin detection fails |
 | Hardcoded `\` in paths | Multiple formatters/services | Display issues only |
@@ -60,7 +60,7 @@ These operations use cross-platform .NET APIs and require no changes:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Update certz.csproj for multi-platform builds | [ ] | Add Linux runtime identifiers |
+| 1 | Update src/certz/certz.csproj for multi-platform builds | [ ] | Add Linux runtime identifiers |
 | 2 | Create platform abstraction for privilege detection | [ ] | Replace WindowsIdentity |
 | 3 | Add platform guards to trust store operations | [ ] | Clear error messages |
 | 4 | Fix hardcoded path separators | [ ] | Display strings only |
@@ -72,9 +72,9 @@ These operations use cross-platform .NET APIs and require no changes:
 
 ## Implementation Steps
 
-### Step 1: Update certz.csproj for Multi-Platform Builds
+### Step 1: Update src/certz/certz.csproj for Multi-Platform Builds
 
-**Modify:** `certz.csproj`
+**Modify:** `src/certz/certz.csproj`
 
 Replace the single RuntimeIdentifier with RuntimeIdentifiers (plural):
 
@@ -113,7 +113,7 @@ dotnet publish -c Release -r linux-arm64
 
 ### Step 2: Create Platform Abstraction for Privilege Detection
 
-**Create:** `Services/PlatformService.cs`
+**Create:** `src/certz/Services/PlatformService.cs`
 
 ```csharp
 using System.Runtime.InteropServices;
@@ -216,7 +216,7 @@ internal static class PlatformService
 
 ### Step 3: Add Platform Guards to Trust Store Operations
 
-**Modify:** `Services/TrustService.cs`
+**Modify:** `src/certz/Services/TrustService.cs`
 
 Add platform check at the start of trust store methods:
 
@@ -254,7 +254,7 @@ internal static async Task<TrustOperationResult> RemoveFromTrustStore(TrustRemov
 }
 ```
 
-**Modify:** `Services/TrustHandler.cs`
+**Modify:** `src/certz/Services/TrustHandler.cs`
 
 Replace direct `IsRunningAsAdmin()` calls:
 
@@ -274,7 +274,7 @@ if (options.StoreLocation == StoreLocation.LocalMachine && !PlatformService.IsEl
 }
 ```
 
-**Modify:** `Commands/Store/StoreListCommand.cs`
+**Modify:** `src/certz/Commands/Store/StoreListCommand.cs`
 
 Add platform guard:
 
@@ -300,12 +300,12 @@ storeListCommand.SetAction(async (parseResult) =>
 ### Step 4: Fix Hardcoded Path Separators
 
 **Files to update:**
-- `Services/CertificateUtilities.cs`
-- `Services/CertificateInspector.cs`
-- `Services/ExportService.cs`
-- `Services/MonitorService.cs`
-- `Formatters/TextFormatter.cs`
-- `Commands/Trust/TrustCommand.cs`
+- `src/certz/Services/CertificateUtilities.cs`
+- `src/certz/Services/CertificateInspector.cs`
+- `src/certz/Services/ExportService.cs`
+- `src/certz/Services/MonitorService.cs`
+- `src/certz/Formatters/TextFormatter.cs`
+- `src/certz/Commands/Trust/TrustCommand.cs`
 
 **Pattern to find:**
 
@@ -880,7 +880,7 @@ Linux does not have a unified certificate store like Windows. There are multiple
 ### Proposed Architecture
 
 ```
-Services/
+src/certz/Services/
 ├── TrustStore/
 │   ├── ITrustStore.cs              # Interface
 │   ├── WindowsTrustStore.cs        # Current implementation

@@ -7,7 +7,7 @@ All planned modernization work has been completed as of 2026-02-07.
 ## What Was Accomplished
 
 ### Phase 1: Extract Shared Utilities ✅ (2026-02-06)
-- Created `CertificateUtilities.cs` with shared utility methods
+- Created `src/certz/Services/CertificateUtilities.cs` with shared utility methods
 - Eliminated code duplication between legacy and modern APIs
 - Extracted: `GenerateSecurePassword()`, `DisplayPasswordWarning()`, `GetKeyStorageFlags()`, `WriteCertificateToFile()`, `InstallCertificate()`
 
@@ -44,7 +44,7 @@ Created and integrated specialized service classes:
 
 ### Service Classes
 ```
-Services/
+src/certz/Services/
 ├── CertificateUtilities.cs       ✅ Shared utilities
 ├── CreateService.cs              ✅ Certificate creation (dev/CA)
 ├── ConvertService.cs             ✅ Format conversion (PEM/PFX)

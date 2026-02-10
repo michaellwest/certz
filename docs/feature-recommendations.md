@@ -50,8 +50,8 @@ Based on clarifying questions, the following decisions have been made:
 | `convert` | `convert` | Keep as-is |
 
 ### Current Architecture Strengths
-- Well-structured service layer (`CertificateOperations.cs`)
-- Centralized option definitions (`OptionBuilders.cs`)
+- Well-structured service layer (`src/certz/Services/`)
+- Centralized option definitions (`src/certz/Options/OptionBuilders.cs`)
 - Extension method pattern allows loose coupling
 - Async throughout
 - Modern .NET 10 with current crypto APIs
@@ -280,7 +280,7 @@ certz renew server.pfx --days 90 --out server-renewed.pfx
 Create pluggable formatters for text and JSON output:
 
 ```
-Services/
+src/certz/
 ├── Formatters/
 │   ├── IOutputFormatter.cs
 │   ├── TextFormatter.cs
@@ -291,7 +291,7 @@ Services/
 Organize commands into hierarchical folders:
 
 ```
-Commands/
+src/certz/Commands/
 ├── Create/
 │   ├── CreateCaCommand.cs
 │   └── CreateDevCommand.cs
@@ -311,7 +311,7 @@ Commands/
 Separate interactive wizard logic from command execution:
 
 ```
-Services/
+src/certz/Services/
 ├── Interactive/
 │   ├── IWizardService.cs
 │   ├── CreateCaWizard.cs
@@ -322,7 +322,7 @@ Services/
 Extract certificate chain operations with Spectre.Console visualization:
 
 ```
-Services/
+src/certz/Services/
 ├── Validation/
 │   ├── IChainValidator.cs
 │   ├── ChainValidator.cs
@@ -333,7 +333,7 @@ Services/
 Implement standards validation:
 
 ```
-Services/
+src/certz/Services/
 ├── Linting/
 │   ├── ILintRule.cs
 │   ├── CabForumRules.cs    [CA/B Forum Baseline Requirements]
@@ -345,7 +345,7 @@ Services/
 Abstract browser-specific trust operations:
 
 ```
-Services/
+src/certz/Services/
 ├── TrustStore/
 │   ├── ITrustStore.cs
 │   ├── WindowsTrustStore.cs

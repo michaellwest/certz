@@ -224,7 +224,7 @@ Invoke-Test -TestId "iss-1.1" -TestName "Create dev cert signed by CA" -FilePref
 ---
 
 ### Step 2: Add Spectre.Console Package
-**File:** `certz.csproj`
+**File:** `src/certz/certz.csproj`
 
 Add package reference:
 ```xml
@@ -263,7 +263,7 @@ Add package reference:
 ---
 
 ### Step 5: Add Global --format Option
-**File:** `Program.cs`
+**File:** `src/certz/Program.cs`
 
 Add global option before command registration:
 ```csharp
@@ -280,7 +280,7 @@ rootCommand.Options.Add(formatOption);
 ---
 
 ### Step 6: Create Certificate Wizard Service
-**New file:** `Services/CertificateWizard.cs`
+**New file:** `src/certz/Services/CertificateWizard.cs`
 
 Interactive prompts using Spectre.Console:
 - `RunDevCertificateWizard()` → prompts for domain, SANs, days, key type, trust
@@ -291,7 +291,7 @@ Interactive prompts using Spectre.Console:
 ---
 
 ### Step 7: Create Hierarchical Command Structure
-**New directory:** `Commands/Create/`
+**New directory:** `src/certz/Commands/Create/`
 
 | File | Purpose |
 |------|---------|
@@ -303,7 +303,7 @@ Interactive prompts using Spectre.Console:
 ---
 
 ### Step 8: Transform CreateCommand to Parent
-**Modify:** `Commands/CreateCommand.cs`
+**Modify:** `src/certz/Commands/CreateCommand.cs`
 
 Change from flat command to parent with subcommands:
 ```csharp
@@ -321,7 +321,7 @@ internal static void AddCreateCommand(this RootCommand rootCommand)
 ---
 
 ### Step 9: Add Issuer Signing Support
-**Modify:** `Services/CertificateGeneration.cs`
+**Modify:** `src/certz/Services/CertificateGeneration.cs`
 
 Add `GenerateSignedCertificate()` method that:
 - Accepts issuer certificate + key
@@ -333,7 +333,7 @@ Add `GenerateSignedCertificate()` method that:
 ---
 
 ### Step 10: Create V2 Operations Wrapper
-**New file:** `Services/CertificateOperationsV2.cs`
+**New file:** `src/certz/Services/CertificateOperationsV2.cs`
 
 Wraps existing operations returning structured `CertificateCreationResult`:
 - `CreateDevCertificate(DevCertificateOptions)`
@@ -344,7 +344,7 @@ Wraps existing operations returning structured `CertificateCreationResult`:
 ---
 
 ### Step 11: Update GlobalUsings
-**Modify:** `GlobalUsings.cs`
+**Modify:** `src/certz/GlobalUsings.cs`
 ```csharp
 global using Spectre.Console;
 ```
@@ -404,22 +404,22 @@ Options:
 | File | Action |
 |------|--------|
 | `test-create.ps1` | New file - test script for create commands |
-| `certz.csproj` | Add Spectre.Console package |
-| `Program.cs` | Add --format global option |
-| `GlobalUsings.cs` | Add Spectre.Console using |
-| `Commands/CreateCommand.cs` | Transform to parent command |
-| `Commands/Create/CreateDevCommand.cs` | New file |
-| `Commands/Create/CreateCaCommand.cs` | New file |
-| `Formatters/IOutputFormatter.cs` | New file |
-| `Formatters/TextFormatter.cs` | New file |
-| `Formatters/JsonFormatter.cs` | New file |
-| `Formatters/FormatterFactory.cs` | New file |
-| `Models/CertificateCreationResult.cs` | New file |
-| `Models/DevCertificateOptions.cs` | New file |
-| `Models/CACertificateOptions.cs` | New file |
-| `Services/CertificateWizard.cs` | New file |
-| `Services/CertificateOperationsV2.cs` | New file |
-| `Services/CertificateGeneration.cs` | Add GenerateSignedCertificate method |
+| `src/certz/certz.csproj` | Add Spectre.Console package |
+| `src/certz/Program.cs` | Add --format global option |
+| `src/certz/GlobalUsings.cs` | Add Spectre.Console using |
+| `src/certz/Commands/CreateCommand.cs` | Transform to parent command |
+| `src/certz/Commands/Create/CreateDevCommand.cs` | New file |
+| `src/certz/Commands/Create/CreateCaCommand.cs` | New file |
+| `src/certz/Formatters/IOutputFormatter.cs` | New file |
+| `src/certz/Formatters/TextFormatter.cs` | New file |
+| `src/certz/Formatters/JsonFormatter.cs` | New file |
+| `src/certz/Formatters/FormatterFactory.cs` | New file |
+| `src/certz/Models/CertificateCreationResult.cs` | New file |
+| `src/certz/Models/DevCertificateOptions.cs` | New file |
+| `src/certz/Models/CACertificateOptions.cs` | New file |
+| `src/certz/Services/CertificateWizard.cs` | New file |
+| `src/certz/Services/CertificateOperationsV2.cs` | New file |
+| `src/certz/Services/CertificateGeneration.cs` | Add GenerateSignedCertificate method |
 
 ---
 

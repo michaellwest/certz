@@ -61,12 +61,12 @@ Exit Codes:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Create MonitorOptions model | [x] | Models/MonitorOptions.cs |
-| 2 | Create MonitorResult model | [x] | Models/MonitorResult.cs |
-| 3 | Create MonitorService | [x] | Services/MonitorService.cs |
-| 4 | Create MonitorCommand | [x] | Commands/Monitor/MonitorCommand.cs |
-| 5 | Add TextFormatter output | [x] | Formatters/TextFormatter.cs |
-| 6 | Add JsonFormatter output | [x] | Formatters/JsonFormatter.cs |
+| 1 | Create MonitorOptions model | [x] | src/certz/Models/MonitorOptions.cs |
+| 2 | Create MonitorResult model | [x] | src/certz/Models/MonitorResult.cs |
+| 3 | Create MonitorService | [x] | src/certz/Services/MonitorService.cs |
+| 4 | Create MonitorCommand | [x] | src/certz/Commands/Monitor/MonitorCommand.cs |
+| 5 | Add TextFormatter output | [x] | src/certz/Formatters/TextFormatter.cs |
+| 6 | Add JsonFormatter output | [x] | src/certz/Formatters/JsonFormatter.cs |
 | 7 | Add tests | [x] | test/test-monitor.ps1 |
 | 8 | Update documentation | [x] | README.md |
 
@@ -76,7 +76,7 @@ Exit Codes:
 
 ### Step 1: Create MonitorOptions Model
 
-**Create:** `Models/MonitorOptions.cs`
+**Create:** `src/certz/Models/MonitorOptions.cs`
 
 ```csharp
 namespace certz.Models;
@@ -132,7 +132,7 @@ internal record MonitorOptions
 
 ### Step 2: Create MonitorResult Model
 
-**Create:** `Models/MonitorResult.cs`
+**Create:** `src/certz/Models/MonitorResult.cs`
 
 ```csharp
 namespace certz.Models;
@@ -240,7 +240,7 @@ internal record MonitorError
 
 ### Step 3: Create MonitorService
 
-**Create:** `Services/MonitorService.cs`
+**Create:** `src/certz/Services/MonitorService.cs`
 
 ```csharp
 namespace certz.Services;
@@ -358,7 +358,7 @@ internal static class MonitorService
 
 ### Step 4: Create MonitorCommand
 
-**Create:** `Commands/Monitor/MonitorCommand.cs`
+**Create:** `src/certz/Commands/Monitor/MonitorCommand.cs`
 
 ```csharp
 namespace certz.Commands.Monitor;
@@ -466,7 +466,7 @@ internal static class MonitorCommand
 
 ### Step 5: Add TextFormatter Output
 
-**Modify:** `Formatters/TextFormatter.cs`
+**Modify:** `src/certz/Formatters/TextFormatter.cs`
 
 ```csharp
 public void WriteMonitorResult(MonitorResult result, bool quietMode)
@@ -543,7 +543,7 @@ public void WriteMonitorResult(MonitorResult result, bool quietMode)
 
 ### Step 6: Add JsonFormatter Output
 
-**Modify:** `Formatters/JsonFormatter.cs`
+**Modify:** `src/certz/Formatters/JsonFormatter.cs`
 
 Add DTOs and serialization:
 

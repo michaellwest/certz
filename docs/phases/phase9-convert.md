@@ -16,18 +16,18 @@ This is a .NET 10 CLI tool using:
 
 ### Established Patterns
 
-**Command Structure:** `Commands/<Feature>/<Feature>Command.cs`
+**Command Structure:** `src/certz/Commands/<Feature>/<Feature>Command.cs`
 - Static class with `Build<Feature>Command()` method
 - Returns `Command` with options and `SetAction` handler
 - Uses `OptionBuilders` for standard options
 - Calls service layer, formats with `FormatterFactory.Create(format)`
 
-**Service Layer:** `Services/<Feature>Service.cs`
+**Service Layer:** `src/certz/Services/<Feature>Service.cs`
 - Static class with internal methods
 - Returns result record types
 - Contains business logic
 
-**Models:** `Models/<Feature>Options.cs` and `Models/<Feature>Result.cs`
+**Models:** `src/certz/Models/<Feature>Options.cs` and `src/certz/Models/<Feature>Result.cs`
 - Record types with `required` and `init` properties
 
 **Testing:** `test/test-<feature>.ps1`
@@ -42,7 +42,7 @@ This is a .NET 10 CLI tool using:
 
 ### Existing Convert Command
 
-The current `certz convert` command in `Commands/ConvertCommand.cs` supports:
+The current `certz convert` command in `src/certz/Commands/src/certz/Commands/ConvertCommand.cs` supports:
 
 | Conversion | Command |
 |------------|---------|
@@ -57,7 +57,7 @@ The current `certz convert` command in `Commands/ConvertCommand.cs` supports:
 
 ### Existing ConvertService
 
-`Services/ConvertService.cs` provides:
+`src/certz/Services/src/certz/Services/ConvertService.cs` provides:
 - `ConvertToPfx()` - Combines PEM cert + key into PFX
 - `ConvertFromPfx()` - Extracts PEM cert + key from PFX
 - RSA and ECDSA key support
@@ -183,10 +183,10 @@ When `--output` is not specified, derive from input:
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Add FormatType enum | [x] | Models/FormatType.cs |
-| 2 | Add ConvertOptions model | [x] | Models/ConvertOptions.cs |
-| 3 | Add format detection service | [x] | Services/FormatDetectionService.cs |
-| 4 | Add DER conversion methods | [x] | Services/ConvertService.cs |
+| 1 | Add FormatType enum | [x] | src/certz/Models/FormatType.cs |
+| 2 | Add ConvertOptions model | [x] | src/certz/Models/ConvertOptions.cs |
+| 3 | Add format detection service | [x] | src/certz/Services/FormatDetectionService.cs |
+| 4 | Add DER conversion methods | [x] | Services/src/certz/Services/ConvertService.cs |
 | 5 | Update ConvertCommand | [x] | Add new simplified interface |
 | 6 | Update TextFormatter | [x] | Enhanced conversion output |
 | 7 | Update JsonFormatter | [x] | Add format info fields |
@@ -199,7 +199,7 @@ When `--output` is not specified, derive from input:
 
 ### Step 1: Add FormatType Enum
 
-**Create:** `Models/FormatType.cs`
+**Create:** `src/certz/Models/FormatType.cs`
 
 ```csharp
 namespace certz.Models;
@@ -237,7 +237,7 @@ public enum FormatType
 
 ### Step 2: Add ConvertOptions Model
 
-**Create:** `Models/ConvertOptions.cs`
+**Create:** `src/certz/Models/ConvertOptions.cs`
 
 ```csharp
 namespace certz.Models;
@@ -300,7 +300,7 @@ internal record ConvertOptions
 
 ### Step 3: Add Format Detection Service
 
-**Create:** `Services/FormatDetectionService.cs`
+**Create:** `src/certz/Services/FormatDetectionService.cs`
 
 ```csharp
 using certz.Models;
@@ -497,7 +497,7 @@ internal static class FormatDetectionService
 
 ### Step 4: Add DER Conversion Methods to ConvertService
 
-**Modify:** `Services/ConvertService.cs`
+**Modify:** `src/certz/Services/src/certz/Services/ConvertService.cs`
 
 Add the following methods:
 
@@ -780,7 +780,7 @@ private static string? ExportPrivateKeyPem(X509Certificate2 certificate)
 **Update ConversionResult model to include OutputFormat:**
 
 ```csharp
-// In Models/ConversionResult.cs, add:
+// In src/certz/Models/ConversionResult.cs, add:
 public string? OutputFormat { get; init; }
 ```
 
@@ -790,7 +790,7 @@ public string? OutputFormat { get; init; }
 
 ### Step 5: Update ConvertCommand with Simplified Interface
 
-**Modify:** `Commands/ConvertCommand.cs`
+**Modify:** `src/certz/Commands/src/certz/Commands/ConvertCommand.cs`
 
 ```csharp
 using certz.Formatters;
@@ -1018,7 +1018,7 @@ internal static class ConvertCommand
 
 ### Step 6: Update Option Builders
 
-**Modify:** `Options/OptionBuilders.cs`
+**Modify:** `src/certz/Options/src/certz/Options/OptionBuilders.cs`
 
 Add the `--to` option builder:
 
@@ -1061,13 +1061,13 @@ internal static Option<FileInfo?> CreateOutputOption()
 }
 ```
 
-**Status:** [x] Complete (options created inline in ConvertCommand.cs)
+**Status:** [x] Complete (options created inline in src/certz/Commands/ConvertCommand.cs)
 
 ---
 
 ### Step 7: Update TextFormatter
 
-**Modify:** `Formatters/TextFormatter.cs`
+**Modify:** `src/certz/Formatters/TextFormatter.cs`
 
 Enhance the `WriteConversionResult` method:
 
@@ -1139,7 +1139,7 @@ public void WriteConversionResult(ConversionResult result)
 
 ### Step 8: Update JsonFormatter
 
-**Modify:** `Formatters/JsonFormatter.cs`
+**Modify:** `src/certz/Formatters/JsonFormatter.cs`
 
 Update the output record and method:
 
@@ -1677,10 +1677,10 @@ certz convert --file input.pfx --out-cert cert.pem --out-key key.pem -p secret
 ### Existing Infrastructure
 
 The codebase has these relevant components:
-- `ConvertService.cs` - Core conversion logic (extend, don't replace)
-- `ConvertCommand.cs` - Current command (add new interface alongside existing)
-- `CertificateUtilities.cs` - Helper methods for key handling
-- `OptionBuilders.cs` - Standard option creation
+- `src/certz/Services/ConvertService.cs` - Core conversion logic (extend, don't replace)
+- `src/certz/Commands/ConvertCommand.cs` - Current command (add new interface alongside existing)
+- `src/certz/Services/CertificateUtilities.cs` - Helper methods for key handling
+- `src/certz/Options/OptionBuilders.cs` - Standard option creation
 
 ### Key .NET APIs for DER Support
 

@@ -25,7 +25,7 @@ The following decisions apply to Phase 3 (documented in feature-plan-recommendat
 |---|------|--------|-------|
 | 1 | Create test-guided.ps1 Test Script | [ ] | Deferred - manual testing performed |
 | 2 | Add IWizardService Interface | [x] | Simplified: used static CertificateWizard class |
-| 3 | Create Base Wizard Infrastructure | [x] | Implemented in Services/CertificateWizard.cs |
+| 3 | Create Base Wizard Infrastructure | [x] | Implemented in src/certz/Services/CertificateWizard.cs |
 | 4 | Implement CreateDevWizard | [x] | RunDevCertificateWizard() with 6 steps |
 | 5 | Implement CreateCaWizard | [x] | RunCACertificateWizard() with 5 steps |
 | 6 | Add --guided Flag to Commands | [x] | Already existed, enhanced with cancellation handling |
@@ -159,7 +159,7 @@ Invoke-Test -TestId "gui-1.1" -TestName "Dev cert wizard with defaults" -FilePre
 ---
 
 ### Step 2: Add IWizardService Interface
-**New file:** `Services/Interactive/IWizardService.cs`
+**New file:** `src/certz/Services/Interactive/IWizardService.cs`
 
 Define the interface for wizard services:
 
@@ -197,7 +197,7 @@ public interface IWizardStep
 ---
 
 ### Step 3: Create Base Wizard Infrastructure
-**New file:** `Services/Interactive/WizardBase.cs`
+**New file:** `src/certz/Services/Interactive/WizardBase.cs`
 
 Create base class with common wizard functionality:
 
@@ -299,7 +299,7 @@ public abstract class WizardBase<TOptions> where TOptions : new()
 ---
 
 ### Step 4: Implement CreateDevWizard
-**New file:** `Services/Interactive/CreateDevWizard.cs`
+**New file:** `src/certz/Services/Interactive/CreateDevWizard.cs`
 
 Implement the development certificate wizard:
 
@@ -443,7 +443,7 @@ public class CreateDevWizard : WizardBase<CreateDevOptions>, IWizardService<Crea
 ---
 
 ### Step 5: Implement CreateCaWizard
-**New file:** `Services/Interactive/CreateCaWizard.cs`
+**New file:** `src/certz/Services/Interactive/CreateCaWizard.cs`
 
 Implement the CA certificate wizard:
 
@@ -604,7 +604,7 @@ public class CreateCaWizard : WizardBase<CreateCaOptions>, IWizardService<Create
 ---
 
 ### Step 6: Add --guided Flag to Commands
-**Modify:** `Commands/Create/CreateDevCommand.cs`, `Commands/Create/CreateCaCommand.cs`
+**Modify:** `src/certz/Commands/Create/CreateDevCommand.cs`, `src/certz/Commands/Create/CreateCaCommand.cs`
 
 Add the `--guided` option and integrate with wizards:
 
@@ -644,7 +644,7 @@ command.SetHandler(async (context) =>
 ---
 
 ### Step 7: Add Wizard Result Summary Display
-**New file:** `Services/Interactive/WizardSummary.cs`
+**New file:** `src/certz/Services/Interactive/WizardSummary.cs`
 
 Create a service for displaying wizard results:
 
@@ -700,7 +700,7 @@ public class WizardSummary
 ---
 
 ### Step 8: Update Formatters for Wizard Output
-**Modify:** `Formatters/TextFormatter.cs`
+**Modify:** `src/certz/Formatters/TextFormatter.cs`
 
 Add wizard-specific output methods:
 
@@ -785,14 +785,14 @@ Wizard features:
 | File | Action |
 |------|--------|
 | `test-guided.ps1` | New file - test script for guided mode |
-| `Services/Interactive/IWizardService.cs` | New file - wizard interface |
-| `Services/Interactive/WizardBase.cs` | New file - base wizard class |
-| `Services/Interactive/CreateDevWizard.cs` | New file - dev cert wizard |
-| `Services/Interactive/CreateCaWizard.cs` | New file - CA cert wizard |
-| `Services/Interactive/WizardSummary.cs` | New file - result display |
-| `Commands/Create/CreateDevCommand.cs` | Modify - add --guided flag |
-| `Commands/Create/CreateCaCommand.cs` | Modify - add --guided flag |
-| `Formatters/TextFormatter.cs` | Modify - add wizard output methods |
+| `src/certz/Services/Interactive/IWizardService.cs` | New file - wizard interface |
+| `src/certz/Services/Interactive/WizardBase.cs` | New file - base wizard class |
+| `src/certz/Services/Interactive/CreateDevWizard.cs` | New file - dev cert wizard |
+| `src/certz/Services/Interactive/CreateCaWizard.cs` | New file - CA cert wizard |
+| `src/certz/Services/Interactive/WizardSummary.cs` | New file - result display |
+| `src/certz/Commands/Create/CreateDevCommand.cs` | Modify - add --guided flag |
+| `src/certz/Commands/Create/CreateCaCommand.cs` | Modify - add --guided flag |
+| `src/certz/Formatters/TextFormatter.cs` | Modify - add wizard output methods |
 
 ---
 

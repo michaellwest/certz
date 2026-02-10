@@ -165,7 +165,7 @@ Restrictions (mutually exclusive with --pipe):
 | **Default pipe format** | PEM (cert + key) | Most versatile, works with most tools |
 | **PFX password handling** | Required `--pipe-password` or generated to stderr | Security: don't embed passwords in stdout |
 | **Mutual exclusivity** | `--ephemeral`/`--pipe` conflict with file options | Prevents confusion about output location |
-| **Existing infrastructure** | Reuse `X509KeyStorageFlags.EphemeralKeySet` | Already in CertificateUtilities.cs line 80 |
+| **Existing infrastructure** | Reuse `X509KeyStorageFlags.EphemeralKeySet` | Already in src/certz/Services/CertificateUtilities.cs line 80 |
 | **Output channels** | Cert to stdout, metadata to stderr | Standard Unix convention for piping |
 
 ---
@@ -226,9 +226,9 @@ certz create dev example.com --pipe --pipe-format key
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Add Ephemeral property to DevCertificateOptions | [x] | Models/DevCertificateOptions.cs |
-| 2 | Add Ephemeral property to CACertificateOptions | [x] | Models/CACertificateOptions.cs |
-| 3 | Add IsEphemeral to CertificateCreationResult | [x] | Models/CertificateCreationResult.cs |
+| 1 | Add Ephemeral property to DevCertificateOptions | [x] | src/certz/Models/DevCertificateOptions.cs |
+| 2 | Add Ephemeral property to CACertificateOptions | [x] | src/certz/Models/CACertificateOptions.cs |
+| 3 | Add IsEphemeral to CertificateCreationResult | [x] | src/certz/Models/CertificateCreationResult.cs |
 | 4 | Add pipe-related properties to options | [x] | Pipe, PipeFormat, PipePassword |
 | 5 | Create option builders | [x] | OptionBuilders.cs |
 | 6 | Update CreateDevCommand | [x] | Add options, validation |
@@ -246,7 +246,7 @@ certz create dev example.com --pipe --pipe-format key
 
 ### Step 1: Add Ephemeral Property to DevCertificateOptions
 
-**Modify:** `Models/DevCertificateOptions.cs`
+**Modify:** `src/certz/Models/DevCertificateOptions.cs`
 
 ```csharp
 /// <summary>
@@ -276,7 +276,7 @@ public string? PipePassword { get; init; }
 
 ### Step 2: Add Ephemeral Property to CACertificateOptions
 
-**Modify:** `Models/CACertificateOptions.cs`
+**Modify:** `src/certz/Models/CACertificateOptions.cs`
 
 Add same properties as Step 1.
 
@@ -286,7 +286,7 @@ Add same properties as Step 1.
 
 ### Step 3: Add IsEphemeral to CertificateCreationResult
 
-**Modify:** `Models/CertificateCreationResult.cs`
+**Modify:** `src/certz/Models/CertificateCreationResult.cs`
 
 ```csharp
 /// <summary>
@@ -306,7 +306,7 @@ public bool WasPiped { get; init; }
 
 ### Step 4: Create Option Builders
 
-**Modify:** `Options/OptionBuilders.cs`
+**Modify:** `src/certz/Options/OptionBuilders.cs`
 
 ```csharp
 /// <summary>
@@ -370,7 +370,7 @@ internal static Option<string?> CreatePipePasswordOption()
 
 ### Step 5: Update CreateDevCommand
 
-**Modify:** `Commands/Create/CreateDevCommand.cs`
+**Modify:** `src/certz/Commands/Create/CreateDevCommand.cs`
 
 ```csharp
 // Add options
@@ -436,7 +436,7 @@ if (pipeFormat?.ToLowerInvariant() == "pfx" && pipePassword == null)
 
 ### Step 6: Update CreateService for Conditional File Writing
 
-**Modify:** `Services/CreateService.cs`
+**Modify:** `src/certz/Services/CreateService.cs`
 
 ```csharp
 internal static async Task<CertificateCreationResult> CreateDevCertificate(DevCertificateOptions options)
@@ -500,7 +500,7 @@ internal static async Task<CertificateCreationResult> CreateDevCertificate(DevCe
 
 ### Step 7: Create PipeOutputService
 
-**Create:** `Services/PipeOutputService.cs`
+**Create:** `src/certz/Services/PipeOutputService.cs`
 
 ```csharp
 using System.Security.Cryptography;
@@ -631,7 +631,7 @@ internal static class PipeOutputService
 
 ### Step 8: Update TextFormatter
 
-**Modify:** `Formatters/TextFormatter.cs`
+**Modify:** `src/certz/Formatters/TextFormatter.cs`
 
 ```csharp
 public void WriteCertificateCreated(CertificateCreationResult result)
@@ -679,7 +679,7 @@ public void WriteCertificateCreated(CertificateCreationResult result)
 
 ### Step 9: Update JsonFormatter
 
-**Modify:** `Formatters/JsonFormatter.cs`
+**Modify:** `src/certz/Formatters/JsonFormatter.cs`
 
 Update `CertificateCreatedOutput` record:
 
