@@ -4,7 +4,7 @@ This directory contains detailed implementation plans for each major certz featu
 
 ## Overview
 
-Certz was developed in 9 phases, each adding a major capability:
+Certz was developed in phases, each adding a major capability:
 
 | Phase | Feature | Key Commands |
 |-------|---------|--------------|
@@ -17,6 +17,7 @@ Certz was developed in 9 phases, each adding a major capability:
 | [Phase 7](phase7-renew.md) | Certificate Renewal | `renew` |
 | [Phase 8](phase8-ephemeral.md) | Ephemeral Mode | `--ephemeral`, `--pipe` |
 | [Phase 9](phase9-convert.md) | Format Conversion | `convert` (PEM, DER, PFX) |
+| [Phase 10](phase10-crossplatform.md) | Cross-Platform Support | Linux builds, platform guards |
 
 ## Document Structure
 
