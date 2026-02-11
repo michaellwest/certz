@@ -228,8 +228,10 @@ internal record MonitorOutput(
     int ValidCount,
     int ExpiringCount,
     int ExpiredCount,
+    int SkippedCount,
     int WarnThreshold,
     MonitorCertificateDto[] Certificates,
+    MonitorWarningDto[]? Warnings,
     MonitorErrorDto[]? Errors
 );
 
@@ -241,6 +243,11 @@ internal record MonitorCertificateDto(
     int DaysRemaining,
     string Status,
     bool IsWarning
+);
+
+internal record MonitorWarningDto(
+    string Source,
+    string Reason
 );
 
 internal record MonitorErrorDto(
@@ -612,6 +619,10 @@ internal class JsonFormatter : IOutputFormatter
             c.IsWarning
         )).ToArray();
 
+        var warnings = result.Warnings.Count > 0
+            ? result.Warnings.Select(w => new MonitorWarningDto(w.Source, w.Reason)).ToArray()
+            : null;
+
         var errors = result.Errors.Count > 0
             ? result.Errors.Select(e => new MonitorErrorDto(e.Source, e.Message)).ToArray()
             : null;
@@ -622,8 +633,10 @@ internal class JsonFormatter : IOutputFormatter
             ValidCount: result.ValidCount,
             ExpiringCount: result.ExpiringCount,
             ExpiredCount: result.ExpiredCount,
+            SkippedCount: result.SkippedCount,
             WarnThreshold: result.WarnThreshold,
             Certificates: certificates,
+            Warnings: warnings,
             Errors: errors
         );
 

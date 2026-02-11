@@ -108,23 +108,23 @@ echo [17/20] monitor --format json
 %CERTZ% monitor . --format json >nul
 if %errorlevel% neq 0 goto :fail
 
-:: ---- VERIFY COMMAND ----
+:: ---- STORE COMMANDS ----
 
 echo.
-echo [18/20] verify
-%CERTZ% verify --file dev.pfx --password TestPass123
+echo [18/20] install
+%CERTZ% install --file dev.pfx --password TestPass123
 if %errorlevel% neq 0 goto :fail
-
-:: ---- STORE COMMANDS ----
 
 echo.
 echo [19/20] list
 %CERTZ% list
 if %errorlevel% neq 0 goto :fail
 
+:: ---- VERIFY COMMAND (after install so cert is trusted) ----
+
 echo.
-echo [20/20] install
-%CERTZ% install --file dev.pfx --password TestPass123 --sn My --sl CurrentUser
+echo [20/20] verify
+%CERTZ% verify --file dev.pfx --password TestPass123
 if %errorlevel% neq 0 goto :fail
 
 :: ---- DONE ----

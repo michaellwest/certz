@@ -19,12 +19,13 @@ internal static class MonitorService
     {
         var certificates = new List<MonitoredCertificate>();
         var errors = new List<MonitorError>();
+        var warnings = new List<MonitorWarning>();
         var now = DateTime.Now;
 
         // Process each source
         foreach (var source in options.Sources)
         {
-            await ProcessSourceAsync(source, options, certificates, errors, now);
+            await ProcessSourceAsync(source, options, certificates, errors, warnings, now);
         }
 
         // Scan certificate store if specified
@@ -41,7 +42,9 @@ internal static class MonitorService
             ValidCount = certificates.Count(c => c.Status == "Valid"),
             WarnThreshold = options.WarnDays,
             Certificates = certificates,
-            Errors = errors
+            Errors = errors,
+            Warnings = warnings,
+            SkippedCount = warnings.Count
         };
     }
 
@@ -50,6 +53,7 @@ internal static class MonitorService
         MonitorOptions options,
         List<MonitoredCertificate> certificates,
         List<MonitorError> errors,
+        List<MonitorWarning> warnings,
         DateTime now)
     {
         try
@@ -60,11 +64,11 @@ internal static class MonitorService
             }
             else if (Directory.Exists(source))
             {
-                ScanDirectory(source, options.Recursive, options.Password, certificates, errors, now, options.WarnDays);
+                ScanDirectory(source, options.Recursive, options.Password, certificates, errors, warnings, now, options.WarnDays);
             }
             else if (File.Exists(source))
             {
-                LoadCertificateFromFile(source, options.Password, certificates, errors, now, options.WarnDays);
+                LoadCertificateFromFile(source, options.Password, certificates, errors, warnings, now, options.WarnDays);
             }
             else
             {
@@ -147,13 +151,14 @@ internal static class MonitorService
         string? password,
         List<MonitoredCertificate> certificates,
         List<MonitorError> errors,
+        List<MonitorWarning> warnings,
         DateTime now,
         int warnDays)
     {
         var files = GetCertificateFiles(directory, recursive);
         foreach (var file in files)
         {
-            LoadCertificateFromFile(file, password, certificates, errors, now, warnDays);
+            LoadCertificateFromFile(file, password, certificates, errors, warnings, now, warnDays);
         }
     }
 
@@ -162,6 +167,7 @@ internal static class MonitorService
         string? password,
         List<MonitoredCertificate> certificates,
         List<MonitorError> errors,
+        List<MonitorWarning> warnings,
         DateTime now,
         int warnDays)
     {
@@ -195,6 +201,18 @@ internal static class MonitorService
             {
                 certificates.Add(CreateMonitoredCertificate(cert, filePath, now, warnDays));
                 cert.Dispose();
+            }
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            var extension = Path.GetExtension(filePath).ToLowerInvariant();
+            if (extension is ".pfx" or ".p12")
+            {
+                warnings.Add(new MonitorWarning { Source = filePath, Reason = "Skipped (password-protected PFX)" });
+            }
+            else
+            {
+                errors.Add(new MonitorError { Source = filePath, Message = "Unable to read certificate data" });
             }
         }
         catch (Exception ex)

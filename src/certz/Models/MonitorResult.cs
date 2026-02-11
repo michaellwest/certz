@@ -39,6 +39,16 @@ internal record MonitorResult
     /// Any errors encountered during scanning.
     /// </summary>
     public List<MonitorError> Errors { get; init; } = [];
+
+    /// <summary>
+    /// Warnings for files that were skipped (e.g., password-protected PFX).
+    /// </summary>
+    public List<MonitorWarning> Warnings { get; init; } = [];
+
+    /// <summary>
+    /// Number of files skipped.
+    /// </summary>
+    public int SkippedCount { get; init; }
 }
 
 /// <summary>
@@ -96,4 +106,20 @@ internal record MonitorError
     /// Error message.
     /// </summary>
     public required string Message { get; init; }
+}
+
+/// <summary>
+/// Warning for a file that was skipped during monitoring.
+/// </summary>
+internal record MonitorWarning
+{
+    /// <summary>
+    /// Source that was skipped.
+    /// </summary>
+    public required string Source { get; init; }
+
+    /// <summary>
+    /// Reason the file was skipped.
+    /// </summary>
+    public required string Reason { get; init; }
 }

@@ -744,6 +744,10 @@ internal class TextFormatter : IOutputFormatter
         summaryTable.AddRow("[green]Valid[/]", result.ValidCount.ToString());
         summaryTable.AddRow("[yellow]Expiring[/]", result.ExpiringCount.ToString());
         summaryTable.AddRow("[red]Expired[/]", result.ExpiredCount.ToString());
+        if (result.SkippedCount > 0)
+        {
+            summaryTable.AddRow("[dim]Skipped[/]", result.SkippedCount.ToString());
+        }
         summaryTable.AddRow("[dim]Total[/]", result.TotalScanned.ToString());
 
         AnsiConsole.Write(summaryTable);
@@ -784,6 +788,17 @@ internal class TextFormatter : IOutputFormatter
             }
 
             AnsiConsole.Write(table);
+        }
+
+        // Warnings (skipped files)
+        if (result.Warnings.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]Warnings:[/]");
+            foreach (var warning in result.Warnings)
+            {
+                AnsiConsole.MarkupLine($"  [dim]{Markup.Escape(warning.Source)}:[/] [yellow]{Markup.Escape(warning.Reason)}[/]");
+            }
         }
 
         // Errors
