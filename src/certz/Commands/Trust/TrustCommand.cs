@@ -44,8 +44,8 @@ internal static class TrustCommand
 
         var locationOption = new Option<string>("--location", "-l")
         {
-            Description = "Store location (CurrentUser, LocalMachine). LocalMachine requires admin.",
-            DefaultValueFactory = _ => "CurrentUser"
+            Description = "Store location (CurrentUser, LocalMachine). Defaults to LocalMachine when running as admin (avoids Root store UI dialog).",
+            DefaultValueFactory = _ => TrustHandler.IsRunningAsAdmin() ? "LocalMachine" : "CurrentUser"
         };
         locationOption.Validators.Add(result =>
         {
@@ -77,7 +77,8 @@ internal static class TrustCommand
                 ?? throw new ArgumentException("File argument is required.");
             var password = parseResult.GetValue(passwordOption);
             var storeName = parseResult.GetValue(storeOption) ?? "Root";
-            var storeLocation = parseResult.GetValue(locationOption) ?? "CurrentUser";
+            var storeLocation = parseResult.GetValue(locationOption)
+                ?? (TrustHandler.IsRunningAsAdmin() ? "LocalMachine" : "CurrentUser");
             var format = parseResult.GetValue(formatOption) ?? "text";
 
             // Verify file exists
@@ -116,8 +117,8 @@ internal static class TrustCommand
 
         var locationOption = new Option<string>("--location", "-l")
         {
-            Description = "Store location (CurrentUser, LocalMachine). LocalMachine requires admin.",
-            DefaultValueFactory = _ => "CurrentUser"
+            Description = "Store location (CurrentUser, LocalMachine). Defaults to LocalMachine when running as admin (avoids Root store UI dialog).",
+            DefaultValueFactory = _ => TrustHandler.IsRunningAsAdmin() ? "LocalMachine" : "CurrentUser"
         };
         locationOption.Validators.Add(result =>
         {
@@ -155,7 +156,8 @@ internal static class TrustCommand
             var thumbprint = parseResult.GetValue(thumbprintArgument);
             var subject = parseResult.GetValue(subjectOption);
             var storeName = parseResult.GetValue(storeOption) ?? "Root";
-            var storeLocation = parseResult.GetValue(locationOption) ?? "CurrentUser";
+            var storeLocation = parseResult.GetValue(locationOption)
+                ?? (TrustHandler.IsRunningAsAdmin() ? "LocalMachine" : "CurrentUser");
             var force = parseResult.GetValue(forceOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
 

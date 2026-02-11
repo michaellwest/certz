@@ -66,6 +66,9 @@ Set-VerboseOutput -Enabled $Verbose
 Write-Host "`nCertz Create Command Test Suite" -ForegroundColor Magenta
 Write-Host "================================`n" -ForegroundColor Magenta
 
+# Check admin status (required for trust tests using LocalMachine store)
+$script:IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
 # Display active filters
 if ($TestId -or $Category) {
     Write-Host "Test Filters Active:" -ForegroundColor Yellow
@@ -481,13 +484,18 @@ Invoke-Test -TestId "iss-1.2" -TestName "Create dev cert signed by CA (PEM issue
 # ============================================================================
 Write-TestHeader "Testing Trust Flag"
 
-# Test tru-1.1: Dev cert with --trust flag
+# Test tru-1.1: Dev cert with --trust flag (uses LocalMachine\Root to avoid UI dialog)
 Invoke-Test -TestId "tru-1.1" -TestName "Create dev cert with --trust flag" -FilePrefix "dev-trust" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniqueDomain = "certz-trusttest-$([guid]::NewGuid().ToString().Substring(0,8)).local"
 
     try {
-        # ACTION: Single certz.exe call
-        $output = & .\certz.exe create dev $uniqueDomain --trust --f dev-trust.pfx --p TrustPass123 2>&1
+        # ACTION: Single certz.exe call (--trust-location LocalMachine avoids UI dialog)
+        $output = & .\certz.exe create dev $uniqueDomain --trust --trust-location LocalMachine --f dev-trust.pfx --p TrustPass123 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -496,26 +504,31 @@ Invoke-Test -TestId "tru-1.1" -TestName "Create dev cert with --trust flag" -Fil
         Assert-FileExists "dev-trust.pfx"
 
         # ASSERTION 3: Certificate in trust store (PowerShell verification)
-        $cert = Assert-CertificateInStore -SubjectPattern "*$uniqueDomain*" -StoreName "Root" -StoreLocation "CurrentUser"
+        $cert = Assert-CertificateInStore -SubjectPattern "*$uniqueDomain*" -StoreName "Root" -StoreLocation "LocalMachine"
 
-        [PSCustomObject]@{ Success = $true; Details = "Dev cert created and trusted" }
+        [PSCustomObject]@{ Success = $true; Details = "Dev cert created and trusted (LocalMachine\Root)" }
     }
     finally {
         # CLEANUP: Remove from store and file (PowerShell only)
-        Get-ChildItem "Cert:\CurrentUser\Root" |
+        Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Subject -like "*$uniqueDomain*" } |
             Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item "dev-trust.pfx" -Force -ErrorAction SilentlyContinue
     }
 }
 
-# Test tru-1.2: CA cert with --trust flag
+# Test tru-1.2: CA cert with --trust flag (uses LocalMachine\Root to avoid UI dialog)
 Invoke-Test -TestId "tru-1.2" -TestName "Create CA cert with --trust flag" -FilePrefix "ca-trust" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniqueName = "certz-TrustedCA-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     try {
-        # ACTION: Single certz.exe call
-        $output = & .\certz.exe create ca --name $uniqueName --trust --f ca-trust.pfx --p TrustPass123 2>&1
+        # ACTION: Single certz.exe call (--trust-location LocalMachine avoids UI dialog)
+        $output = & .\certz.exe create ca --name $uniqueName --trust --trust-location LocalMachine --f ca-trust.pfx --p TrustPass123 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -524,13 +537,13 @@ Invoke-Test -TestId "tru-1.2" -TestName "Create CA cert with --trust flag" -File
         Assert-FileExists "ca-trust.pfx"
 
         # ASSERTION 3: Certificate in trust store (PowerShell verification)
-        $cert = Assert-CertificateInStore -SubjectPattern "*$uniqueName*" -StoreName "Root" -StoreLocation "CurrentUser"
+        $cert = Assert-CertificateInStore -SubjectPattern "*$uniqueName*" -StoreName "Root" -StoreLocation "LocalMachine"
 
-        [PSCustomObject]@{ Success = $true; Details = "CA cert created and trusted" }
+        [PSCustomObject]@{ Success = $true; Details = "CA cert created and trusted (LocalMachine\Root)" }
     }
     finally {
         # CLEANUP: Remove from store and file (PowerShell only)
-        Get-ChildItem "Cert:\CurrentUser\Root" |
+        Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Subject -like "*$uniqueName*" } |
             Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item "ca-trust.pfx" -Force -ErrorAction SilentlyContinue

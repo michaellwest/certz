@@ -11,6 +11,10 @@
     - Setup and teardown use pure PowerShell (no certz calls)
     - Assert against system state (files, cert store), NOT console output
 
+    Trust tests that target the Root store use LocalMachine\Root to avoid the
+    Windows Security UI dialog triggered by CurrentUser\Root. This requires
+    running as Administrator (Docker containers use ContainerAdministrator).
+
 .PARAMETER TestId
     Run specific tests by ID. Example: -TestId "tru-1.1", "sto-1.1"
 
@@ -63,6 +67,15 @@ Set-VerboseOutput -Enabled $Verbose
 Write-Host "`nCertz Trust and Store Command Test Suite" -ForegroundColor Magenta
 Write-Host "=========================================`n" -ForegroundColor Magenta
 
+# Check admin status (required for LocalMachine store tests)
+$script:IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($script:IsAdmin) {
+    Write-Host "Running as Administrator - LocalMachine store tests enabled" -ForegroundColor Green
+} else {
+    Write-Host "WARNING: Not running as Administrator - Root store tests will be skipped" -ForegroundColor Yellow
+    Write-Host "Run as Administrator to enable all trust tests`n" -ForegroundColor Yellow
+}
+
 # Display active filters
 if ($TestId -or $Category) {
     Write-Host "Test Filters Active:" -ForegroundColor Yellow
@@ -90,8 +103,13 @@ Remove-TestFiles
 # ============================================================================
 Write-TestHeader "Testing TRUST ADD Command"
 
-# Test tru-1.1: Add certificate to Root store
+# Test tru-1.1: Add certificate to Root store (LocalMachine)
 Invoke-Test -TestId "tru-1.1" -TestName "Add certificate to Root store" -FilePrefix "tru-add" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniqueCN = "certz-trust-add-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create a test certificate using PowerShell
@@ -112,34 +130,37 @@ Invoke-Test -TestId "tru-1.1" -TestName "Add certificate to Root store" -FilePre
     Remove-Item $cert.PSPath -Force
 
     try {
-        # ACTION: Single certz.exe call
-        $output = & .\certz.exe trust add tru-add.cer --store root 2>&1
+        # ACTION: Single certz.exe call (defaults to LocalMachine when admin)
+        $output = & .\certz.exe trust add tru-add.cer --store root --location LocalMachine 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Certificate in store (PowerShell verification)
-        $foundCert = Get-ChildItem "Cert:\CurrentUser\Root" |
+        $foundCert = Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Thumbprint -eq $thumbprint }
         if (-not $foundCert) {
-            throw "Certificate should be in CurrentUser\Root store"
+            throw "Certificate should be in LocalMachine\Root store"
         }
 
-        [PSCustomObject]@{ Success = $true; Details = "Certificate added to Root store" }
+        [PSCustomObject]@{ Success = $true; Details = "Certificate added to LocalMachine\Root store" }
     }
     finally {
         # CLEANUP: PowerShell only
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint }
-        foreach ($c in $matchingCerts) {
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item "tru-add.cer" -Force -ErrorAction SilentlyContinue
     }
 }
 
-# Test tru-1.2: Add PFX to Root store
+# Test tru-1.2: Add PFX to Root store (LocalMachine)
 Invoke-Test -TestId "tru-1.2" -TestName "Add PFX to Root store" -FilePrefix "tru-add-pfx" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniqueCN = "certz-trust-add-pfx-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
     # SETUP: Create a test certificate using PowerShell
@@ -160,27 +181,25 @@ Invoke-Test -TestId "tru-1.2" -TestName "Add PFX to Root store" -FilePrefix "tru
 
     try {
         # ACTION: Single certz.exe call
-        $output = & .\certz.exe trust add tru-add-pfx.pfx --password TrustPfxPass123 --store root 2>&1
+        $output = & .\certz.exe trust add tru-add-pfx.pfx --password TrustPfxPass123 --store root --location LocalMachine 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Certificate in store (PowerShell verification)
-        $foundCert = Get-ChildItem "Cert:\CurrentUser\Root" |
+        $foundCert = Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Thumbprint -eq $thumbprint }
         if (-not $foundCert) {
-            throw "Certificate should be in CurrentUser\Root store"
+            throw "Certificate should be in LocalMachine\Root store"
         }
 
-        [PSCustomObject]@{ Success = $true; Details = "PFX certificate added to Root store" }
+        [PSCustomObject]@{ Success = $true; Details = "PFX certificate added to LocalMachine\Root store" }
     }
     finally {
         # CLEANUP: PowerShell only
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint }
-        foreach ($c in $matchingCerts) {
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item "tru-add-pfx.pfx" -Force -ErrorAction SilentlyContinue
     }
 }
@@ -204,7 +223,7 @@ Invoke-Test -TestId "tru-1.3" -TestName "Add certificate to CA store" -FilePrefi
 
     try {
         # ACTION: Single certz.exe call
-        $output = & .\certz.exe trust add tru-add-ca.cer --store ca 2>&1
+        $output = & .\certz.exe trust add tru-add-ca.cer --store ca --location CurrentUser 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -227,8 +246,8 @@ Invoke-Test -TestId "tru-1.3" -TestName "Add certificate to CA store" -FilePrefi
     }
 }
 
-# Test tru-1.4: LocalMachine without admin fails
-Invoke-Test -TestId "tru-1.4" -TestName "LocalMachine without admin fails" -FilePrefix "tru-noadmin" -TestScript {
+# Test tru-1.4: Non-admin explicit LocalMachine fails
+Invoke-Test -TestId "tru-1.4" -TestName "Non-admin explicit LocalMachine fails" -FilePrefix "tru-noadmin" -TestScript {
     # SETUP: Create a test certificate using PowerShell
     $certParams = @{
         Subject = "CN=certz-noadmin-test"
@@ -248,9 +267,7 @@ Invoke-Test -TestId "tru-1.4" -TestName "LocalMachine without admin fails" -File
         $outputStr = $output -join "`n"
 
         # ASSERTION: Should fail with permission error (unless running as admin)
-        $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-        if (-not $isAdmin) {
+        if (-not $script:IsAdmin) {
             if ($exitCode -eq 0) {
                 throw "Command should have failed without admin privileges"
             }
@@ -276,9 +293,14 @@ Write-TestHeader "Testing TRUST REMOVE Command"
 
 # Test trm-1.1: Remove by thumbprint with --force
 Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -FilePrefix "trm-thumb" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniqueCN = "certz-trust-remove-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create certificate in My store, then move to Root store
+    # SETUP: Create certificate in My store, then move to Root store (LocalMachine)
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -289,22 +311,22 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to Root store (using helper to avoid UI prompt)
+    # Export and import to LocalMachine\Root store (using helper)
     $tempCerFile = "trm-thumb-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root" -StoreLocation "LocalMachine"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call
-        $output = & .\certz.exe trust remove $thumbprint --force 2>&1
+        $output = & .\certz.exe trust remove $thumbprint --force --location LocalMachine 2>&1
         Write-Host $output
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Certificate removed from store (PowerShell verification)
-        $foundCert = Get-ChildItem "Cert:\CurrentUser\Root" |
+        $foundCert = Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Thumbprint -eq $thumbprint }
         if ($foundCert) {
             throw "Certificate should have been removed from store"
@@ -314,20 +336,22 @@ Invoke-Test -TestId "trm-1.1" -TestName "Remove certificate by thumbprint" -File
     }
     finally {
         # CLEANUP: PowerShell only (in case test failed)
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint }
-        foreach ($c in $matchingCerts) {
-            Write-Host "Cleaning up certificate with thumbprint $($c.Thumbprint)" -ForegroundColor Yellow
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 
 # Test trm-1.2: Remove by subject pattern with --force
 Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force" -FilePrefix "trm-subject" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniquePrefix = "certz-remove-subj-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create certificate in My store, then move to Root store
+    # SETUP: Create certificate in My store, then move to LocalMachine\Root store
     $certParams = @{
         Subject = "CN=$uniquePrefix-test"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -338,22 +362,22 @@ Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force"
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to Root store (using helper to avoid UI prompt)
+    # Export and import to LocalMachine\Root store (using helper)
     $tempCerFile = "trm-subject-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root" -StoreLocation "LocalMachine"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call with subject pattern
-        $output = & .\certz.exe trust remove --subject "CN=$uniquePrefix*" --force 2>&1
+        $output = & .\certz.exe trust remove --subject "CN=$uniquePrefix*" --force --location LocalMachine 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Certificate removed from store (PowerShell verification)
-        $foundCert = Get-ChildItem "Cert:\CurrentUser\Root" |
+        $foundCert = Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Thumbprint -eq $thumbprint }
         if ($foundCert) {
             throw "Certificate should have been removed from store"
@@ -363,13 +387,13 @@ Invoke-Test -TestId "trm-1.2" -TestName "Remove by subject pattern with --force"
     }
     finally {
         # CLEANUP: PowerShell only (in case test failed)
-        Get-ChildItem "Cert:\CurrentUser\Root" |
+        Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Subject -like "*$uniquePrefix*" } |
             Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 
-# Test trm-1.3: Remove from specific store
+# Test trm-1.3: Remove from specific store (CA - CurrentUser, no admin needed)
 Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix "trm-store" -TestScript {
     $uniqueCN = "certz-remove-store-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
@@ -384,16 +408,16 @@ Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to CA store (using helper to avoid UI prompt)
+    # Export and import to CA store (CurrentUser - no UI dialog)
     $tempCerFile = "trm-store-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "CA"
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "CA" -StoreLocation "CurrentUser"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call
-        $output = & .\certz.exe trust remove $thumbprint --store ca --force 2>&1
+        $output = & .\certz.exe trust remove $thumbprint --store ca --location CurrentUser --force 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -417,23 +441,28 @@ Invoke-Test -TestId "trm-1.3" -TestName "Remove from specific store" -FilePrefix
 
 # Test trm-1.4: Multiple matches without --force fails
 Invoke-Test -TestId "trm-1.4" -TestName "Multiple matches without --force fails" -FilePrefix "trm-multi" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniquePrefix = "certz-multi-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create TWO certificates with similar subjects in My store, then move to Root store
+    # SETUP: Create TWO certificates with similar subjects, import to LocalMachine\Root
     $cert1 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-1" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
     $cert2 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-2" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
 
-    # Export and import both to Root store (using helper to avoid UI prompt)
+    # Export and import both to LocalMachine\Root store
     Export-Certificate -Cert $cert1 -FilePath "trm-multi-1.cer" -Type CERT | Out-Null
     Export-Certificate -Cert $cert2 -FilePath "trm-multi-2.cer" -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath "trm-multi-1.cer" -StoreName "Root"
-    Import-CertificateToStoreNoUI -FilePath "trm-multi-2.cer" -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath "trm-multi-1.cer" -StoreName "Root" -StoreLocation "LocalMachine"
+    Import-CertificateToStoreNoUI -FilePath "trm-multi-2.cer" -StoreName "Root" -StoreLocation "LocalMachine"
     Remove-Item "trm-multi-1.cer", "trm-multi-2.cer" -Force
     Remove-Item $cert1.PSPath, $cert2.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call (should fail without --force)
-        $output = & .\certz.exe trust remove --subject "CN=$uniquePrefix*" 2>&1
+        $output = & .\certz.exe trust remove --subject "CN=$uniquePrefix*" --location LocalMachine 2>&1
         $exitCode = $LASTEXITCODE
         $outputStr = $output -join "`n"
 
@@ -451,11 +480,9 @@ Invoke-Test -TestId "trm-1.4" -TestName "Multiple matches without --force fails"
     }
     finally {
         # CLEANUP: PowerShell only
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Subject -like "*$uniquePrefix*" }
-        foreach ($c in $matchingCerts) {
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Subject -like "*$uniquePrefix*" } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -466,9 +493,14 @@ Write-TestHeader "Testing PARTIAL THUMBPRINT Matching"
 
 # Test trm-2.1: Remove by partial thumbprint (8 chars) with --force
 Invoke-Test -TestId "trm-2.1" -TestName "Remove by partial thumbprint (8 chars)" -FilePrefix "trm-partial8" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniqueCN = "certz-partial8-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create certificate in My store, then move to Root store
+    # SETUP: Create certificate in My store, then move to LocalMachine\Root store
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -480,23 +512,23 @@ Invoke-Test -TestId "trm-2.1" -TestName "Remove by partial thumbprint (8 chars)"
     $thumbprint = $cert.Thumbprint
     $partialThumbprint = $thumbprint.Substring(0, 8)  # First 8 characters
 
-    # Export and import to Root store
+    # Export and import to LocalMachine\Root store
     $tempCerFile = "trm-partial8-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root" -StoreLocation "LocalMachine"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call with partial thumbprint
-        $output = & .\certz.exe trust remove $partialThumbprint --force 2>&1
+        $output = & .\certz.exe trust remove $partialThumbprint --force --location LocalMachine 2>&1
         $outputStr = $output -join "`n"
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Certificate removed from store (PowerShell verification)
-        $foundCert = Get-ChildItem "Cert:\CurrentUser\Root" |
+        $foundCert = Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Thumbprint -eq $thumbprint }
         if ($foundCert) {
             throw "Certificate should have been removed from store"
@@ -506,19 +538,22 @@ Invoke-Test -TestId "trm-2.1" -TestName "Remove by partial thumbprint (8 chars)"
     }
     finally {
         # CLEANUP: PowerShell only (in case test failed)
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint }
-        foreach ($c in $matchingCerts) {
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 
 # Test trm-2.2: Remove by partial thumbprint (16 chars) with --force
 Invoke-Test -TestId "trm-2.2" -TestName "Remove by partial thumbprint (16 chars)" -FilePrefix "trm-partial16" -TestScript {
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
     $uniqueCN = "certz-partial16-test-$([guid]::NewGuid().ToString().Substring(0,8))"
 
-    # SETUP: Create certificate in My store, then move to Root store
+    # SETUP: Create certificate in My store, then move to LocalMachine\Root store
     $certParams = @{
         Subject = "CN=$uniqueCN"
         KeyAlgorithm = "ECDSA_nistP256"
@@ -530,23 +565,23 @@ Invoke-Test -TestId "trm-2.2" -TestName "Remove by partial thumbprint (16 chars)
     $thumbprint = $cert.Thumbprint
     $partialThumbprint = $thumbprint.Substring(0, 16)  # First 16 characters
 
-    # Export and import to Root store
+    # Export and import to LocalMachine\Root store
     $tempCerFile = "trm-partial16-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root" -StoreLocation "LocalMachine"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call with partial thumbprint
-        $output = & .\certz.exe trust remove $partialThumbprint --force 2>&1
+        $output = & .\certz.exe trust remove $partialThumbprint --force --location LocalMachine 2>&1
         $outputStr = $output -join "`n"
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Certificate removed from store (PowerShell verification)
-        $foundCert = Get-ChildItem "Cert:\CurrentUser\Root" |
+        $foundCert = Get-ChildItem "Cert:\LocalMachine\Root" |
             Where-Object { $_.Thumbprint -eq $thumbprint }
         if ($foundCert) {
             throw "Certificate should have been removed from store"
@@ -556,11 +591,9 @@ Invoke-Test -TestId "trm-2.2" -TestName "Remove by partial thumbprint (16 chars)
     }
     finally {
         # CLEANUP: PowerShell only (in case test failed)
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint }
-        foreach ($c in $matchingCerts) {
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -586,9 +619,10 @@ Invoke-Test -TestId "trm-2.3" -TestName "Partial thumbprint too short fails" -Fi
 
 # Test trm-2.4: Partial thumbprint matching multiple certs requires --force
 Invoke-Test -TestId "trm-2.4" -TestName "Partial thumbprint multiple matches requires --force" -FilePrefix "trm-partial-multi" -TestScript {
-    # SETUP: Create TWO certificates. We need them to have thumbprints with matching prefixes.
-    # This is probabilistic, but for testing we'll create certs and check if we can craft a test.
-    # Alternative: create one cert, and test the logic with a very short prefix.
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
 
     $uniquePrefix = "certz-partial-multi-$([guid]::NewGuid().ToString().Substring(0,8))"
 
@@ -596,21 +630,21 @@ Invoke-Test -TestId "trm-2.4" -TestName "Partial thumbprint multiple matches req
     $cert1 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-1" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
     $cert2 = New-SelfSignedCertificate -Subject "CN=$uniquePrefix-2" -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
 
-    # Export and import both to Root store
+    # Export and import both to LocalMachine\Root store
     Export-Certificate -Cert $cert1 -FilePath "trm-partial-multi-1.cer" -Type CERT | Out-Null
     Export-Certificate -Cert $cert2 -FilePath "trm-partial-multi-2.cer" -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath "trm-partial-multi-1.cer" -StoreName "Root"
-    Import-CertificateToStoreNoUI -FilePath "trm-partial-multi-2.cer" -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath "trm-partial-multi-1.cer" -StoreName "Root" -StoreLocation "LocalMachine"
+    Import-CertificateToStoreNoUI -FilePath "trm-partial-multi-2.cer" -StoreName "Root" -StoreLocation "LocalMachine"
     Remove-Item "trm-partial-multi-1.cer", "trm-partial-multi-2.cer" -Force
     Remove-Item $cert1.PSPath, $cert2.PSPath -Force
 
-    # Get thumbprints and find common prefix (if any, otherwise use subject pattern)
+    # Get thumbprints
     $thumb1 = $cert1.Thumbprint
     $thumb2 = $cert2.Thumbprint
 
     try {
         # Use subject pattern to test multiple match logic (more reliable than hoping thumbprints match)
-        $output = & .\certz.exe trust remove --subject "CN=$uniquePrefix*" 2>&1
+        $output = & .\certz.exe trust remove --subject "CN=$uniquePrefix*" --location LocalMachine 2>&1
         $exitCode = $LASTEXITCODE
         $outputStr = $output -join "`n"
 
@@ -628,11 +662,9 @@ Invoke-Test -TestId "trm-2.4" -TestName "Partial thumbprint multiple matches req
     }
     finally {
         # CLEANUP: PowerShell only
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Subject -like "*$uniquePrefix*" }
-        foreach ($c in $matchingCerts) {
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Subject -like "*$uniquePrefix*" } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -676,9 +708,14 @@ Invoke-Test -TestId "sto-1.1" -TestName "List certificates in My store" -FilePre
     }
 }
 
-# Test sto-1.2: List certificates in Root store
+# Test sto-1.2: List certificates in Root store (LocalMachine)
 Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FilePrefix "sto-list-root" -TestScript {
-    # SETUP: Create certificate in My store, then move to Root store
+    if (-not $script:IsAdmin) {
+        [PSCustomObject]@{ Success = $true; Details = "Skipped (requires admin for LocalMachine\Root)" }
+        return
+    }
+
+    # SETUP: Create certificate in My store, then move to LocalMachine\Root store
     $uniqueCN = "certz-store-list-root-test-$([guid]::NewGuid().ToString().Substring(0,8))"
     $certParams = @{
         Subject = "CN=$uniqueCN"
@@ -690,16 +727,16 @@ Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FileP
     $cert = New-SelfSignedCertificate @certParams
     $thumbprint = $cert.Thumbprint
 
-    # Export and import to Root store (using helper to avoid UI prompt)
+    # Export and import to LocalMachine\Root store (using helper)
     $tempCerFile = "sto-list-root-temp.cer"
     Export-Certificate -Cert $cert -FilePath $tempCerFile -Type CERT | Out-Null
-    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root"
+    Import-CertificateToStoreNoUI -FilePath $tempCerFile -StoreName "Root" -StoreLocation "LocalMachine"
     Remove-Item $tempCerFile -Force
     Remove-Item $cert.PSPath -Force
 
     try {
         # ACTION: Single certz.exe call
-        $output = & .\certz.exe store list --store root 2>&1
+        $output = & .\certz.exe store list --store root --location LocalMachine 2>&1
         $outputStr = $output -join "`n"
 
         # ASSERTION 1: Exit code
@@ -714,11 +751,9 @@ Invoke-Test -TestId "sto-1.2" -TestName "List certificates in Root store" -FileP
     }
     finally {
         # CLEANUP: PowerShell only
-        $matchingCerts = Get-ChildItem "Cert:\CurrentUser\Root" |
-            Where-Object { $_.Thumbprint -eq $thumbprint }
-        foreach ($c in $matchingCerts) {
-            Remove-Item "HKCU:\Software\Microsoft\SystemCertificates\Root\Certificates\$($c.Thumbprint)" -Force
-        }
+        Get-ChildItem "Cert:\LocalMachine\Root" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 

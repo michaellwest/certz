@@ -454,25 +454,29 @@ function Import-CertificateToStoreNoUI {
     .DESCRIPTION
         Uses certutil to import certificates silently, completely bypassing
         the Windows certificate UI that appears when importing to Root or
-        other protected stores. Only works for CurrentUser stores.
+        other protected stores.
+
+        For CurrentUser: uses 'certutil -user -addstore'
+        For LocalMachine: uses 'certutil -addstore' (requires admin)
     #>
     param(
         [Parameter(Mandatory)]
         [string]$FilePath,
         [Parameter(Mandatory)]
         [string]$StoreName,
-        [string]$StoreLocation = "CurrentUser"
+        [string]$StoreLocation = "LocalMachine"
     )
-
-    if ($StoreLocation -ne "CurrentUser") {
-        throw "Import-CertificateToStoreNoUI only supports CurrentUser store location"
-    }
 
     # Resolve to absolute path
     $absolutePath = (Resolve-Path $FilePath).Path
 
-    # Use certutil to import without UI
-    certutil.exe -user -addstore $StoreName $absolutePath | Out-Null
+    if ($StoreLocation -eq "LocalMachine") {
+        # LocalMachine: certutil without -user flag (requires admin)
+        certutil.exe -addstore $StoreName $absolutePath | Out-Null
+    } else {
+        # CurrentUser: certutil with -user flag
+        certutil.exe -user -addstore $StoreName $absolutePath | Out-Null
+    }
 }
 
 function Remove-CertificateFromStore {

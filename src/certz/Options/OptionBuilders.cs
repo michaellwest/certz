@@ -1,3 +1,5 @@
+using certz.Services;
+
 namespace certz.Options;
 
 internal static class OptionBuilders
@@ -420,8 +422,10 @@ internal static class OptionBuilders
     {
         var trustLocationOption = new Option<StoreLocation>("--trust-location", "--tl")
         {
-            Description = "Trust store location: CurrentUser (default, no admin required) or LocalMachine (requires admin, system-wide).",
-            DefaultValueFactory = _ => StoreLocation.CurrentUser
+            Description = "Trust store location: LocalMachine (default when admin, system-wide) or CurrentUser (no admin required, but triggers UI dialog for Root store).",
+            DefaultValueFactory = _ => TrustHandler.IsRunningAsAdmin()
+                ? StoreLocation.LocalMachine
+                : StoreLocation.CurrentUser
         };
         return trustLocationOption;
     }
