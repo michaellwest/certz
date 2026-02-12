@@ -2,7 +2,7 @@
   "profiles": {
     "certz": {
       "commandName": "Project",
-      "commandLineArgs": "examples trust"
+      "commandLineArgs": "monitor --help"
     },
     "Docker": {
       "commandName": "Docker",
