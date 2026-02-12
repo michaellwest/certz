@@ -22,6 +22,7 @@ All features have been implemented and documented in phase plans.
 | 4 | Linting | Complete | [phase4-lint.md](phases/phase4-lint.md) |
 | 5 | Chain Visualization | Complete | [phase5-chain.md](phases/phase5-chain.md) |
 | 6 | Expiration Monitoring | Complete | [phase6-monitor.md](phases/phase6-monitor.md) |
+| 6+ | Monitor Test Updates | Planned | [phase6-monitor-test-updates.md](phases/phase6-monitor-test-updates.md) |
 | 7 | Renewal | Complete | [phase7-renew.md](phases/phase7-renew.md) |
 | 8 | Ephemeral Mode | Complete | [phase8-ephemeral.md](phases/phase8-ephemeral.md) |
 | 9 | Format Conversion | Complete | [phase9-convert.md](phases/phase9-convert.md) |
