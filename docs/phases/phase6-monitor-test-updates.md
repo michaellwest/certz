@@ -1,6 +1,6 @@
 # Phase 6 Addendum: Monitor Test Updates
 
-**Status:** Planned
+**Status:** Complete
 **Feature:** `--password-map` option and PFX warning behavior
 **Related:** [phase6-monitor.md](phase6-monitor.md)
 

@@ -11,6 +11,8 @@
     - Store monitoring (certificate store scanning)
     - Threshold and exit codes
     - JSON output format
+    - Password map for PFX files
+    - PFX warning behavior
 
     It follows test isolation principles from test-isolation-plan.md:
     - Each test invokes certz.exe exactly ONCE
@@ -21,7 +23,7 @@
     Run specific tests by ID. Example: -TestId "mon-1.1", "mon-2.1"
 
 .PARAMETER Category
-    Run tests by category: file, url, store, threshold, format
+    Run tests by category: file, url, store, threshold, format, password-map, warnings
 
 .PARAMETER SkipCleanup
     Keep test files after running.
@@ -55,11 +57,13 @@ $ErrorActionPreference = "Stop"
 
 # Test categories
 $TestCategories = @{
-    "file" = @("mon-1.1", "mon-1.2", "mon-1.3", "mon-1.4")
-    "url" = @("mon-2.1")
-    "store" = @("mon-3.1", "mon-3.2")
-    "threshold" = @("mon-4.1", "mon-4.2", "mon-4.3")
-    "format" = @("mon-5.1", "mon-5.2")
+    "file"         = @("mon-1.1", "mon-1.2", "mon-1.3", "mon-1.4")
+    "url"          = @("mon-2.1")
+    "store"        = @("mon-3.1", "mon-3.2")
+    "threshold"    = @("mon-4.1", "mon-4.2", "mon-4.3")
+    "format"       = @("mon-5.1", "mon-5.2")
+    "password-map" = @("mon-6.1", "mon-6.2", "mon-6.3")
+    "warnings"     = @("mon-7.1")
 }
 
 # Initialize test environment
@@ -581,6 +585,256 @@ Invoke-Test -TestId "mon-5.2" -TestName "Monitor with JSON output format" -FileP
 }
 
 # ============================================================================
+# PASSWORD MAP TESTS
+# ============================================================================
+Write-TestHeader "Testing Password Map"
+
+# Test mon-6.1: Password map resolves correct password
+Invoke-Test -TestId "mon-6.1" -TestName "Password map resolves correct password" -FilePrefix "pm-resolve" -TestScript {
+    # SETUP: Create a test directory with 2 PFX files using different passwords
+    $testDir = "pm-resolve-dir"
+    New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+
+    $cert1 = New-SelfSignedCertificate -DnsName "alpha.local" `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -NotAfter (Get-Date).AddDays(60) `
+        -HashAlgorithm SHA256
+
+    $cert2 = New-SelfSignedCertificate -DnsName "beta.local" `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -NotAfter (Get-Date).AddDays(60) `
+        -HashAlgorithm SHA256
+
+    try {
+        # Export with different passwords
+        $alphaPass = ConvertTo-SecureString "AlphaPass" -AsPlainText -Force
+        $betaPass = ConvertTo-SecureString "BetaPass" -AsPlainText -Force
+        Export-PfxCertificate -Cert $cert1 -FilePath "$testDir\alpha.pfx" -Password $alphaPass | Out-Null
+        Export-PfxCertificate -Cert $cert2 -FilePath "$testDir\beta.pfx" -Password $betaPass | Out-Null
+
+        # Write password map file
+        Set-Content -Path "$testDir\map.txt" -Value @(
+            "alpha.pfx=AlphaPass"
+            "beta.pfx=BetaPass"
+        )
+
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe monitor $testDir --password-map "$testDir\map.txt" --format json 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: JSON fields
+        $json = $outputStr | ConvertFrom-Json
+        if ($json.totalScanned -ne 2) {
+            throw "Expected totalScanned=2, got $($json.totalScanned)"
+        }
+        if ($json.validCount -ne 2) {
+            throw "Expected validCount=2, got $($json.validCount)"
+        }
+        if ($json.skippedCount -ne 0) {
+            throw "Expected skippedCount=0, got $($json.skippedCount)"
+        }
+
+        # ASSERTION 3: No warnings or errors
+        if ($json.warnings) {
+            throw "Expected warnings to be null, got $($json.warnings.Count) warning(s)"
+        }
+        if ($json.errors) {
+            throw "Expected errors to be null, got $($json.errors.Count) error(s)"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Password map resolved both passwords correctly" }
+    }
+    finally {
+        # CLEANUP
+        Remove-Item -Path "Cert:\CurrentUser\My\$($cert1.Thumbprint)" -ErrorAction SilentlyContinue
+        Remove-Item -Path "Cert:\CurrentUser\My\$($cert2.Thumbprint)" -ErrorAction SilentlyContinue
+        Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test mon-6.2: Password map with fallback to --password
+Invoke-Test -TestId "mon-6.2" -TestName "Password map with --password fallback" -FilePrefix "pm-fallback" -TestScript {
+    # SETUP: Create directory with 2 PFX files - one mapped, one using fallback
+    $testDir = "pm-fallback-dir"
+    New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+
+    $cert1 = New-SelfSignedCertificate -DnsName "mapped.local" `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -NotAfter (Get-Date).AddDays(60) `
+        -HashAlgorithm SHA256
+
+    $cert2 = New-SelfSignedCertificate -DnsName "fallback.local" `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -NotAfter (Get-Date).AddDays(60) `
+        -HashAlgorithm SHA256
+
+    try {
+        # Export with different passwords
+        $mappedPass = ConvertTo-SecureString "MappedPass" -AsPlainText -Force
+        $fallbackPass = ConvertTo-SecureString "FallbackPass" -AsPlainText -Force
+        Export-PfxCertificate -Cert $cert1 -FilePath "$testDir\mapped.pfx" -Password $mappedPass | Out-Null
+        Export-PfxCertificate -Cert $cert2 -FilePath "$testDir\fallback.pfx" -Password $fallbackPass | Out-Null
+
+        # Write password map file - only maps the first file
+        Set-Content -Path "$testDir\map.txt" -Value @(
+            "mapped.pfx=MappedPass"
+        )
+
+        # ACTION: Single certz.exe call with --password as fallback
+        $output = & .\certz.exe monitor $testDir --password-map "$testDir\map.txt" --password FallbackPass --format json 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: JSON fields
+        $json = $outputStr | ConvertFrom-Json
+        if ($json.totalScanned -ne 2) {
+            throw "Expected totalScanned=2, got $($json.totalScanned)"
+        }
+        if ($json.validCount -ne 2) {
+            throw "Expected validCount=2, got $($json.validCount)"
+        }
+        if ($json.skippedCount -ne 0) {
+            throw "Expected skippedCount=0, got $($json.skippedCount)"
+        }
+
+        # ASSERTION 3: No warnings (fallback password worked)
+        if ($json.warnings) {
+            throw "Expected warnings to be null, got $($json.warnings.Count) warning(s)"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Password map with fallback resolved both files" }
+    }
+    finally {
+        # CLEANUP
+        Remove-Item -Path "Cert:\CurrentUser\My\$($cert1.Thumbprint)" -ErrorAction SilentlyContinue
+        Remove-Item -Path "Cert:\CurrentUser\My\$($cert2.Thumbprint)" -ErrorAction SilentlyContinue
+        Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test mon-6.3: Unmatched PFX produces warning
+Invoke-Test -TestId "mon-6.3" -TestName "Unmatched PFX produces warning" -FilePrefix "pm-nomatch" -TestScript {
+    # SETUP: Create directory with 1 PFX that doesn't match any map pattern
+    $testDir = "pm-nomatch-dir"
+    New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+
+    $cert = New-SelfSignedCertificate -DnsName "nomatch.local" `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -NotAfter (Get-Date).AddDays(60) `
+        -HashAlgorithm SHA256
+
+    try {
+        # Export with password
+        $password = ConvertTo-SecureString "SecretPass" -AsPlainText -Force
+        Export-PfxCertificate -Cert $cert -FilePath "$testDir\nomatch.pfx" -Password $password | Out-Null
+
+        # Write password map file with no matching pattern
+        Set-Content -Path "$testDir\map.txt" -Value @(
+            "other-*.pfx=WrongPass"
+        )
+
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe monitor $testDir --password-map "$testDir\map.txt" --format json 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: JSON fields
+        $json = $outputStr | ConvertFrom-Json
+        if ($json.totalScanned -ne 0) {
+            throw "Expected totalScanned=0, got $($json.totalScanned)"
+        }
+        if ($json.skippedCount -ne 1) {
+            throw "Expected skippedCount=1, got $($json.skippedCount)"
+        }
+
+        # ASSERTION 3: Warnings array has 1 entry containing the filename
+        if (-not $json.warnings -or $json.warnings.Count -ne 1) {
+            $warnCount = if ($json.warnings) { $json.warnings.Count } else { 0 }
+            throw "Expected 1 warning, got $warnCount"
+        }
+        if ($json.warnings[0].source -notlike "*nomatch.pfx*") {
+            throw "Expected warning source to contain 'nomatch.pfx', got '$($json.warnings[0].source)'"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Unmatched PFX correctly produced warning" }
+    }
+    finally {
+        # CLEANUP
+        Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
+        Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# WARNING TESTS
+# ============================================================================
+Write-TestHeader "Testing Warning Behavior"
+
+# Test mon-7.1: Password-protected PFX shows warning on directory scan
+Invoke-Test -TestId "mon-7.1" -TestName "Password-protected PFX shows warning on directory scan" -FilePrefix "pw-warn" -TestScript {
+    # SETUP: Create directory with 1 password-protected PFX
+    $testDir = "pw-warn-dir"
+    New-Item -ItemType Directory -Path $testDir -Force | Out-Null
+
+    $cert = New-SelfSignedCertificate -DnsName "protected.local" `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -NotAfter (Get-Date).AddDays(60) `
+        -HashAlgorithm SHA256
+
+    try {
+        # Export with password
+        $password = ConvertTo-SecureString "SecretPass" -AsPlainText -Force
+        Export-PfxCertificate -Cert $cert -FilePath "$testDir\protected.pfx" -Password $password | Out-Null
+
+        # ACTION: Single certz.exe call (no --password, no --password-map)
+        $output = & .\certz.exe monitor $testDir --format json 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: JSON fields
+        $json = $outputStr | ConvertFrom-Json
+        if ($json.totalScanned -ne 0) {
+            throw "Expected totalScanned=0, got $($json.totalScanned)"
+        }
+        if ($json.skippedCount -ne 1) {
+            throw "Expected skippedCount=1, got $($json.skippedCount)"
+        }
+
+        # ASSERTION 3: Warnings populated
+        if (-not $json.warnings -or $json.warnings.Count -lt 1) {
+            throw "Expected warnings to be populated"
+        }
+
+        # ASSERTION 4: Errors is null
+        if ($json.errors) {
+            throw "Expected errors to be null, got $($json.errors.Count) error(s)"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Password-protected PFX correctly produced warning" }
+    }
+    finally {
+        # CLEANUP
+        Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
+        Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
 # CLEANUP AND REPORT
 # ============================================================================
 if (-not $SkipCleanup) {
@@ -589,6 +843,10 @@ if (-not $SkipCleanup) {
     # Clean up test directories
     Remove-Item -Path "monitor-test-dir" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "monitor-recursive-dir" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "pm-resolve-dir" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "pm-fallback-dir" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "pm-nomatch-dir" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "pw-warn-dir" -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # Return to original directory

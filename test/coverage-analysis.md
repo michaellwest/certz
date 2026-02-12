@@ -14,7 +14,7 @@
 | `test-trust.ps1`     | `trust add`, `trust remove`, `store list`  | 15 tests   | ✅ Modern v2 |
 | `test-convert.ps1`   | `convert` (PEM, DER, PFX conversions)      | 23 tests   | ✅ Modern v2 |
 | `test-lint.ps1`      | `lint` (CA/B Forum, Mozilla NSS)           | 10 tests   | ✅ Modern v2 |
-| `test-monitor.ps1`   | `monitor` (expiration tracking)            | 12 tests   | ✅ Modern v2 |
+| `test-monitor.ps1`   | `monitor` (expiration tracking)            | 16 tests   | ✅ Modern v2 |
 | `test-renew.ps1`     | `renew` (certificate renewal)              | 11 tests   | ✅ Modern v2 |
 | `test-ephemeral.ps1` | `--ephemeral`, `--pipe` modes              | 14 tests   | ✅ Modern v2 |
 | `test-examples.ps1`  | `examples` (usage examples display)        | 9 tests    | ✅ Modern v2 |
@@ -22,7 +22,7 @@
 | `test-verify.ps1`    | `verify` (file, store validation)          | 7 tests    | ✅ Modern v2 |
 | `test-install.ps1`   | `install` (store install, exportable flag) | 6 tests    | ✅ Modern v2 |
 
-**Total: 147 tests across 12 test files**
+**Total: 151 tests across 12 test files**
 
 ---
 
@@ -47,7 +47,7 @@
 | `store list`             | test-trust.ps1     | ✅ Covered (3 tests: sto-1.1–1.3)            |
 | `convert`                | test-convert.ps1   | ✅ Covered (23 tests)                        |
 | `lint`                   | test-lint.ps1      | ✅ Covered (10 tests)                        |
-| `monitor`                | test-monitor.ps1   | ✅ Covered (12 tests)                        |
+| `monitor`                | test-monitor.ps1   | ✅ Covered (16 tests)                        |
 | `renew`                  | test-renew.ps1     | ✅ Covered (11 tests: ren-1.1–6.1)           |
 | `--ephemeral` / `--pipe` | test-ephemeral.ps1 | ✅ Covered (14 tests)                        |
 | `examples`               | test-examples.ps1  | ✅ Covered (9 tests: ex-1.1–3.1)             |
@@ -94,10 +94,15 @@
 
 ### test-monitor.ps1 Gaps
 
-| Gap                                 | Priority | Status      |
-| ----------------------------------- | -------- | ----------- |
-| URL monitoring with `--format json` | Low      | Not covered |
-| `--store` + `--expired` filter      | Low      | Not covered |
+| Gap                                          | Priority | Status              |
+| -------------------------------------------- | -------- | ------------------- |
+| `--password-map` with multiple passwords     | Medium   | Covered (mon-6.1)   |
+| `--password-map` with `--password` fallback  | Medium   | Covered (mon-6.2)   |
+| `--password-map` unmatched PFX warning       | Medium   | Covered (mon-6.3)   |
+| PFX warning on directory scan (no password)  | Medium   | Covered (mon-7.1)   |
+| `--password-map` with invalid file           | Low      | Not covered         |
+| URL monitoring with `--format json`          | Low      | Not covered         |
+| `--store` + `--expired` filter               | Low      | Not covered         |
 
 ---
 
@@ -214,4 +219,4 @@ exit $exitCode
 | ⚠️ Gaps    | ~10      | Medium and low priority (see above)    |
 | ⏳ Future  | 1        | `test-crossplatform.ps1` (Phase 10)    |
 
-**Total tests: 147 across 12 files**
+**Total tests: 151 across 12 files**
