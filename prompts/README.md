@@ -10,6 +10,7 @@ Prompts for AI assistants working on certz development and maintenance.
 | [new-test.md](new-test.md) | Template for creating test suites |
 | [release.md](release.md) | Checklist for preparing releases |
 | [future-work.md](future-work.md) | Summary of completed modernization work |
+| [monitor-test-updates.md](monitor-test-updates.md) | Implement monitor --password-map and warning tests |
 
 ## Usage
 
