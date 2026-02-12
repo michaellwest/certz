@@ -53,6 +53,9 @@ internal static class MonitorCommand
         // Password option
         var passwordOption = OptionBuilders.CreatePasswordOption();
 
+        // Password map option
+        var passwordMapOption = OptionBuilders.CreatePasswordMapOption();
+
         // Store option
         var storeOption = new Option<string?>("--store", "-s")
         {
@@ -100,6 +103,7 @@ internal static class MonitorCommand
             warnOption,
             recursiveOption,
             passwordOption,
+            passwordMapOption,
             storeOption,
             locationOption,
             quietOption,
@@ -113,6 +117,7 @@ internal static class MonitorCommand
             var warnDays = parseResult.GetValue(warnOption);
             var recursive = parseResult.GetValue(recursiveOption);
             var password = parseResult.GetValue(passwordOption);
+            var passwordMapFile = parseResult.GetValue(passwordMapOption);
             var storeName = parseResult.GetValue(storeOption);
             var storeLocation = parseResult.GetValue(locationOption);
             var quiet = parseResult.GetValue(quietOption);
@@ -121,6 +126,13 @@ internal static class MonitorCommand
 
             // Use environment variable for password if not specified
             password ??= Environment.GetEnvironmentVariable("CERTZ_PASSWORD");
+
+            // Parse password map file if provided
+            List<PasswordMapping>? passwordMappings = null;
+            if (passwordMapFile != null)
+            {
+                passwordMappings = ParsePasswordMapFile(passwordMapFile);
+            }
 
             // Validate that at least one source is provided or store is specified
             if (sources.Length == 0 && string.IsNullOrEmpty(storeName))
@@ -134,6 +146,7 @@ internal static class MonitorCommand
                 WarnDays = warnDays,
                 Recursive = recursive,
                 Password = password,
+                PasswordMappings = passwordMappings,
                 StoreName = storeName,
                 StoreLocation = storeLocation,
                 QuietMode = quiet,
@@ -158,5 +171,40 @@ internal static class MonitorCommand
         });
 
         return command;
+    }
+
+    private static List<PasswordMapping> ParsePasswordMapFile(FileInfo file)
+    {
+        if (!file.Exists)
+        {
+            throw new ArgumentException($"Password map file not found: {file.FullName}");
+        }
+
+        var mappings = new List<PasswordMapping>();
+        foreach (var line in File.ReadAllLines(file.FullName))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#'))
+            {
+                continue;
+            }
+
+            var eqIndex = trimmed.IndexOf('=');
+            if (eqIndex <= 0)
+            {
+                throw new ArgumentException($"Invalid password map entry (expected pattern=password): {trimmed}");
+            }
+
+            var pattern = trimmed[..eqIndex].Trim();
+            var password = trimmed[(eqIndex + 1)..];
+            mappings.Add(new PasswordMapping(pattern, password));
+        }
+
+        if (mappings.Count == 0)
+        {
+            throw new ArgumentException($"Password map file contains no entries: {file.FullName}");
+        }
+
+        return mappings;
     }
 }

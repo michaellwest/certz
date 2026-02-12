@@ -48,6 +48,16 @@ internal static class OptionBuilders
         return passwordFileOption;
     }
 
+    internal static Option<FileInfo?> CreatePasswordMapOption()
+    {
+        var option = new Option<FileInfo?>("--password-map", "--pm")
+        {
+            Description = "File mapping glob patterns to PFX passwords (format: pattern=password per line).",
+            Required = false
+        };
+        return option;
+    }
+
     internal static Option<int> CreateDaysOption(bool isRequired)
     {
         var daysOption = new Option<int>("--days")

@@ -26,6 +26,12 @@ internal record MonitorOptions
     public string? Password { get; init; }
 
     /// <summary>
+    /// Password mappings from a password map file (pattern=password).
+    /// Evaluated in order; first match wins. Falls back to Password.
+    /// </summary>
+    public List<PasswordMapping>? PasswordMappings { get; init; }
+
+    /// <summary>
     /// Certificate store name to scan.
     /// </summary>
     public string? StoreName { get; init; }
@@ -45,3 +51,8 @@ internal record MonitorOptions
     /// </summary>
     public bool FailOnWarning { get; init; }
 }
+
+/// <summary>
+/// Maps a glob pattern to a password for PFX files.
+/// </summary>
+internal record PasswordMapping(string Pattern, string Password);

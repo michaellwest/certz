@@ -555,6 +555,21 @@ certz monitor ./certs --fail-on-warning
 
 # JSON output for automation
 certz monitor ./certs --format json
+
+# Use a password map file for directories with mixed passwords
+certz monitor ./certs --password-map passwords.txt
+
+# Combine password map with a fallback password
+certz monitor ./certs --password-map passwords.txt --password FallbackPass
+```
+
+**Password Map File Format:**
+```
+# Lines starting with # are comments
+# Format: glob_pattern=password (first match wins)
+prod-*.pfx=Pr0dP@ss!
+staging-*.pfx=StagingPass
+*.pfx=DefaultPass
 ```
 
 **Options:**
@@ -563,6 +578,7 @@ certz monitor ./certs --format json
 | `--warn, -w <days>` | Warning threshold in days (default: 30) |
 | `--recursive, -r` | Scan subdirectories for certificate files |
 | `--password, -p` | Password for PFX files (or use env: CERTZ_PASSWORD) |
+| `--password-map, --pm` | File mapping glob patterns to PFX passwords (pattern=password per line) |
 | `--store, -s` | Certificate store to scan (My, Root, CA) |
 | `--location, -l` | Store location (CurrentUser, LocalMachine) |
 | `--quiet, -q` | Only output certificates within warning threshold |
@@ -610,6 +626,7 @@ Threshold: 30 days
   "validCount": 3,
   "expiringCount": 1,
   "expiredCount": 0,
+  "skippedCount": 0,
   "warnThreshold": 30,
   "certificates": [
     {

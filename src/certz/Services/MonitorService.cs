@@ -1,3 +1,4 @@
+using System.IO.Enumeration;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -64,11 +65,11 @@ internal static class MonitorService
             }
             else if (Directory.Exists(source))
             {
-                ScanDirectory(source, options.Recursive, options.Password, certificates, errors, warnings, now, options.WarnDays);
+                ScanDirectory(source, options.Recursive, options.Password, options.PasswordMappings, certificates, errors, warnings, now, options.WarnDays);
             }
             else if (File.Exists(source))
             {
-                LoadCertificateFromFile(source, options.Password, certificates, errors, warnings, now, options.WarnDays);
+                LoadCertificateFromFile(source, options.Password, options.PasswordMappings, certificates, errors, warnings, now, options.WarnDays);
             }
             else
             {
@@ -149,6 +150,7 @@ internal static class MonitorService
         string directory,
         bool recursive,
         string? password,
+        List<PasswordMapping>? passwordMappings,
         List<MonitoredCertificate> certificates,
         List<MonitorError> errors,
         List<MonitorWarning> warnings,
@@ -158,13 +160,14 @@ internal static class MonitorService
         var files = GetCertificateFiles(directory, recursive);
         foreach (var file in files)
         {
-            LoadCertificateFromFile(file, password, certificates, errors, warnings, now, warnDays);
+            LoadCertificateFromFile(file, password, passwordMappings, certificates, errors, warnings, now, warnDays);
         }
     }
 
     private static void LoadCertificateFromFile(
         string filePath,
         string? password,
+        List<PasswordMapping>? passwordMappings,
         List<MonitoredCertificate> certificates,
         List<MonitorError> errors,
         List<MonitorWarning> warnings,
@@ -180,7 +183,8 @@ internal static class MonitorService
             {
                 case ".pfx":
                 case ".p12":
-                    cert = LoadPfx(filePath, password);
+                    var resolvedPassword = ResolvePassword(filePath, passwordMappings, password);
+                    cert = LoadPfx(filePath, resolvedPassword);
                     break;
                 case ".pem":
                     cert = LoadPem(filePath);
@@ -193,7 +197,7 @@ internal static class MonitorService
                     cert = LoadDer(filePath);
                     break;
                 default:
-                    cert = AutoDetectAndLoad(filePath, password);
+                    cert = AutoDetectAndLoad(filePath, ResolvePassword(filePath, passwordMappings, password));
                     break;
             }
 
@@ -349,6 +353,26 @@ internal static class MonitorService
         }
 
         return "Valid";
+    }
+
+    private static string? ResolvePassword(
+        string filePath,
+        List<PasswordMapping>? mappings,
+        string? fallbackPassword)
+    {
+        if (mappings != null)
+        {
+            var fileName = Path.GetFileName(filePath);
+            foreach (var mapping in mappings)
+            {
+                if (FileSystemName.MatchesSimpleExpression(mapping.Pattern, fileName, ignoreCase: true))
+                {
+                    return mapping.Password;
+                }
+            }
+        }
+
+        return fallbackPassword;
     }
 
     private static string[] GetCertificateFiles(string directory, bool recursive)

@@ -103,6 +103,7 @@ internal static class ExamplesRegistry
             new("Monitor multiple sources", "certz monitor ./certs https://example.com"),
             new("Set expiration warning threshold", "certz monitor ./certs --warn 60"),
             new("Show only warnings (quiet mode)", "certz monitor ./certs --quiet"),
+            new("Use password map for mixed passwords", "certz monitor ./certs --password-map passwords.txt"),
             new("JSON output for CI/CD", "certz monitor ./certs --format json"),
         ],
 

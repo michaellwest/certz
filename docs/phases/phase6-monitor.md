@@ -35,6 +35,7 @@ Options:
   --store <name>      Certificate store to scan (My, Root, CA)
   --location <loc>    Store location (CurrentUser, LocalMachine)
   --password, -p      Password for PFX files (or use env: CERTZ_PASSWORD)
+  --password-map, --pm  File mapping glob patterns to PFX passwords
   --format            Output format: text (default), json
   --quiet, -q         Only output certificates within warning threshold
   --fail-on-warning   Exit with code 1 if any certificates within threshold
@@ -53,7 +54,7 @@ Exit Codes:
 | **Multiple sources** | Accept variadic arguments | Scan files, URLs, stores in one command |
 | **Default threshold** | 30 days | Industry standard for certificate renewal |
 | **Exit codes** | Semantic exit codes | CI/CD integration (fail on expired/warning) |
-| **Password handling** | Option + environment variable | Secure automation support |
+| **Password handling** | Option, env var, or password map file | Secure automation; map file supports mixed passwords via glob patterns |
 | **Quiet mode** | Filter output to at-risk certs | Reduce noise in monitoring |
 | **Store scanning** | Reuse existing StoreListHandler | Consistent with `store list` |
 
