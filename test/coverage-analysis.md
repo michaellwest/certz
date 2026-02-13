@@ -9,7 +9,7 @@
 
 | Test File            | Commands Tested                            | Test Count | Status       |
 | -------------------- | ------------------------------------------ | ---------- | ------------ |
-| `test-create.ps1`    | `create dev`, `create ca`                  | 14 tests   | ✅ Modern v2 |
+| `test-create.ps1`    | `create dev`, `create ca`                  | 18 tests   | ✅ Modern v2 |
 | `test-inspect.ps1`   | `inspect` (file, URL, store, chain, save)  | 17 tests   | ✅ Modern v2 |
 | `test-trust.ps1`     | `trust add`, `trust remove`, `store list`  | 15 tests   | ✅ Modern v2 |
 | `test-convert.ps1`   | `convert` (PEM, DER, PFX conversions)      | 23 tests   | ✅ Modern v2 |
@@ -22,7 +22,7 @@
 | `test-verify.ps1`    | `verify` (file, store validation)          | 7 tests    | ✅ Modern v2 |
 | `test-install.ps1`   | `install` (store install, exportable flag) | 6 tests    | ✅ Modern v2 |
 
-**Total: 151 tests across 12 test files**
+**Total: 155 tests across 12 test files**
 
 ---
 
@@ -33,6 +33,7 @@
 | Command                  | Test File          | Coverage Status                              |
 | ------------------------ | ------------------ | -------------------------------------------- |
 | `create dev`             | test-create.ps1    | ✅ Covered (5 tests: dev-1.1–1.5)            |
+| `create dev` PEM output  | test-create.ps1    | ✅ Covered (4 tests: pem-1.1–1.4)            |
 | `create ca`              | test-create.ps1    | ✅ Covered (3 tests: ca-1.1–1.3)             |
 | `create dev --guided`    | test-create.ps1    | ⚠️ Manual only (gui-1.1, skipped by default) |
 | `inspect <file>`         | test-inspect.ps1   | ✅ Covered (5 tests: ins-1.1–1.5)            |
@@ -75,7 +76,7 @@
 | `--issuer-password-file`                           | Low      | Not covered                      |
 | `--hash-algorithm` (SHA-256/SHA-384/SHA-512)       | Medium   | Not covered                      |
 | `--rsa-padding` (pss/pkcs1)                        | Low      | Not covered                      |
-| `--cert` / `--key` PEM output                      | Medium   | Not covered                      |
+| `--cert` / `--key` PEM output                      | Medium   | Covered (pem-1.1–1.4)           |
 | `--crl-url`, `--ocsp-url`, `--ca-issuers-url` (CA) | Medium   | Not covered                      |
 
 ### test-inspect.ps1 Gaps
@@ -128,8 +129,7 @@ All test files follow [test-isolation-plan.md](isolation-plan.md):
    - Test SHA-384 and SHA-512 hash algorithms
    - Test with both ECDSA and RSA key types
 
-2. **Add PEM output tests** to test-create.ps1
-   - Test `--cert` / `--key` output options for both dev and CA
+2. ~~**Add PEM output tests** to test-create.ps1~~ ✅ Done (pem-1.1–1.4)
 
 ### Low Priority
 
@@ -216,7 +216,7 @@ exit $exitCode
 | Status     | Count    | Description                            |
 | ---------- | -------- | -------------------------------------- |
 | ✅ Covered | 12 files | All commands have dedicated test files |
-| ⚠️ Gaps    | ~10      | Medium and low priority (see above)    |
+| ⚠️ Gaps    | ~8       | Medium and low priority (see above)    |
 | ⏳ Future  | 1        | `test-crossplatform.ps1` (Phase 10)    |
 
-**Total tests: 151 across 12 files**
+**Total tests: 155 across 12 files**

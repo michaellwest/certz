@@ -16,7 +16,7 @@
     Run specific tests by ID. Example: -TestId "dev-1.1", "ca-1.1"
 
 .PARAMETER Category
-    Run tests by category: create-dev, create-ca, format, issuer, trust, guided
+    Run tests by category: create-dev, create-ca, format, issuer, pem-output, trust, guided
 
 .PARAMETER SkipCleanup
     Keep test files after running.
@@ -54,6 +54,7 @@ $TestCategories = @{
     "create-ca" = @("ca-1.1", "ca-1.2", "ca-1.3")
     "format" = @("fmt-1.1", "fmt-1.2")
     "issuer" = @("iss-1.1", "iss-1.2")
+    "pem-output" = @("pem-1.1", "pem-1.2", "pem-1.3", "pem-1.4")
     "trust" = @("tru-1.1", "tru-1.2")
     "guided" = @("gui-1.1")  # Interactive tests (manual only)
 }
@@ -477,6 +478,146 @@ Invoke-Test -TestId "iss-1.2" -TestName "Create dev cert signed by CA (PEM issue
         Remove-Item "iss-pem-ca.key" -Force -ErrorAction SilentlyContinue
         Remove-Item "iss-pem-dev.pfx" -Force -ErrorAction SilentlyContinue
     }
+}
+
+# ============================================================================
+# PEM OUTPUT TESTS
+# ============================================================================
+Write-TestHeader "Testing PEM Output (--cert / --key)"
+
+# Test pem-1.1: Dev cert with --cert and --key only (no --file)
+Invoke-Test -TestId "pem-1.1" -TestName "Create dev cert with PEM output only" -FilePrefix "pem-dev" -TestScript {
+    # ACTION: Single certz.exe call (no --file, PEM only)
+    $output = & .\certz.exe create dev pem.local --cert pem-dev.cer --key pem-dev.key 2>&1
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: PEM files exist
+    Assert-FileExists "pem-dev.cer"
+    Assert-FileExists "pem-dev.key"
+
+    # ASSERTION 3: Certificate file has PEM header
+    $certContent = Get-Content "pem-dev.cer" -Raw
+    if ($certContent -notmatch "-----BEGIN CERTIFICATE-----") {
+        throw "Certificate file should contain PEM header, got: $($certContent.Substring(0, [Math]::Min(80, $certContent.Length)))"
+    }
+
+    # ASSERTION 4: Key file has PKCS#8 PEM header
+    $keyContent = Get-Content "pem-dev.key" -Raw
+    if ($keyContent -notmatch "-----BEGIN PRIVATE KEY-----") {
+        throw "Key file should contain PKCS#8 PEM header, got: $($keyContent.Substring(0, [Math]::Min(80, $keyContent.Length)))"
+    }
+
+    # ASSERTION 5: Certificate has correct subject
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "pem-dev.cer").Path)
+    if ($cert.Subject -notmatch "pem\.local") {
+        throw "Certificate subject should contain pem.local, got: $($cert.Subject)"
+    }
+    $cert.Dispose()
+
+    [PSCustomObject]@{ Success = $true; Details = "Dev cert PEM output with correct headers and subject" }
+}
+
+# Test pem-1.2: Dev cert with --cert, --key, AND --file (PFX + PEM)
+Invoke-Test -TestId "pem-1.2" -TestName "Create dev cert with PFX and PEM output" -FilePrefix "pem-combo" -TestScript {
+    # ACTION: Single certz.exe call (all three output files)
+    $output = & .\certz.exe create dev combo.local --file pem-combo.pfx --cert pem-combo.cer --key pem-combo.key --password ComboPass123 2>&1
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: All three files exist
+    Assert-FileExists "pem-combo.pfx"
+    Assert-FileExists "pem-combo.cer"
+    Assert-FileExists "pem-combo.key"
+
+    # ASSERTION 3: PFX is loadable and PEM cert matches PFX thumbprint
+    $pfxCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "pem-combo.pfx").Path, "ComboPass123")
+    $pemCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "pem-combo.cer").Path)
+
+    if ($pfxCert.Thumbprint -ne $pemCert.Thumbprint) {
+        throw "PFX and PEM certificate thumbprints should match. PFX: $($pfxCert.Thumbprint), PEM: $($pemCert.Thumbprint)"
+    }
+
+    $pfxCert.Dispose()
+    $pemCert.Dispose()
+
+    [PSCustomObject]@{ Success = $true; Details = "PFX and PEM outputs created with matching thumbprints" }
+}
+
+# Test pem-1.3: CA cert with --cert and --key only
+Invoke-Test -TestId "pem-1.3" -TestName "Create CA cert with PEM output only" -FilePrefix "pem-ca" -TestScript {
+    # ACTION: Single certz.exe call (no --file, PEM only)
+    $output = & .\certz.exe create ca --name "PEM Test CA" --cert pem-ca.cer --key pem-ca.key 2>&1
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: PEM files exist
+    Assert-FileExists "pem-ca.cer"
+    Assert-FileExists "pem-ca.key"
+
+    # ASSERTION 3: Certificate has Basic Constraints CA=TRUE
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "pem-ca.cer").Path)
+
+    $basicConstraints = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.19" }
+    if (-not $basicConstraints) {
+        throw "CA certificate should have Basic Constraints extension"
+    }
+
+    if ($cert.Subject -notmatch "PEM Test CA") {
+        throw "CA subject should contain 'PEM Test CA', got: $($cert.Subject)"
+    }
+
+    # ASSERTION 4: Key file is valid PEM
+    $keyContent = Get-Content "pem-ca.key" -Raw
+    if ($keyContent -notmatch "-----BEGIN PRIVATE KEY-----") {
+        throw "CA key file should contain PKCS#8 PEM header"
+    }
+
+    $cert.Dispose()
+
+    [PSCustomObject]@{ Success = $true; Details = "CA cert PEM output with Basic Constraints and valid key" }
+}
+
+# Test pem-1.4: Dev cert with --cert and --key using RSA key type
+Invoke-Test -TestId "pem-1.4" -TestName "Create dev cert with RSA PEM output" -FilePrefix "pem-rsa" -TestScript {
+    # ACTION: Single certz.exe call (RSA key type, PEM output)
+    $output = & .\certz.exe create dev rsa-pem.local --key-type RSA --key-size 3072 --cert pem-rsa.cer --key pem-rsa.key 2>&1
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: PEM files exist
+    Assert-FileExists "pem-rsa.cer"
+    Assert-FileExists "pem-rsa.key"
+
+    # ASSERTION 3: Certificate has RSA public key with correct size
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "pem-rsa.cer").Path)
+
+    $rsaKey = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+    if (-not $rsaKey) {
+        throw "Certificate should have RSA public key"
+    }
+    if ($rsaKey.KeySize -ne 3072) {
+        throw "RSA key size should be 3072, got: $($rsaKey.KeySize)"
+    }
+
+    # ASSERTION 4: Key file contains valid PEM private key
+    $keyContent = Get-Content "pem-rsa.key" -Raw
+    if ($keyContent -notmatch "-----BEGIN PRIVATE KEY-----") {
+        throw "RSA key file should contain PKCS#8 PEM header"
+    }
+
+    $cert.Dispose()
+
+    [PSCustomObject]@{ Success = $true; Details = "RSA dev cert PEM output with correct key size" }
 }
 
 # ============================================================================
