@@ -166,7 +166,7 @@ Add to progress tracker:
 |---|------|--------|-------|
 | 9 | Add --password-map option | [x] | OptionBuilders.cs, MonitorCommand.cs, MonitorService.cs |
 | 10 | Add --password-map tests | [ ] | test/test-monitor.ps1 (mon-6.1–6.3, mon-7.1) |
-| 11 | Add nanoserver smoke tests | [ ] | test/test-nanoserver.cmd (2 new tests) |
+| 11 | Add nanoserver smoke tests | [x] | test/test-nanoserver.cmd (2 new tests) |
 
 ---
 
