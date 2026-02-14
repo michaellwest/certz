@@ -1,6 +1,6 @@
 # Phase 10: Global `--guided` Wizard Mode
 
-**Status:** Planned
+**Status:** Complete
 **Last Updated:** 2026-02-14
 
 ## Overview
@@ -68,17 +68,17 @@ Create certificate with these settings? [Y/n]
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
-| 1 | Register `--guided` on root command in `Program.cs` | [ ] | |
-| 2 | Add root `SetAction` to handle `certz --guided` | [ ] | |
-| 3 | Add `RunGlobalWizard()` to `CertificateWizard.cs` | [ ] | Task-selection menu |
-| 4 | Add `RunInspectWizard()` | [ ] | File/URL/store source selection |
-| 5 | Add `RunLintWizard()` | [ ] | File/URL/store source selection |
-| 6 | Add `RunTrustWizard()` | [ ] | Add/remove/list sub-menu |
-| 7 | Add `RunConvertWizard()` | [ ] | Format picker + file paths |
-| 8 | Add `RunMonitorWizard()` | [ ] | Path/URL input + threshold |
-| 9 | Add `RunRenewWizard()` | [ ] | Source detection + output options |
-| 10 | Update README.md with `certz --guided` usage | [ ] | |
-| 11 | Write test-guided.ps1 | [ ] | |
+| 1 | Register `--guided` on root command in `Program.cs` | [x] | |
+| 2 | Add root `SetAction` to handle `certz --guided` | [x] | |
+| 3 | Add `RunGlobalWizard()` to `CertificateWizard.cs` | [x] | Task-selection menu |
+| 4 | Add `RunInspectWizard()` | [x] | File/URL/store source selection |
+| 5 | Add `RunLintWizard()` | [x] | File/URL/store source selection |
+| 6 | Add `RunTrustAddWizard()` + `RunTrustRemoveWizard()` | [x] | Separate add/remove flows |
+| 7 | Add `RunConvertWizard()` | [x] | Format picker + file paths |
+| 8 | Add `RunMonitorWizard()` | [x] | Path/URL input + threshold |
+| 9 | Add `RunRenewWizard()` | [x] | Source detection + output options |
+| 10 | Update README.md with `certz --guided` usage | [x] | |
+| 11 | Write test-guided.ps1 | [ ] | Future work |
 
 ---
 
