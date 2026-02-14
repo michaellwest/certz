@@ -96,6 +96,7 @@ certz create dev localhost --file server.pfx --cert server.cer --key server.key
 | `--cert` | Output certificate filename |
 | `--key` | Output private key filename |
 | `--password` | PFX password (auto-generated if not provided) |
+| `--password-file` | File to write the generated password to |
 | `--ephemeral, -e` | Generate certificate in memory only |
 | `--pipe` | Stream certificate to stdout |
 | `--pipe-format` | Pipe output format: pem, pfx, cert, key |
@@ -131,6 +132,8 @@ certz create ca --guided
 | `--path-length <n>` | Maximum chain depth (-1 = unlimited) |
 | `--crl-url` | CRL Distribution Point URL |
 | `--ocsp-url` | OCSP responder URL |
+| `--password` | PFX password (auto-generated if not provided) |
+| `--password-file` | File to write the generated password to |
 | `--guided` | Launch interactive wizard |
 | `--ephemeral, -e` | Generate certificate in memory only (no files written) |
 | `--pipe` | Stream certificate to stdout (no files written) |

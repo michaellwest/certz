@@ -56,7 +56,28 @@ Equivalent command:
 Create certificate with these settings? [Y/n]
 ```
 
-### 5. Backward Compatibility
+### 5. Password File Prompt
+
+When a wizard flow auto-generates a password (dev cert, CA cert, convert-to-PFX), it now asks whether to save the password to a file — matching the existing `--password-file` CLI option.
+
+```
+? Auto-generate secure password? [Y/n] Y
+? Save password to file? [y/N] y
+? Password file: [localhost.password] ▌
+```
+
+**Why:** Auto-generated passwords are displayed in the console output, but that's ephemeral. If the terminal scrolls or clears, the password is lost. Offering a file save provides a safety net and aligns with the CLI's `--password-file` feature.
+
+**Default:** No (file is not saved unless the user opts in). The password is always shown in the console output regardless.
+
+**Affected wizards:**
+- `RunDevCertificateWizard()` — prompts after "Auto-generate secure password?"
+- `RunCACertificateWizard()` — same pattern
+- `RunConvertWizard()` — prompts when converting to PFX with blank password (auto-generate)
+
+**Implementation:** A shared `PromptPasswordFile(string defaultBaseName)` helper derives a `.password` extension from the output filename and returns a `FileInfo?` that is passed to the options model. The existing service layer (`CreateService`, `ConvertService`) already handles writing when `PasswordFile` is set.
+
+### 6. Backward Compatibility
 
 - `certz create dev --guided` and `certz create ca --guided` continue to work exactly as before.
 - `certz --guided` is the new top-level entry point that routes to all capabilities.
@@ -78,7 +99,9 @@ Create certificate with these settings? [Y/n]
 | 8 | Add `RunMonitorWizard()` | [x] | Path/URL input + threshold |
 | 9 | Add `RunRenewWizard()` | [x] | Source detection + output options |
 | 10 | Update README.md with `certz --guided` usage | [x] | |
-| 11 | Write test-guided.ps1 | [ ] | Future work |
+| 11 | Add password file prompt to wizard flows | [x] | Dev, CA, convert-to-PFX |
+| 12 | Update README.md with `--password-file` in create dev/ca tables | [x] | |
+| 13 | Write test-guided.ps1 | [ ] | Future work |
 
 ---
 
@@ -549,6 +572,11 @@ $LASTEXITCODE | Should -Be 0
 - [ ] Convert wizard auto-detects input format
 - [ ] Monitor wizard accepts multiple sources and a threshold
 - [ ] Renew wizard detects existing cert parameters
+- [ ] Dev wizard prompts to save auto-generated password to file
+- [ ] CA wizard prompts to save auto-generated password to file
+- [ ] Convert wizard prompts to save password when converting to PFX with auto-generated password
+- [ ] Password file is written by the service layer when the user opts in
+- [ ] Password file prompt does not appear when user provides their own password
 - [ ] "Equivalent command" is shown before every confirmation prompt
 - [ ] "Do another operation?" loop returns to main menu
 - [ ] Ctrl+C at any point exits cleanly (no stack trace)
@@ -563,7 +591,7 @@ $LASTEXITCODE | Should -Be 0
 | File | Change |
 |------|--------|
 | `src/certz/Program.cs` | Add global `--guided` option + root `SetAction` |
-| `src/certz/Services/CertificateWizard.cs` | Add `RunGlobalWizard()` + 6 new wizard methods + `WriteEquivalentCommand()` |
+| `src/certz/Services/CertificateWizard.cs` | Add `RunGlobalWizard()` + 6 new wizard methods + `WriteEquivalentCommand()` + `PromptPasswordFile()` |
 | `README.md` | Add `certz --guided` to Quick Start and Command Reference |
 | `test/test-guided.ps1` | New test script (smoke tests only due to interactive limitation) |
 | `test/coverage-analysis.md` | Note interactive wizard limitation |
