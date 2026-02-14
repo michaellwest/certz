@@ -5,6 +5,9 @@ A standards-compliant certificate utility built on .NET for Windows, with suppor
 ## Quick Start
 
 ```bash
+# Interactive wizard — guided mode for all operations
+certz --guided
+
 # Create a development certificate for localhost
 certz create dev localhost
 
@@ -30,6 +33,7 @@ Usage:
   certz [command] [options]
 
 Options:
+  --guided              Launch interactive wizard for any operation
   --format <text|json>  Output format (default: text)
   --version             Show version information
   -?, -h, --help        Show help and usage information

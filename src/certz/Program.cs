@@ -6,13 +6,47 @@ using certz.Commands.Monitor;
 using certz.Commands.Renew;
 using certz.Commands.Store;
 using certz.Commands.Trust;
+using certz.Formatters;
 using certz.Options;
+using certz.Services;
 
 var rootCommand = new RootCommand("Certz: A Simple Certificate Utility");
 
 // Add global --format option
 var formatOption = OptionBuilders.CreateFormatOption();
 rootCommand.Options.Add(formatOption);
+
+// Add global --guided option
+var rootGuidedOption = OptionBuilders.CreateGuidedOption();
+rootCommand.Options.Add(rootGuidedOption);
+
+// Root action: handles `certz --guided` (fires only when no subcommand is matched)
+rootCommand.SetAction(async (parseResult) =>
+{
+    var guided = parseResult.GetValue(rootGuidedOption);
+
+    if (!guided)
+    {
+        // No subcommand and no --guided: print brief guidance
+        Console.WriteLine("certz - A standards-compliant certificate utility");
+        Console.WriteLine();
+        Console.WriteLine("  certz --help     Show command reference");
+        Console.WriteLine("  certz --guided   Launch interactive wizard");
+        return;
+    }
+
+    var format = parseResult.GetValue(formatOption) ?? "text";
+    var formatter = FormatterFactory.Create(format);
+
+    try
+    {
+        await CertificateWizard.RunGlobalWizard(formatter);
+    }
+    catch (OperationCanceledException)
+    {
+        // User pressed Ctrl+C or cancelled — exit cleanly
+    }
+});
 
 // Register all commands
 rootCommand.AddListCommand();
