@@ -899,7 +899,7 @@ internal class TextFormatter : IOutputFormatter
         foreach (var example in examples)
         {
             AnsiConsole.MarkupLine($"[green]#[/] {Markup.Escape(example.Description)}");
-            AnsiConsole.MarkupLine($"[cyan]{Markup.Escape(example.Command)}[/]");
+            AnsiConsole.MarkupLine(ColorizeCommand(example.Command));
             if (!string.IsNullOrEmpty(example.Notes))
             {
                 AnsiConsole.MarkupLine($"[dim]  {Markup.Escape(example.Notes)}[/]");
@@ -926,9 +926,54 @@ internal class TextFormatter : IOutputFormatter
             foreach (var example in examples)
             {
                 AnsiConsole.MarkupLine($"  [green]#[/] {Markup.Escape(example.Description)}");
-                AnsiConsole.MarkupLine($"  [cyan]{Markup.Escape(example.Command)}[/]");
+                AnsiConsole.MarkupLine($"  {ColorizeCommand(example.Command)}");
             }
             AnsiConsole.WriteLine();
         }
+    }
+
+    private static readonly HashSet<string> SecondLevelSubcommands = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "dev", "ca", "add", "remove", "list"
+    };
+
+    private static string ColorizeCommand(string command)
+    {
+        var tokens = command.Split(' ');
+        var result = new System.Text.StringBuilder();
+
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            var token = Markup.Escape(tokens[i]);
+            var prefix = i == 0 ? "" : " ";
+
+            if (i == 0)
+            {
+                // "certz" — bold white
+                result.Append($"[bold white]{token}[/]");
+            }
+            else if (tokens[i].StartsWith("--") || tokens[i].StartsWith("-"))
+            {
+                // --flag or -f — yellow
+                result.Append($"{prefix}[yellow]{token}[/]");
+            }
+            else if (i == 1)
+            {
+                // top-level subcommand (convert, inspect, lint, ...) — cyan
+                result.Append($"{prefix}[cyan]{token}[/]");
+            }
+            else if (i == 2 && SecondLevelSubcommands.Contains(tokens[i]))
+            {
+                // second-level subcommand (dev, ca, add, remove, list) — cyan
+                result.Append($"{prefix}[cyan]{token}[/]");
+            }
+            else
+            {
+                // positional argument or flag value — green
+                result.Append($"{prefix}[green]{token}[/]");
+            }
+        }
+
+        return result.ToString();
     }
 }
