@@ -15,6 +15,7 @@ internal static class ExamplesRegistry
         // Root / general examples
         [""] =
         [
+            new("Launch the interactive wizard", "certz --guided"),
             new("Create a development certificate for localhost", "certz create dev localhost"),
             new("Inspect a certificate file", "certz inspect cert.pfx --password MyPassword"),
             new("Inspect a remote HTTPS certificate", "certz inspect https://github.com"),
@@ -31,6 +32,8 @@ internal static class ExamplesRegistry
             new("Signed by your own CA", "certz create dev api.local --issuer-cert ca.pfx --issuer-password CaPassword"),
             new("Interactive wizard mode", "certz create dev localhost --guided"),
             new("Output to specific files", "certz create dev localhost --file server.pfx --cert server.cer --key server.key"),
+            new("Save generated password to file", "certz create dev localhost --password-file localhost.password"),
+            new("Use RSA 4096-bit instead of default ECDSA", "certz create dev api.local --key-type RSA --key-size 4096"),
             new("Ephemeral certificate (in-memory only)", "certz create dev example.com --ephemeral"),
             new("Pipe certificate to stdout", "certz create dev example.com --pipe"),
         ],
@@ -42,6 +45,9 @@ internal static class ExamplesRegistry
             new("Create and trust the CA", "certz create ca --name \"Dev CA\" --trust"),
             new("With specific validity and path length", "certz create ca --name \"My CA\" --days 3650 --path-length 1"),
             new("With CRL and OCSP URLs", "certz create ca --name \"My CA\" --crl-url http://crl.example.com/ca.crl --ocsp-url http://ocsp.example.com"),
+            new("Save generated password to file", "certz create ca --name \"Dev CA\" --password-file ca.password"),
+            new("Use ECDSA P-256 key", "certz create ca --name \"Dev CA\" --key-type ECDSA-P256"),
+            new("Ephemeral CA for testing (in-memory only)", "certz create ca --name \"Test CA\" --ephemeral"),
             new("Interactive wizard mode", "certz create ca --guided"),
         ],
 
@@ -79,10 +85,12 @@ internal static class ExamplesRegistry
         ["convert"] =
         [
             new("PFX to PEM (extracts cert + key)", "certz convert server.pfx --to pem --password secret"),
+            new("PFX to PEM with private key included", "certz convert server.pfx --to pem --password secret --include-key"),
             new("PEM to DER (binary format)", "certz convert server.pem --to der"),
             new("DER to PEM", "certz convert server.der --to pem"),
             new("PEM to PFX (auto-discovers key)", "certz convert server.pem --to pfx"),
             new("PEM to PFX with explicit key file", "certz convert server.pem --to pfx --key private.key"),
+            new("Convert to PFX with password saved to file", "certz convert server.pem --to pfx --password-file output.password"),
             new("Custom output path", "certz convert server.pfx --to pem --password secret --output /certs/server.pem"),
         ],
 
@@ -91,7 +99,9 @@ internal static class ExamplesRegistry
         [
             new("Lint a certificate file", "certz lint cert.pfx --password MyPassword"),
             new("Lint with Mozilla NSS policy", "certz lint cert.pem --policy mozilla"),
+            new("Lint with relaxed development policy", "certz lint cert.pem --policy dev"),
             new("Lint a remote certificate", "certz lint https://example.com"),
+            new("Lint certificate from store by thumbprint", "certz lint ABC123DE --store My --location CurrentUser"),
             new("Show only errors", "certz lint cert.pfx --password Pass --severity error"),
             new("JSON output for CI/CD", "certz lint cert.pfx --password Pass --format json"),
         ],
@@ -101,7 +111,11 @@ internal static class ExamplesRegistry
         [
             new("Monitor certificates in a directory", "certz monitor ./certs"),
             new("Monitor multiple sources", "certz monitor ./certs https://example.com"),
+            new("Scan certificate store for expiring certs", "certz monitor --store My --location CurrentUser --warn 30"),
+            new("Scan LocalMachine Root store", "certz monitor --store Root --location LocalMachine"),
+            new("Scan directory recursively", "certz monitor ./certs --recursive"),
             new("Set expiration warning threshold", "certz monitor ./certs --warn 60"),
+            new("CI/CD: exit code 1 if any expiring", "certz monitor ./certs --fail-on-warning"),
             new("Show only warnings (quiet mode)", "certz monitor ./certs --quiet"),
             new("Use password map for mixed passwords", "certz monitor ./certs --password-map passwords.txt"),
             new("JSON output for CI/CD", "certz monitor ./certs --format json"),
@@ -112,6 +126,9 @@ internal static class ExamplesRegistry
         [
             new("Renew a certificate", "certz renew server.pfx --password OldPass"),
             new("Renew with new validity period", "certz renew server.pfx --password Pass --days 365"),
+            new("Renew preserving existing private key", "certz renew server.pfx --password Pass --keep-key"),
+            new("Renew with a different output password", "certz renew server.pfx --password OldPass --out-password NewPass"),
+            new("Renew certificate from store by thumbprint", "certz renew ABC123DE --store My --days 90"),
             new("Renew with new output file", "certz renew server.pfx --password Pass --output renewed.pfx"),
         ],
 
@@ -123,6 +140,7 @@ internal static class ExamplesRegistry
             new("List from LocalMachine", "certz store list --store Root --location LocalMachine"),
             new("Show only expired certificates", "certz store list --expired"),
             new("Show expiring within 30 days", "certz store list --expiring 30"),
+            new("Expiring certs as JSON for automation", "certz store list --store My --expiring 60 --format json"),
         ],
 
         // verify examples
