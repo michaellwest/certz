@@ -139,6 +139,7 @@ internal static class CertificateWizard
         // Password
         var generatePassword = AnsiConsole.Confirm("[green]?[/] Auto-generate secure password?", defaultValue: true);
         string? password = null;
+        FileInfo? passwordFile = null;
         if (!generatePassword)
         {
             password = AnsiConsole.Prompt(
@@ -146,6 +147,10 @@ internal static class CertificateWizard
                     .Secret()
                     .ValidationErrorMessage("[red]Password cannot be empty[/]")
                     .Validate(p => !string.IsNullOrWhiteSpace(p)));
+        }
+        else
+        {
+            passwordFile = PromptPasswordFile(pfxPath);
         }
 
         var options = new DevCertificateOptions
@@ -160,7 +165,8 @@ internal static class CertificateWizard
             PfxFile = new FileInfo(pfxPath),
             CertFile = certFile,
             KeyFile = keyFile,
-            Password = password
+            Password = password,
+            PasswordFile = passwordFile
         };
 
         // Summary
@@ -290,6 +296,7 @@ internal static class CertificateWizard
         // Password
         var generatePassword = AnsiConsole.Confirm("[green]?[/] Auto-generate secure password?", defaultValue: true);
         string? password = null;
+        FileInfo? passwordFile = null;
         if (!generatePassword)
         {
             password = AnsiConsole.Prompt(
@@ -297,6 +304,10 @@ internal static class CertificateWizard
                     .Secret()
                     .ValidationErrorMessage("[red]Password cannot be empty[/]")
                     .Validate(p => !string.IsNullOrWhiteSpace(p)));
+        }
+        else
+        {
+            passwordFile = PromptPasswordFile(pfxPath);
         }
 
         var options = new CACertificateOptions
@@ -309,7 +320,8 @@ internal static class CertificateWizard
             Trust = trust,
             TrustLocation = trustLocation,
             PfxFile = new FileInfo(pfxPath),
-            Password = password
+            Password = password,
+            PasswordFile = passwordFile
         };
 
         // Summary
@@ -920,6 +932,7 @@ internal static class CertificateWizard
                 .DefaultValue(autoOutput));
 
         string? password = null;
+        FileInfo? passwordFile = null;
         if (outputFormat == FormatType.Pfx)
         {
             var rawPass = AnsiConsole.Prompt(
@@ -927,6 +940,11 @@ internal static class CertificateWizard
                     .AllowEmpty()
                     .Secret());
             password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+
+            if (password == null)
+            {
+                passwordFile = PromptPasswordFile(outputPath);
+            }
         }
         else
         {
@@ -945,7 +963,8 @@ internal static class CertificateWizard
             InputFile = new FileInfo(inputPath),
             OutputFormat = outputFormat,
             OutputFile = new FileInfo(outputPath),
-            Password = password
+            Password = password,
+            PasswordFile = passwordFile
         };
 
         return (options, outputFormat);
@@ -1061,6 +1080,19 @@ internal static class CertificateWizard
     // =========================================================================
     // Shared helper
     // =========================================================================
+
+    private static FileInfo? PromptPasswordFile(string defaultBaseName)
+    {
+        var saveToFile = AnsiConsole.Confirm("[green]?[/] Save password to file?", defaultValue: false);
+        if (!saveToFile) return null;
+
+        var defaultPath = Path.ChangeExtension(defaultBaseName, ".password");
+        var path = AnsiConsole.Prompt(
+            new TextPrompt<string>("[green]?[/] Password file:")
+                .DefaultValue(defaultPath));
+
+        return new FileInfo(path);
+    }
 
     private static void WriteEquivalentCommand(string command)
     {

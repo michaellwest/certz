@@ -87,6 +87,8 @@ catch (Exception exception)
     var message = exception switch
     {
         FileNotFoundException fnf => $"File not found: {fnf.FileName ?? fnf.Message}",
+        CryptographicException ce when ce.Message.Contains("access", StringComparison.OrdinalIgnoreCase)
+            => $"Error: {ce.Message} Run as administrator for LocalMachine store operations.",
         CryptographicException => "Cryptographic error: Invalid password or corrupted certificate file.",
         CertificateException ce => $"Certificate error: {ce.Message}",
         ArgumentException ae => $"Invalid argument: {ae.Message}",
