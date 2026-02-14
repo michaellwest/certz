@@ -58,11 +58,7 @@ internal static class ConvertCommand
         var formatOption = OptionBuilders.CreateFormatOption();
 
         var convertCommand = new Command("convert",
-            "Converts between certificate formats (PEM, DER, PFX).\n\n" +
-            "Examples:\n" +
-            "  certz convert server.pfx --to pem -p secret\n" +
-            "  certz convert server.pem --to der\n" +
-            "  certz convert server.der --to pfx --key server.key");
+            "Convert between certificate formats (PEM, DER, PFX)");
 
         // Add new interface
         convertCommand.Arguments.Add(inputArgument);
