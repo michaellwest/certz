@@ -762,6 +762,8 @@ certz enforces [CA/Browser Forum Ballot SC-081v3](https://cabforum.org/2025/04/1
 
 **Default**: 90 days (future-proof and aligned with industry trends)
 
+**UTC Time**: All certificate validity periods (NotBefore/NotAfter) use UTC time, as required by RFC 5280 Section 4.1.2.5. The NotBefore is set to midnight UTC of the current day, ensuring consistent behavior regardless of the machine's local timezone.
+
 ### RFC 5280 (X.509) Compliance
 
 certz implements all critical RFC 5280 extensions:

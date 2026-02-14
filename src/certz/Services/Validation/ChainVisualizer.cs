@@ -183,7 +183,7 @@ internal class ChainVisualizer : IChainVisualizer
         }
 
         // Validity period
-        sb.Append($"\n  [dim]Valid:[/] {element.NotBefore:yyyy-MM-dd} to {element.NotAfter:yyyy-MM-dd}");
+        sb.Append($"\n  [dim]Valid:[/] {element.NotBefore.ToUniversalTime():yyyy-MM-dd} to {element.NotAfter.ToUniversalTime():yyyy-MM-dd} UTC");
 
         // SANs for end-entity
         if (isEndEntity && element.SubjectAlternativeNames.Count > 0)
@@ -286,7 +286,7 @@ internal class ChainVisualizer : IChainVisualizer
         sb.Append($"\n  Thumbprint: [dim]{cert.Thumbprint[..16]}...[/]");
 
         // Expiration date
-        sb.Append($"\n  Expires: [dim]{cert.NotAfter:yyyy-MM-dd}[/]");
+        sb.Append($"\n  Expires: [dim]{cert.NotAfter.ToUniversalTime():yyyy-MM-dd} UTC[/]");
 
         // Status issues
         foreach (var s in status.Where(s => s.Status != X509ChainStatusFlags.NoError))

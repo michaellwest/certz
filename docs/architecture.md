@@ -74,7 +74,7 @@ All certificate operations follow the **Options Pattern** with specialized servi
 | Class | Purpose |
 |-------|---------|
 | `CertificateUtilities` | Shared utilities (password generation, file writing, key storage flags) |
-| `CertificateGeneration` | Low-level certificate generation |
+| `CertificateGeneration` | Low-level certificate generation (accepts UTC DateTimeOffset for validity) |
 | `CertificateDisplay` | Certificate information display helpers |
 
 ### File Structure

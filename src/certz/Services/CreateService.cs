@@ -27,8 +27,9 @@ internal static class CreateService
             passwordWasGenerated = true;
         }
 
-        var validFrom = DateTime.Today;
-        var validTo = DateTime.Today.AddDays(options.Days).AddSeconds(-1);
+        var utcToday = new DateTimeOffset(DateTimeOffset.UtcNow.Date, TimeSpan.Zero);
+        var validFrom = utcToday;
+        var validTo = utcToday.AddDays(options.Days).AddSeconds(-1);
 
         X509Certificate2 certificate;
 
@@ -226,8 +227,9 @@ internal static class CreateService
             passwordWasGenerated = true;
         }
 
-        var validFrom = DateTime.Today;
-        var validTo = DateTime.Today.AddDays(options.Days).AddSeconds(-1);
+        var utcToday = new DateTimeOffset(DateTimeOffset.UtcNow.Date, TimeSpan.Zero);
+        var validFrom = utcToday;
+        var validTo = utcToday.AddDays(options.Days).AddSeconds(-1);
 
         var certificate = CertificateGeneration.GenerateCertificate(
             sans,

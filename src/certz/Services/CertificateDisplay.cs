@@ -24,8 +24,8 @@ internal static class CertificateDisplay
         // Validity Period
         Console.WriteLine("Validity Period");
         Console.WriteLine("---------------");
-        Console.WriteLine("Not Before:           {0}", certificate.NotBefore.ToString("yyyy-MM-dd HH:mm:ss"));
-        Console.WriteLine("Not After:            {0}", certificate.NotAfter.ToString("yyyy-MM-dd HH:mm:ss"));
+        Console.WriteLine("Not Before:           {0} UTC", certificate.NotBefore.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+        Console.WriteLine("Not After:            {0} UTC", certificate.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss"));
         var daysRemaining = (certificate.NotAfter - DateTime.Now).Days;
         Console.WriteLine("Days Remaining:       {0}", daysRemaining > 0 ? daysRemaining : "EXPIRED");
         Console.WriteLine();
@@ -135,13 +135,13 @@ internal static class CertificateDisplay
         var now = DateTime.Now;
         if (certificate.NotAfter < now)
         {
-            Console.WriteLine("    [FAIL] Certificate has EXPIRED on {0}", certificate.NotAfter.ToString("yyyy-MM-dd"));
+            Console.WriteLine("    [FAIL] Certificate has EXPIRED on {0} UTC", certificate.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd"));
             Console.WriteLine("           Expired {0} days ago", (now - certificate.NotAfter).Days);
             allChecksPassed = false;
         }
         else if (certificate.NotBefore > now)
         {
-            Console.WriteLine("    [FAIL] Certificate is NOT YET VALID (starts {0})", certificate.NotBefore.ToString("yyyy-MM-dd"));
+            Console.WriteLine("    [FAIL] Certificate is NOT YET VALID (starts {0} UTC)", certificate.NotBefore.ToUniversalTime().ToString("yyyy-MM-dd"));
             allChecksPassed = false;
         }
         else
@@ -149,15 +149,15 @@ internal static class CertificateDisplay
             var daysRemaining = (certificate.NotAfter - now).Days;
             if (daysRemaining <= warningDays)
             {
-                Console.WriteLine("    [WARN] Certificate expires SOON on {0} ({1} days remaining)",
-                    certificate.NotAfter.ToString("yyyy-MM-dd"), daysRemaining);
+                Console.WriteLine("    [WARN] Certificate expires SOON on {0} UTC ({1} days remaining)",
+                    certificate.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd"), daysRemaining);
                 Console.WriteLine("           Warning threshold: {0} days", warningDays);
             }
             else
             {
                 Console.WriteLine("    [PASS] Certificate is valid");
-                Console.WriteLine("           Valid until {0} ({1} days remaining)",
-                    certificate.NotAfter.ToString("yyyy-MM-dd"), daysRemaining);
+                Console.WriteLine("           Valid until {0} UTC ({1} days remaining)",
+                    certificate.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd"), daysRemaining);
             }
         }
         Console.WriteLine();

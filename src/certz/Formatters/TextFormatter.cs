@@ -16,8 +16,8 @@ internal class TextFormatter : IOutputFormatter
 
         table.AddRow("[green]Subject[/]", result.Subject);
         table.AddRow("[green]Thumbprint[/]", result.Thumbprint);
-        table.AddRow("[green]Valid From[/]", result.NotBefore.ToString("yyyy-MM-dd"));
-        table.AddRow("[green]Valid Until[/]", result.NotAfter.ToString("yyyy-MM-dd"));
+        table.AddRow("[green]Valid From[/]", result.NotBefore.ToUniversalTime().ToString("yyyy-MM-dd") + " UTC");
+        table.AddRow("[green]Valid Until[/]", result.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd") + " UTC");
         table.AddRow("[green]Key Type[/]", result.KeyType);
 
         if (result.SANs.Length > 0)
@@ -106,8 +106,8 @@ internal class TextFormatter : IOutputFormatter
         table.AddRow("[green]Issuer[/]", Markup.Escape(result.Issuer));
         table.AddRow("[green]Thumbprint[/]", result.Thumbprint);
         table.AddRow("[green]Serial Number[/]", result.SerialNumber);
-        table.AddRow("[green]Valid From[/]", result.NotBefore.ToString("yyyy-MM-dd HH:mm:ss"));
-        table.AddRow("[green]Valid To[/]", result.NotAfter.ToString("yyyy-MM-dd HH:mm:ss"));
+        table.AddRow("[green]Valid From[/]", result.NotBefore.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") + " UTC");
+        table.AddRow("[green]Valid To[/]", result.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") + " UTC");
 
         // Days remaining with color coding
         var daysColor = result.DaysRemaining switch
@@ -276,7 +276,7 @@ internal class TextFormatter : IOutputFormatter
         sb.Append($"\n  Thumbprint: [dim]{element.Thumbprint[..Math.Min(16, element.Thumbprint.Length)]}...[/]");
 
         // Expiration date
-        sb.Append($"\n  Expires: [dim]{element.NotAfter:yyyy-MM-dd}[/]");
+        sb.Append($"\n  Expires: [dim]{element.NotAfter.ToUniversalTime():yyyy-MM-dd} UTC[/]");
 
         // Validation errors
         foreach (var error in element.ValidationErrors)
@@ -293,7 +293,7 @@ internal class TextFormatter : IOutputFormatter
             .Border(TableBorder.Rounded)
             .AddColumn(new TableColumn("[bold]Subject[/]"))
             .AddColumn(new TableColumn("[bold]Thumbprint[/]").NoWrap())
-            .AddColumn(new TableColumn("[bold]Expires[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Expires (UTC)[/]").NoWrap())
             .AddColumn(new TableColumn("[bold]Days[/]").Centered())
             .AddColumn(new TableColumn("[bold]Key[/]").Centered())
             .AddColumn(new TableColumn("[bold]CA[/]").Centered());
@@ -314,7 +314,7 @@ internal class TextFormatter : IOutputFormatter
             table.AddRow(
                 Markup.Escape(subject.Length > 40 ? subject[..37] + "..." : subject),
                 $"[dim]{cert.Thumbprint[..16]}...[/]",
-                cert.NotAfter.ToString("yyyy-MM-dd"),
+                cert.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd"),
                 $"[{daysColor}]{cert.DaysRemaining}[/]",
                 cert.HasPrivateKey ? "[cyan]Yes[/]" : "[dim]No[/]",
                 cert.IsCa ? "[cyan]Yes[/]" : "[dim]No[/]"
@@ -341,7 +341,7 @@ internal class TextFormatter : IOutputFormatter
             AnsiConsole.MarkupLine($"[green]Certificate added to {result.StoreLocation}\\{result.StoreName}:[/]");
             AnsiConsole.MarkupLine($"  Subject: [bold]{Markup.Escape(subject)}[/]");
             AnsiConsole.MarkupLine($"  Thumbprint: [dim]{cert.Thumbprint}[/]");
-            AnsiConsole.MarkupLine($"  Expires: {cert.NotAfter:yyyy-MM-dd}");
+            AnsiConsole.MarkupLine($"  Expires: {cert.NotAfter.ToUniversalTime():yyyy-MM-dd} UTC");
         }
     }
 
@@ -452,7 +452,7 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.MarkupLine($"  Subject: {Markup.Escape(result.Subject)}");
         AnsiConsole.MarkupLine($"  Issuer: {Markup.Escape(result.Issuer)}");
         AnsiConsole.MarkupLine($"  Thumbprint: [dim]{result.Thumbprint}[/]");
-        AnsiConsole.MarkupLine($"  Expires: {result.NotAfter:yyyy-MM-dd}");
+        AnsiConsole.MarkupLine($"  Expires: {result.NotAfter.ToUniversalTime():yyyy-MM-dd} UTC");
         AnsiConsole.WriteLine();
 
         // Source
@@ -676,7 +676,7 @@ internal class TextFormatter : IOutputFormatter
             }
             if (result.OriginalNotAfter != DateTime.MinValue)
             {
-                AnsiConsole.MarkupLine($"  Expires: {result.OriginalNotAfter:yyyy-MM-dd}");
+                AnsiConsole.MarkupLine($"  Expires: {result.OriginalNotAfter.ToUniversalTime():yyyy-MM-dd} UTC");
             }
             return;
         }
@@ -695,9 +695,9 @@ internal class TextFormatter : IOutputFormatter
         table.AddRow("Thumbprint",
             $"[dim]{result.OriginalThumbprint[..Math.Min(16, result.OriginalThumbprint.Length)]}...[/]",
             $"[cyan]{result.NewThumbprint?[..Math.Min(16, result.NewThumbprint?.Length ?? 0)]}...[/]");
-        table.AddRow("Expires",
-            $"[yellow]{result.OriginalNotAfter:yyyy-MM-dd}[/]",
-            $"[green]{result.NewNotAfter:yyyy-MM-dd}[/]");
+        table.AddRow("Expires (UTC)",
+            $"[yellow]{result.OriginalNotAfter.ToUniversalTime():yyyy-MM-dd}[/]",
+            $"[green]{result.NewNotAfter?.ToUniversalTime():yyyy-MM-dd}[/]");
 
         AnsiConsole.Write(table);
         AnsiConsole.WriteLine();
@@ -763,7 +763,7 @@ internal class TextFormatter : IOutputFormatter
             var table = new Table();
             table.AddColumn("Source");
             table.AddColumn("Subject");
-            table.AddColumn("Expires");
+            table.AddColumn("Expires (UTC)");
             table.AddColumn("Days");
             table.AddColumn("Status");
             table.Border = TableBorder.Rounded;
@@ -781,7 +781,7 @@ internal class TextFormatter : IOutputFormatter
                 table.AddRow(
                     TruncateSource(cert.Source, 30),
                     GetSimpleName(cert.Subject),
-                    cert.NotAfter.ToString("yyyy-MM-dd"),
+                    cert.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd"),
                     cert.DaysRemaining.ToString(),
                     $"[{statusColor}]{cert.Status}[/]"
                 );
@@ -843,7 +843,7 @@ internal class TextFormatter : IOutputFormatter
             .Border(TableBorder.Rounded)
             .AddColumn(new TableColumn("[bold]Subject[/]"))
             .AddColumn(new TableColumn("[bold]Thumbprint[/]").NoWrap())
-            .AddColumn(new TableColumn("[bold]Expires[/]").NoWrap());
+            .AddColumn(new TableColumn("[bold]Expires (UTC)[/]").NoWrap());
 
         foreach (var cert in matchingCerts)
         {
@@ -851,7 +851,7 @@ internal class TextFormatter : IOutputFormatter
             table.AddRow(
                 Markup.Escape(subject.Length > 50 ? subject[..47] + "..." : subject),
                 cert.Thumbprint,
-                cert.NotAfter.ToString("yyyy-MM-dd")
+                cert.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd")
             );
         }
 

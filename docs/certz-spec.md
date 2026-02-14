@@ -567,6 +567,7 @@ Used for specifying output file types.
 | Parameter | Dev Certificate | CA Certificate |
 |-----------|-----------------|----------------|
 | Validity (days) | `90` | `3650` (~10 years) |
+| Validity start | Midnight UTC today | Midnight UTC today |
 | Key Type | `ECDSA-P256` | `ECDSA-P256` |
 | RSA Key Size | `3072` | `3072` |
 | Hash Algorithm | `auto` | `auto` |
@@ -618,11 +619,12 @@ Used for specifying output file types.
 1. Parse command options and validate
 2. Generate password if not provided
    - 32 bytes random -> 64-character hex string (256 bits entropy)
-3. Create key pair based on key type
+3. Compute validity period using UTC time (midnight UTC today + days)
+4. Create key pair based on key type
    - ECDSA-P256/P384/P521 -> ECDsa.Create(curve)
    - RSA -> RSA.Create(keySize)
-4. Build X500 Distinguished Name
-5. Create certificate request with extensions:
+5. Build X500 Distinguished Name
+6. Create certificate request with extensions:
    - Subject Key Identifier
    - Authority Key Identifier (if signed)
    - Basic Constraints (CA flag, path length)
@@ -631,12 +633,12 @@ Used for specifying output file types.
    - Subject Alternative Names
    - CRL Distribution Points (if specified)
    - Authority Information Access (OCSP, CA Issuers)
-6. Self-sign or sign with issuer certificate
-7. Export to PFX format:
+7. Self-sign or sign with issuer certificate
+8. Export to PFX format:
    - Modern: AES-256-CBC + SHA-256 + 100,000 iterations
    - Legacy: 3DES (for older systems)
-8. Write to file(s)
-9. Display password warning if auto-generated
+9. Write to file(s)
+10. Display password warning if auto-generated
 ```
 
 ### Certificate Installation Flow
@@ -686,6 +688,10 @@ The tool enforces CA/Browser Forum Ballot SC-081v3 validity limits:
 | After March 15, 2029 | 47 days |
 
 **Implementation:** Validation occurs in `OptionBuilders.CreateDaysOption()`. Values > 398 produce errors; values > 200 produce warnings.
+
+### UTC Time for Certificate Validity
+
+All certificate validity periods (NotBefore/NotAfter) are computed using UTC time per RFC 5280 Section 4.1.2.5. Both `CreateService` and `RenewService` use `DateTimeOffset.UtcNow` to set validity boundaries, ensuring certificates have consistent timestamps regardless of the machine's local timezone.
 
 ### RSA Key Size Recommendations
 

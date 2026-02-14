@@ -349,6 +349,7 @@ Consult sources in this order (higher priority overrides lower):
 | Use PowerShell-only for test setup and cleanup (not certz)                  | test/isolation-plan.md        |
 | Assert against system state in tests, not console output                    | test/isolation-plan.md        |
 | Generate secure random passwords if not provided                            | README.md                     |
+| Use UTC time (`DateTimeOffset.UtcNow`) for certificate validity dates       | README.md, docs/certz-spec.md |
 | Use modern PFX encryption (AES-256-CBC) by default                          | README.md                     |
 | Include Basic Constraints extension for CA certificates                     | docs/phases/phase4-lint.md    |
 
@@ -365,6 +366,7 @@ Consult sources in this order (higher priority overrides lower):
 | Never combine `--ephemeral`/`--pipe` with file output options      | docs/phases/phase8-ephemeral.md  |
 | Never combine `--ephemeral`/`--pipe` with `--trust`                | docs/phases/phase8-ephemeral.md  |
 | Never default to legacy 3DES PFX encryption                        | README.md                        |
+| Never use `DateTime.Today` or `DateTime.Now` for certificate validity  | README.md, docs/certz-spec.md    |
 | Never omit password display warning for generated passwords        | docs/architecture.md             |
 
 ### Verification Step
