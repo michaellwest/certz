@@ -26,6 +26,7 @@ All features have been implemented and documented in phase plans.
 | 7 | Renewal | Complete | [phase7-renew.md](phases/phase7-renew.md) |
 | 8 | Ephemeral Mode | Complete | [phase8-ephemeral.md](phases/phase8-ephemeral.md) |
 | 9 | Format Conversion | Complete | [phase9-convert.md](phases/phase9-convert.md) |
+| 10 | Global Guided Wizard | Planned | [phase10-guided.md](phases/phase10-guided.md) |
 
 ---
 
