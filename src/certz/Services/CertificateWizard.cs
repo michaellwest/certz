@@ -2,6 +2,7 @@ using certz.Formatters;
 using certz.Models;
 using certz.Options;
 using Spectre.Console;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace certz.Services;
 
@@ -496,24 +497,25 @@ internal static class CertificateWizard
             var task = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
                     .Title("[bold green]?[/] What would you like to do?")
-                    .AddChoiceGroup("Create", new[]
-                    {
+                    .AddChoiceGroup("Create",
+                    [
                         "Create a development certificate",
                         "Create a Certificate Authority (CA)"
-                    })
-                    .AddChoiceGroup("Inspect & Validate", new[]
-                    {
+                    ])
+                    .AddChoiceGroup("Inspect & Validate",
+                    [
                         "Inspect a certificate",
                         "Lint / validate a certificate"
-                    })
-                    .AddChoiceGroup("Manage", new[]
-                    {
+                    ])
+                    .AddChoiceGroup("Manage",
+                    [
+                        "List certificates in store",
                         "Add certificate to trust store",
                         "Remove certificate from trust store",
                         "Convert certificate format",
                         "Monitor certificates for expiration",
                         "Renew a certificate"
-                    })
+                    ])
                     .AddChoices("Exit")
                     .HighlightStyle(HighlightStyle));
 
@@ -564,6 +566,14 @@ internal static class CertificateWizard
                     formatter.WriteLintResult(result);
                     if (!result.Passed)
                         AnsiConsole.MarkupLine($"[red]  Lint failed with {result.ErrorCount} error(s).[/]");
+                    break;
+                }
+
+                case "List certificates in store":
+                {
+                    var options = RunStoreListWizard();
+                    var result = StoreListHandler.ListCertificates(options);
+                    formatter.WriteStoreList(result);
                     break;
                 }
 
@@ -1061,8 +1071,70 @@ internal static class CertificateWizard
     }
 
     // =========================================================================
+    // Store list wizard
+    // =========================================================================
+
+    internal static StoreListOptions RunStoreListWizard()
+    {
+        WriteWelcome("List Certificates in Store",
+            "Browse certificates installed in the Windows certificate store.",
+            "You can filter by expiration status.");
+
+        var storeName = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[green]?[/] Certificate store:")
+                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", "TrustedPublisher")
+                .HighlightStyle(HighlightStyle));
+        var storeKey = storeName.Split(' ')[0];
+
+        var storeLocation = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[green]?[/] Store location:")
+                .AddChoices("CurrentUser", "LocalMachine")
+                .HighlightStyle(HighlightStyle));
+
+        var filterChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[green]?[/] Filter certificates:")
+                .AddChoices("Show all", "Expired only", "Expiring soon (within N days)")
+                .HighlightStyle(HighlightStyle));
+
+        bool showExpired = false;
+        int? expiringDays = null;
+
+        switch (filterChoice)
+        {
+            case "Expired only":
+                showExpired = true;
+                break;
+            case "Expiring soon (within N days)":
+                expiringDays = AnsiConsole.Prompt(
+                    new TextPrompt<int>("[green]?[/] Expiring within how many days:")
+                        .DefaultValue(30)
+                        .ValidationErrorMessage("[red]Must be a positive number[/]")
+                        .Validate(d => d > 0));
+                break;
+        }
+
+        var cmd = $"certz store list --store {storeKey} --location {storeLocation}";
+        if (showExpired) cmd += " --expired";
+        if (expiringDays.HasValue) cmd += $" --expiring {expiringDays.Value}";
+        WriteEquivalentCommand(cmd);
+
+        return new StoreListOptions
+        {
+            StoreName = storeKey,
+            StoreLocation = storeLocation,
+            ShowExpired = showExpired,
+            ExpiringDays = expiringDays
+        };
+    }
+
+    // =========================================================================
     // Shared helpers
     // =========================================================================
+
+    private record FileChoice(string Display, string FullPath);
 
     private static readonly string[] CertificateExtensions =
         { "*.pfx", "*.p12", "*.pem", "*.crt", "*.cer", "*.der", "*.key" };
@@ -1072,26 +1144,43 @@ internal static class CertificateWizard
         string manualLabel = "Enter path manually...",
         bool validateExists = true)
     {
-        var files = CertificateExtensions
-            .SelectMany(ext => Directory.GetFiles(".", ext))
-            .Select(Path.GetFileName)
-            .Where(f => f != null)
-            .Cast<string>()
-            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        var currentDirectory = Directory.GetCurrentDirectory();
+        var certzDirectory = AppContext.BaseDirectory;
+
+        var directories = new[] { currentDirectory, certzDirectory };
+
+        var files = directories
+            .SelectMany(dir => CertificateExtensions
+                .SelectMany(ext => Directory.EnumerateFiles(dir, ext)))
+            .Select(fullPath => {
+                string label;
+                // Determine which "root" this file belongs to for the label
+                if (fullPath.StartsWith(certzDirectory, StringComparison.OrdinalIgnoreCase))
+                    label = "[certz path]";
+                else if (fullPath.StartsWith(currentDirectory, StringComparison.OrdinalIgnoreCase))
+                    label = "[.]";
+                else
+                    label = "[external]";
+
+                return new FileChoice(
+                    $"{label.EscapeMarkup()} {Path.GetRelativePath(Directory.GetCurrentDirectory(), fullPath)}",
+                    fullPath);
+            })
+            .DistinctBy(x => x.FullPath)
             .ToList();
 
         if (files.Count > 0)
         {
-            files.Add(manualLabel);
+            files.Add(new FileChoice($"[[manual]] {manualLabel}", ""));
             var choice = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
+                new SelectionPrompt<FileChoice>()
                     .Title(title)
                     .AddChoices(files)
+                    .UseConverter(f => f.Display)
                     .HighlightStyle(HighlightStyle));
 
-            if (choice != manualLabel)
-                return choice;
+            if (!string.IsNullOrEmpty(choice.FullPath))
+                return choice.FullPath;
         }
 
         var prompt = new TextPrompt<string>(title);
