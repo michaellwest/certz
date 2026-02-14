@@ -673,11 +673,7 @@ internal static class CertificateWizard
         switch (sourceType)
         {
             case InspectSourceType.File:
-                source = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] Certificate file path:")
-                        .Validate(p => File.Exists(p)
-                            ? ValidationResult.Success()
-                            : ValidationResult.Error("[red]File not found[/]")));
+                source = PromptCertificateFile("[green]?[/] Certificate file:");
                 var rawPass = AnsiConsole.Prompt(
                     new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
                         .AllowEmpty()
@@ -759,11 +755,7 @@ internal static class CertificateWizard
         switch (sourceType)
         {
             case InspectSourceType.File:
-                source = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] Certificate file path:")
-                        .Validate(p => File.Exists(p)
-                            ? ValidationResult.Success()
-                            : ValidationResult.Error("[red]File not found[/]")));
+                source = PromptCertificateFile("[green]?[/] Certificate file:");
                 var rawPass = AnsiConsole.Prompt(
                     new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
                         .AllowEmpty()
@@ -828,11 +820,7 @@ internal static class CertificateWizard
             "Install a certificate into the Windows certificate store.",
             "Trusted certificates are accepted by browsers and other applications.");
 
-        var filePath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Certificate file path:")
-                .Validate(p => File.Exists(p)
-                    ? ValidationResult.Success()
-                    : ValidationResult.Error("[red]File not found[/]")));
+        var filePath = PromptCertificateFile("[green]?[/] Certificate file:");
 
         var rawPass = AnsiConsole.Prompt(
             new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
@@ -900,11 +888,7 @@ internal static class CertificateWizard
             "Convert between PEM, DER, and PFX/PKCS#12 formats.",
             "Input format is detected automatically from the file contents.");
 
-        var inputPath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Input certificate file:")
-                .Validate(p => File.Exists(p)
-                    ? ValidationResult.Success()
-                    : ValidationResult.Error("[red]File not found[/]")));
+        var inputPath = PromptCertificateFile("[green]?[/] Input certificate file:");
 
         var targetChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -1029,11 +1013,10 @@ internal static class CertificateWizard
             "Extend the validity of an existing certificate.",
             "Existing parameters (key type, SANs) are detected automatically from the source.");
 
-        var source = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Source certificate (file path or thumbprint):")
-                .Validate(s => !string.IsNullOrWhiteSpace(s)
-                    ? ValidationResult.Success()
-                    : ValidationResult.Error("[red]Source cannot be empty[/]")));
+        var source = PromptCertificateFile(
+            "[green]?[/] Source certificate:",
+            "Enter thumbprint or path manually...",
+            validateExists: false);
 
         string? password = null;
         if (File.Exists(source))
@@ -1078,8 +1061,55 @@ internal static class CertificateWizard
     }
 
     // =========================================================================
-    // Shared helper
+    // Shared helpers
     // =========================================================================
+
+    private static readonly string[] CertificateExtensions =
+        { "*.pfx", "*.p12", "*.pem", "*.crt", "*.cer", "*.der", "*.key" };
+
+    private static string PromptCertificateFile(
+        string title,
+        string manualLabel = "Enter path manually...",
+        bool validateExists = true)
+    {
+        var files = CertificateExtensions
+            .SelectMany(ext => Directory.GetFiles(".", ext))
+            .Select(Path.GetFileName)
+            .Where(f => f != null)
+            .Cast<string>()
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (files.Count > 0)
+        {
+            files.Add(manualLabel);
+            var choice = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title(title)
+                    .AddChoices(files)
+                    .HighlightStyle(HighlightStyle));
+
+            if (choice != manualLabel)
+                return choice;
+        }
+
+        var prompt = new TextPrompt<string>(title);
+        if (validateExists)
+        {
+            prompt.Validate(p => File.Exists(p)
+                ? ValidationResult.Success()
+                : ValidationResult.Error("[red]File not found[/]"));
+        }
+        else
+        {
+            prompt.Validate(p => !string.IsNullOrWhiteSpace(p)
+                ? ValidationResult.Success()
+                : ValidationResult.Error("[red]Input cannot be empty[/]"));
+        }
+
+        return AnsiConsole.Prompt(prompt);
+    }
 
     private static FileInfo? PromptPasswordFile(string defaultBaseName)
     {
