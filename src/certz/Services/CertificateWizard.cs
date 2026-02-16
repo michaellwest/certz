@@ -498,6 +498,10 @@ internal static partial class CertificateWizard
         // Pending follow-up task set by contextual menus (null = show main menu)
         string? nextTask = null;
 
+        // Store context preserved across operations for store browser loop
+        string? pendingStoreName = null;
+        string? pendingStoreLocation = null;
+
         while (true)
         {
             string task;
@@ -506,9 +510,14 @@ internal static partial class CertificateWizard
             {
                 task = nextTask;
                 nextTask = null;
+                // Note: pendingStoreName/pendingStoreLocation are set explicitly
+                // by follow-up handlers that need them; other handlers clear them.
             }
             else
             {
+                // Returning to main menu clears store context
+                pendingStoreName = null;
+                pendingStoreLocation = null;
                 AnsiConsole.WriteLine();
 
                 task = AnsiConsole.Prompt(
@@ -593,28 +602,66 @@ internal static partial class CertificateWizard
 
                 case "Inspect a certificate":
                     {
-                        var (options, sourceType) = RunInspectWizard();
-                        var result = sourceType switch
-                        {
-                            InspectSourceType.Url => await CertificateInspector.InspectUrlAsync(options),
-                            InspectSourceType.Store => CertificateInspector.InspectFromStore(options),
-                            _ => CertificateInspector.InspectFile(options)
-                        };
-                        formatter.WriteCertificateInspected(result);
+                        InspectOptions inspectOptions;
+                        InspectSourceType inspectSourceType;
 
-                        var followUp = PromptFollowUp(
-                            "Lint this certificate",
-                            "Inspect another certificate");
-                        switch (followUp)
+                        // If store context is available, skip source selection and browse directly
+                        if (pendingStoreName != null && pendingStoreLocation != null)
+                        {
+                            var thumbprint = BrowseStore(pendingStoreName, pendingStoreLocation, subjectFilter: null);
+                            inspectOptions = new InspectOptions
+                            {
+                                Source = thumbprint,
+                                StoreName = pendingStoreName,
+                                StoreLocation = pendingStoreLocation,
+                                ShowChain = AnsiConsole.Confirm("[green]?[/] Show certificate chain?", defaultValue: false)
+                            };
+                            inspectSourceType = InspectSourceType.Store;
+                            WriteEquivalentCommand($"certz inspect {thumbprint} --store {pendingStoreName} --location {pendingStoreLocation}");
+                        }
+                        else
+                        {
+                            (inspectOptions, inspectSourceType) = RunInspectWizard();
+                        }
+
+                        var inspectResult = inspectSourceType switch
+                        {
+                            InspectSourceType.Url => await CertificateInspector.InspectUrlAsync(inspectOptions),
+                            InspectSourceType.Store => CertificateInspector.InspectFromStore(inspectOptions),
+                            _ => CertificateInspector.InspectFile(inspectOptions)
+                        };
+                        formatter.WriteCertificateInspected(inspectResult);
+
+                        // Offer store-specific follow-ups when source was a store
+                        var inspectFollowUpChoices = inspectSourceType == InspectSourceType.Store
+                            ? new[] { "Lint this certificate", "Inspect another from this store", "Inspect another certificate" }
+                            : new[] { "Lint this certificate", "Inspect another certificate" };
+
+                        var inspectFollowUp = PromptFollowUp(inspectFollowUpChoices);
+                        switch (inspectFollowUp)
                         {
                             case FollowUpAction.Exit: return;
                             case FollowUpAction.FollowUp:
-                                nextTask = _lastFollowUpChoice switch
+                                switch (_lastFollowUpChoice)
                                 {
-                                    "Lint this certificate" => "Lint / validate a certificate",
-                                    "Inspect another certificate" => "Inspect a certificate",
-                                    _ => null
-                                };
+                                    case "Lint this certificate":
+                                        nextTask = "Lint / validate a certificate";
+                                        break;
+                                    case "Inspect another from this store":
+                                        // Preserve store context for the next iteration
+                                        pendingStoreName = inspectOptions.StoreName;
+                                        pendingStoreLocation = inspectOptions.StoreLocation;
+                                        nextTask = "Inspect a certificate";
+                                        break;
+                                    case "Inspect another certificate":
+                                        nextTask = "Inspect a certificate";
+                                        break;
+                                }
+                                break;
+                            default:
+                                // Clear store context when going back to main menu
+                                pendingStoreName = null;
+                                pendingStoreLocation = null;
                                 break;
                         }
                         break;
@@ -622,30 +669,74 @@ internal static partial class CertificateWizard
 
                 case "Lint / validate a certificate":
                     {
-                        var (options, sourceType) = RunLintWizard();
-                        var result = sourceType switch
-                        {
-                            InspectSourceType.Url => await LintService.LintUrlAsync(options),
-                            InspectSourceType.Store => LintService.LintFromStore(options),
-                            _ => LintService.LintFile(options)
-                        };
-                        formatter.WriteLintResult(result);
-                        if (!result.Passed)
-                            AnsiConsole.MarkupLine($"[red]  Lint failed with {result.ErrorCount} error(s).[/]");
+                        LintOptions lintOptions;
+                        InspectSourceType lintSourceType;
 
-                        var followUp = PromptFollowUp(
-                            "Inspect this certificate (full details)",
-                            "Lint another certificate");
-                        switch (followUp)
+                        // If store context is available, skip source selection and browse directly
+                        if (pendingStoreName != null && pendingStoreLocation != null)
+                        {
+                            var thumbprint = BrowseStore(pendingStoreName, pendingStoreLocation, subjectFilter: null);
+
+                            var policy = AnsiConsole.Prompt(
+                                new SelectionPrompt<string>()
+                                    .Title("[green]?[/] Validation policy:")
+                                    .AddChoices("cabf (CA/Browser Forum)", "mozilla (Mozilla NSS)", "dev (development)", "all (all policies)")
+                                    .HighlightStyle(HighlightStyle));
+                            var policyKey = policy.Split(' ')[0];
+
+                            lintOptions = new LintOptions
+                            {
+                                Source = thumbprint,
+                                StoreName = pendingStoreName,
+                                StoreLocation = pendingStoreLocation,
+                                PolicySet = policyKey
+                            };
+                            lintSourceType = InspectSourceType.Store;
+                            WriteEquivalentCommand($"certz lint {thumbprint} --store {pendingStoreName} --location {pendingStoreLocation} --policy {policyKey}");
+                        }
+                        else
+                        {
+                            (lintOptions, lintSourceType) = RunLintWizard();
+                        }
+
+                        var lintResult = lintSourceType switch
+                        {
+                            InspectSourceType.Url => await LintService.LintUrlAsync(lintOptions),
+                            InspectSourceType.Store => LintService.LintFromStore(lintOptions),
+                            _ => LintService.LintFile(lintOptions)
+                        };
+                        formatter.WriteLintResult(lintResult);
+                        if (!lintResult.Passed)
+                            AnsiConsole.MarkupLine($"[red]  Lint failed with {lintResult.ErrorCount} error(s).[/]");
+
+                        // Offer store-specific follow-ups when source was a store
+                        var lintFollowUpChoices = lintSourceType == InspectSourceType.Store
+                            ? new[] { "Inspect this certificate (full details)", "Lint another from this store", "Lint another certificate" }
+                            : new[] { "Inspect this certificate (full details)", "Lint another certificate" };
+
+                        var lintFollowUp = PromptFollowUp(lintFollowUpChoices);
+                        switch (lintFollowUp)
                         {
                             case FollowUpAction.Exit: return;
                             case FollowUpAction.FollowUp:
-                                nextTask = _lastFollowUpChoice switch
+                                switch (_lastFollowUpChoice)
                                 {
-                                    "Inspect this certificate (full details)" => "Inspect a certificate",
-                                    "Lint another certificate" => "Lint / validate a certificate",
-                                    _ => null
-                                };
+                                    case "Inspect this certificate (full details)":
+                                        nextTask = "Inspect a certificate";
+                                        break;
+                                    case "Lint another from this store":
+                                        pendingStoreName = lintOptions.StoreName;
+                                        pendingStoreLocation = lintOptions.StoreLocation;
+                                        nextTask = "Lint / validate a certificate";
+                                        break;
+                                    case "Lint another certificate":
+                                        nextTask = "Lint / validate a certificate";
+                                        break;
+                                }
+                                break;
+                            default:
+                                pendingStoreName = null;
+                                pendingStoreLocation = null;
                                 break;
                         }
                         break;
@@ -653,25 +744,38 @@ internal static partial class CertificateWizard
 
                 case "List certificates in store":
                     {
-                        var options = RunStoreListWizard();
-                        var result = StoreListHandler.ListCertificates(options);
-                        formatter.WriteStoreList(result);
+                        var storeListOptions = RunStoreListWizard();
+                        var storeListResult = StoreListHandler.ListCertificates(storeListOptions);
+                        formatter.WriteStoreList(storeListResult);
 
-                        var followUp = PromptFollowUp(
+                        var storeListFollowUp = PromptFollowUp(
                             "Inspect a certificate from this store",
                             "Remove a certificate from this store",
                             "List with different filter");
-                        switch (followUp)
+                        switch (storeListFollowUp)
                         {
                             case FollowUpAction.Exit: return;
                             case FollowUpAction.FollowUp:
-                                nextTask = _lastFollowUpChoice switch
+                                switch (_lastFollowUpChoice)
                                 {
-                                    "Inspect a certificate from this store" => "Inspect a certificate",
-                                    "Remove a certificate from this store" => "Remove certificate from trust store",
-                                    "List with different filter" => "List certificates in store",
-                                    _ => null
-                                };
+                                    case "Inspect a certificate from this store":
+                                        pendingStoreName = storeListOptions.StoreName;
+                                        pendingStoreLocation = storeListOptions.StoreLocation;
+                                        nextTask = "Inspect a certificate";
+                                        break;
+                                    case "Remove a certificate from this store":
+                                        pendingStoreName = storeListOptions.StoreName;
+                                        pendingStoreLocation = storeListOptions.StoreLocation;
+                                        nextTask = "Remove certificate from trust store";
+                                        break;
+                                    case "List with different filter":
+                                        nextTask = "List certificates in store";
+                                        break;
+                                }
+                                break;
+                            default:
+                                pendingStoreName = null;
+                                pendingStoreLocation = null;
                                 break;
                         }
                         break;
@@ -703,11 +807,27 @@ internal static partial class CertificateWizard
 
                 case "Remove certificate from trust store":
                     {
-                        var (thumbprint, storeName, storeLocation) = RunTrustRemoveWizard();
-                        var matches = TrustHandler.FindMatchingCertificates(thumbprint, null, storeName, storeLocation);
+                        string removeThumbprint;
+                        string removeStoreName;
+                        string removeStoreLocation;
+
+                        // If store context is available, skip store selection and browse directly
+                        if (pendingStoreName != null && pendingStoreLocation != null)
+                        {
+                            removeStoreName = pendingStoreName;
+                            removeStoreLocation = pendingStoreLocation;
+                            removeThumbprint = BrowseStore(removeStoreName, removeStoreLocation, subjectFilter: null);
+                            WriteEquivalentCommand($"certz trust remove {removeThumbprint} --store {removeStoreName} --location {removeStoreLocation}");
+                        }
+                        else
+                        {
+                            (removeThumbprint, removeStoreName, removeStoreLocation) = RunTrustRemoveWizard();
+                        }
+
+                        var matches = TrustHandler.FindMatchingCertificates(removeThumbprint, null, removeStoreName, removeStoreLocation);
                         if (matches.Count == 0)
                         {
-                            AnsiConsole.MarkupLine($"[red]  No matching certificates found in {storeLocation}\\{storeName}.[/]");
+                            AnsiConsole.MarkupLine($"[red]  No matching certificates found in {removeStoreLocation}\\{removeStoreName}.[/]");
                         }
                         else
                         {
@@ -727,17 +847,17 @@ internal static partial class CertificateWizard
                             {
                                 case "Confirm removal":
                                 {
-                                    var result = TrustHandler.RemoveFromStore(matches, storeName, storeLocation);
+                                    var result = TrustHandler.RemoveFromStore(matches, removeStoreName, removeStoreLocation);
                                     formatter.WriteTrustRemoved(result);
                                     break;
                                 }
                                 case "Save details to file for offline analysis":
                                 {
-                                    SaveRemovalSummary(matches, storeName, storeLocation);
+                                    SaveRemovalSummary(matches, removeStoreName, removeStoreLocation);
                                     var proceed = AnsiConsole.Confirm("[green]?[/] Proceed with removal?", defaultValue: false);
                                     if (proceed)
                                     {
-                                        var result = TrustHandler.RemoveFromStore(matches, storeName, storeLocation);
+                                        var result = TrustHandler.RemoveFromStore(matches, removeStoreName, removeStoreLocation);
                                         formatter.WriteTrustRemoved(result);
                                     }
                                     else
@@ -757,18 +877,27 @@ internal static partial class CertificateWizard
                         }
 
                         var removeFollowUp = PromptFollowUp(
-                            "Remove another certificate",
+                            "Remove another from this store",
                             "List certificates in store");
                         switch (removeFollowUp)
                         {
                             case FollowUpAction.Exit: return;
                             case FollowUpAction.FollowUp:
-                                nextTask = _lastFollowUpChoice switch
+                                switch (_lastFollowUpChoice)
                                 {
-                                    "Remove another certificate" => "Remove certificate from trust store",
-                                    "List certificates in store" => "List certificates in store",
-                                    _ => null
-                                };
+                                    case "Remove another from this store":
+                                        pendingStoreName = removeStoreName;
+                                        pendingStoreLocation = removeStoreLocation;
+                                        nextTask = "Remove certificate from trust store";
+                                        break;
+                                    case "List certificates in store":
+                                        nextTask = "List certificates in store";
+                                        break;
+                                }
+                                break;
+                            default:
+                                pendingStoreName = null;
+                                pendingStoreLocation = null;
                                 break;
                         }
                         break;
