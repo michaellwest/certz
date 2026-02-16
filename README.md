@@ -53,6 +53,24 @@ Commands:
 
 ---
 
+## Guided Wizard Mode
+
+Run `certz --guided` to launch an interactive wizard that walks you through any certz operation. The wizard covers certificate creation, inspection, linting, trust management, conversion, monitoring, and renewal.
+
+**Smart URL input:** When prompted for a URL, you can type just the domain (e.g. `example.com` or `example.com:8443`) and the wizard will auto-prefix `https://`. If you enter an `http://` URL, the wizard upgrades it to HTTPS with a warning — except for CRL endpoints (`.crl` paths or `crl.*` subdomains), which legitimately use HTTP.
+
+**Store browsing:** When inspecting, linting, or removing certificates from the Windows store, the wizard offers three ways to find a certificate:
+
+- **Browse** — list all certificates in the selected store with filters (show all, not expired, expiring soon, expired only)
+- **Search by subject** — use wildcard patterns like `*localhost*` to narrow results
+- **Enter thumbprint manually** — type a full or partial thumbprint directly
+
+After selecting a certificate, the full thumbprint is displayed for easy copying.
+
+**Trust removal details:** When removing certificates, the wizard shows detailed certificate properties (Subject, Issuer, Is CA, Self-Signed, Has Key, Status) and offers three choices: confirm removal, save details to a file for offline analysis, or cancel.
+
+---
+
 ## Certificate Creation
 
 ### Development Certificates

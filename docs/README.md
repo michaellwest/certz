@@ -27,6 +27,7 @@ All features have been implemented and documented in phase plans.
 | 8 | Ephemeral Mode | Complete | [phase8-ephemeral.md](phases/phase8-ephemeral.md) |
 | 9 | Format Conversion | Complete | [phase9-convert.md](phases/phase9-convert.md) |
 | 10 | Global Guided Wizard | Complete | [phase10-guided.md](phases/phase10-guided.md) |
+| 11 | Wizard UX Enhancements | Complete | [phase11-wizard-enhancements.md](phases/phase11-wizard-enhancements.md) |
 
 ---
 

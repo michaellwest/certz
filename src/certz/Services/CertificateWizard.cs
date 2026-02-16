@@ -2,6 +2,8 @@ using certz.Formatters;
 using certz.Models;
 using certz.Options;
 using Spectre.Console;
+using System.Text;
+using System.Text.RegularExpressions;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace certz.Services;
@@ -9,7 +11,7 @@ namespace certz.Services;
 /// <summary>
 /// Interactive wizard for creating certificates with step-by-step guidance.
 /// </summary>
-internal static class CertificateWizard
+internal static partial class CertificateWizard
 {
     private static readonly Style HelpStyle = new(Color.Grey);
     private static readonly Style HighlightStyle = new(Color.Green);
@@ -522,123 +524,154 @@ internal static class CertificateWizard
             switch (task)
             {
                 case "Create a development certificate":
-                {
-                    var options = RunDevCertificateWizard();
-                    if (options.PfxFile == null && options.CertFile == null && options.KeyFile == null)
-                        options = options with { PfxFile = new FileInfo($"{options.Domain.Replace("*", "wildcard").Replace(".", "-")}.pfx") };
-                    var result = await CreateService.CreateDevCertificate(options);
-                    formatter.WriteCertificateCreated(result);
-                    break;
-                }
+                    {
+                        var options = RunDevCertificateWizard();
+                        if (options.PfxFile == null && options.CertFile == null && options.KeyFile == null)
+                            options = options with { PfxFile = new FileInfo($"{options.Domain.Replace("*", "wildcard").Replace(".", "-")}.pfx") };
+                        var result = await CreateService.CreateDevCertificate(options);
+                        formatter.WriteCertificateCreated(result);
+                        break;
+                    }
 
                 case "Create a Certificate Authority (CA)":
-                {
-                    var options = RunCACertificateWizard();
-                    if (options.PfxFile == null && options.CertFile == null && options.KeyFile == null)
-                        options = options with { PfxFile = new FileInfo($"{options.Name.Replace(" ", "-").ToLowerInvariant()}.pfx") };
-                    var result = await CreateService.CreateCACertificate(options);
-                    formatter.WriteCertificateCreated(result);
-                    break;
-                }
+                    {
+                        var options = RunCACertificateWizard();
+                        if (options.PfxFile == null && options.CertFile == null && options.KeyFile == null)
+                            options = options with { PfxFile = new FileInfo($"{options.Name.Replace(" ", "-").ToLowerInvariant()}.pfx") };
+                        var result = await CreateService.CreateCACertificate(options);
+                        formatter.WriteCertificateCreated(result);
+                        break;
+                    }
 
                 case "Inspect a certificate":
-                {
-                    var (options, sourceType) = RunInspectWizard();
-                    var result = sourceType switch
                     {
-                        InspectSourceType.Url => await CertificateInspector.InspectUrlAsync(options),
-                        InspectSourceType.Store => CertificateInspector.InspectFromStore(options),
-                        _ => CertificateInspector.InspectFile(options)
-                    };
-                    formatter.WriteCertificateInspected(result);
-                    break;
-                }
+                        var (options, sourceType) = RunInspectWizard();
+                        var result = sourceType switch
+                        {
+                            InspectSourceType.Url => await CertificateInspector.InspectUrlAsync(options),
+                            InspectSourceType.Store => CertificateInspector.InspectFromStore(options),
+                            _ => CertificateInspector.InspectFile(options)
+                        };
+                        formatter.WriteCertificateInspected(result);
+                        break;
+                    }
 
                 case "Lint / validate a certificate":
-                {
-                    var (options, sourceType) = RunLintWizard();
-                    var result = sourceType switch
                     {
-                        InspectSourceType.Url => await LintService.LintUrlAsync(options),
-                        InspectSourceType.Store => LintService.LintFromStore(options),
-                        _ => LintService.LintFile(options)
-                    };
-                    formatter.WriteLintResult(result);
-                    if (!result.Passed)
-                        AnsiConsole.MarkupLine($"[red]  Lint failed with {result.ErrorCount} error(s).[/]");
-                    break;
-                }
+                        var (options, sourceType) = RunLintWizard();
+                        var result = sourceType switch
+                        {
+                            InspectSourceType.Url => await LintService.LintUrlAsync(options),
+                            InspectSourceType.Store => LintService.LintFromStore(options),
+                            _ => LintService.LintFile(options)
+                        };
+                        formatter.WriteLintResult(result);
+                        if (!result.Passed)
+                            AnsiConsole.MarkupLine($"[red]  Lint failed with {result.ErrorCount} error(s).[/]");
+                        break;
+                    }
 
                 case "List certificates in store":
-                {
-                    var options = RunStoreListWizard();
-                    var result = StoreListHandler.ListCertificates(options);
-                    formatter.WriteStoreList(result);
-                    break;
-                }
+                    {
+                        var options = RunStoreListWizard();
+                        var result = StoreListHandler.ListCertificates(options);
+                        formatter.WriteStoreList(result);
+                        break;
+                    }
 
                 case "Add certificate to trust store":
-                {
-                    var (filePath, password, storeName, storeLocation) = RunTrustAddWizard();
-                    var result = TrustHandler.AddToStore(filePath, password, storeName, storeLocation);
-                    formatter.WriteTrustAdded(result);
-                    break;
-                }
+                    {
+                        var (filePath, password, storeName, storeLocation) = RunTrustAddWizard();
+                        var result = TrustHandler.AddToStore(filePath, password, storeName, storeLocation);
+                        formatter.WriteTrustAdded(result);
+                        break;
+                    }
 
                 case "Remove certificate from trust store":
-                {
-                    var (thumbprint, storeName, storeLocation) = RunTrustRemoveWizard();
-                    var matches = TrustHandler.FindMatchingCertificates(thumbprint, null, storeName, storeLocation);
-                    if (matches.Count == 0)
                     {
-                        AnsiConsole.MarkupLine($"[red]  No matching certificates found in {storeLocation}\\{storeName}.[/]");
-                    }
-                    else
-                    {
-                        var confirmed = AnsiConsole.Confirm(
-                            $"[yellow]Remove {matches.Count} certificate(s)?[/]", defaultValue: false);
-                        if (confirmed)
+                        var (thumbprint, storeName, storeLocation) = RunTrustRemoveWizard();
+                        var matches = TrustHandler.FindMatchingCertificates(thumbprint, null, storeName, storeLocation);
+                        if (matches.Count == 0)
                         {
-                            var result = TrustHandler.RemoveFromStore(matches, storeName, storeLocation);
-                            formatter.WriteTrustRemoved(result);
+                            AnsiConsole.MarkupLine($"[red]  No matching certificates found in {storeLocation}\\{storeName}.[/]");
                         }
                         else
                         {
-                            AnsiConsole.MarkupLine("[yellow]  Operation cancelled.[/]");
-                            foreach (var c in matches) c.Dispose();
+                            // Display detailed certificate information
+                            DisplayMatchedCertificates(matches);
+
+                            var action = AnsiConsole.Prompt(
+                                new SelectionPrompt<string>()
+                                    .Title($"[yellow]Found {matches.Count} certificate(s). What would you like to do?[/]")
+                                    .AddChoices(
+                                        "Confirm removal",
+                                        "Save details to file for offline analysis",
+                                        "Cancel")
+                                    .HighlightStyle(HighlightStyle));
+
+                            switch (action)
+                            {
+                                case "Confirm removal":
+                                {
+                                    var result = TrustHandler.RemoveFromStore(matches, storeName, storeLocation);
+                                    formatter.WriteTrustRemoved(result);
+                                    break;
+                                }
+                                case "Save details to file for offline analysis":
+                                {
+                                    SaveRemovalSummary(matches, storeName, storeLocation);
+                                    var proceed = AnsiConsole.Confirm("[green]?[/] Proceed with removal?", defaultValue: false);
+                                    if (proceed)
+                                    {
+                                        var result = TrustHandler.RemoveFromStore(matches, storeName, storeLocation);
+                                        formatter.WriteTrustRemoved(result);
+                                    }
+                                    else
+                                    {
+                                        AnsiConsole.MarkupLine("[yellow]  Operation cancelled.[/]");
+                                        foreach (var c in matches) c.Dispose();
+                                    }
+                                    break;
+                                }
+                                default:
+                                {
+                                    AnsiConsole.MarkupLine("[yellow]  Operation cancelled.[/]");
+                                    foreach (var c in matches) c.Dispose();
+                                    break;
+                                }
+                            }
                         }
+                        break;
                     }
-                    break;
-                }
 
                 case "Convert certificate format":
-                {
-                    var (options, outputFormat) = RunConvertWizard();
-                    var result = outputFormat switch
                     {
-                        FormatType.Der => await ConvertService.ConvertToDer(options),
-                        FormatType.Pfx => await ConvertService.ConvertToPfxSimple(options),
-                        _ => await ConvertService.ConvertToPem(options)
-                    };
-                    formatter.WriteConversionResult(result);
-                    break;
-                }
+                        var (options, outputFormat) = RunConvertWizard();
+                        var result = outputFormat switch
+                        {
+                            FormatType.Der => await ConvertService.ConvertToDer(options),
+                            FormatType.Pfx => await ConvertService.ConvertToPfxSimple(options),
+                            _ => await ConvertService.ConvertToPem(options)
+                        };
+                        formatter.WriteConversionResult(result);
+                        break;
+                    }
 
                 case "Monitor certificates for expiration":
-                {
-                    var options = RunMonitorWizard();
-                    var result = await MonitorService.MonitorAsync(options);
-                    formatter.WriteMonitorResult(result, options.QuietMode);
-                    break;
-                }
+                    {
+                        var options = RunMonitorWizard();
+                        var result = await MonitorService.MonitorAsync(options);
+                        formatter.WriteMonitorResult(result, options.QuietMode);
+                        break;
+                    }
 
                 case "Renew a certificate":
-                {
-                    var options = RunRenewWizard();
-                    var result = await RenewService.RenewCertificate(options);
-                    formatter.WriteRenewResult(result);
-                    break;
-                }
+                    {
+                        var options = RunRenewWizard();
+                        var result = await RenewService.RenewCertificate(options);
+                        formatter.WriteRenewResult(result);
+                        break;
+                    }
 
                 case "Exit":
                     AnsiConsole.MarkupLine("[grey]Goodbye.[/]");
@@ -665,13 +698,13 @@ internal static class CertificateWizard
         var sourceChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Certificate source:")
-                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (thumbprint)")
+                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)")
                 .HighlightStyle(HighlightStyle));
 
         var sourceType = sourceChoice switch
         {
             "URL (HTTPS endpoint)" => InspectSourceType.Url,
-            "Windows Store (thumbprint)" => InspectSourceType.Store,
+            "Windows Store (browse or enter thumbprint)" => InspectSourceType.Store,
             _ => InspectSourceType.File
         };
 
@@ -693,30 +726,24 @@ internal static class CertificateWizard
                 break;
 
             case InspectSourceType.Url:
-                source = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] HTTPS URL (e.g. https://example.com):")
-                        .Validate(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                            ? ValidationResult.Success()
-                            : ValidationResult.Error("[red]URL must start with https://[/]")));
+                source = PromptUrl();
                 WriteEquivalentCommand($"certz inspect {source}");
                 break;
 
             default: // Store
-                source = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] Certificate thumbprint (full 40-char or partial 8+):")
-                        .Validate(t => !string.IsNullOrWhiteSpace(t) && t.Length >= 8
-                            ? ValidationResult.Success()
-                            : ValidationResult.Error("[red]Thumbprint must be at least 8 hex characters[/]")));
-                storeName = AnsiConsole.Prompt(
-                    new SelectionPrompt<string>()
-                        .Title("[green]?[/] Certificate store:")
-                        .AddChoices("Root", "My", "CA", "TrustedPeople")
-                        .HighlightStyle(HighlightStyle));
                 storeLocation = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title("[green]?[/] Store location:")
                         .AddChoices("CurrentUser", "LocalMachine")
                         .HighlightStyle(HighlightStyle));
+                storeName = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Certificate store:")
+                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople")
+                        .HighlightStyle(HighlightStyle));
+                var inspectStoreKey = storeName.Split(' ')[0];
+                source = BrowseOrEnterThumbprint(inspectStoreKey, storeLocation);
+                storeName = inspectStoreKey;
                 WriteEquivalentCommand($"certz inspect {source} --store {storeName} --location {storeLocation}");
                 break;
         }
@@ -747,13 +774,13 @@ internal static class CertificateWizard
         var sourceChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Certificate source:")
-                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (thumbprint)")
+                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)")
                 .HighlightStyle(HighlightStyle));
 
         var sourceType = sourceChoice switch
         {
             "URL (HTTPS endpoint)" => InspectSourceType.Url,
-            "Windows Store (thumbprint)" => InspectSourceType.Store,
+            "Windows Store (browse or enter thumbprint)" => InspectSourceType.Store,
             _ => InspectSourceType.File
         };
 
@@ -774,29 +801,23 @@ internal static class CertificateWizard
                 break;
 
             case InspectSourceType.Url:
-                source = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] HTTPS URL (e.g. https://example.com):")
-                        .Validate(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                            ? ValidationResult.Success()
-                            : ValidationResult.Error("[red]URL must start with https://[/]")));
+                source = PromptUrl();
                 break;
 
             default: // Store
-                source = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] Certificate thumbprint:")
-                        .Validate(t => !string.IsNullOrWhiteSpace(t) && t.Length >= 8
-                            ? ValidationResult.Success()
-                            : ValidationResult.Error("[red]Thumbprint must be at least 8 hex characters[/]")));
-                storeName = AnsiConsole.Prompt(
-                    new SelectionPrompt<string>()
-                        .Title("[green]?[/] Certificate store:")
-                        .AddChoices("Root", "My", "CA", "TrustedPeople")
-                        .HighlightStyle(HighlightStyle));
                 storeLocation = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title("[green]?[/] Store location:")
                         .AddChoices("CurrentUser", "LocalMachine")
                         .HighlightStyle(HighlightStyle));
+                storeName = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Certificate store:")
+                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople")
+                        .HighlightStyle(HighlightStyle));
+                var lintStoreKey = storeName.Split(' ')[0];
+                source = BrowseOrEnterThumbprint(lintStoreKey, storeLocation);
+                storeName = lintStoreKey;
                 break;
         }
 
@@ -841,7 +862,7 @@ internal static class CertificateWizard
         var storeName = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Target store:")
-                .AddChoices("Root (Trusted Root CAs)", "CA (Intermediate CAs)", "My (Personal)", "TrustedPeople")
+                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople")
                 .HighlightStyle(HighlightStyle));
         var storeKey = storeName.Split(' ')[0];
 
@@ -863,25 +884,23 @@ internal static class CertificateWizard
     internal static (string Thumbprint, string StoreName, string StoreLocation) RunTrustRemoveWizard()
     {
         WriteWelcome("Remove from Trust Store",
-            "Remove a certificate from the Windows certificate store by thumbprint.");
-
-        var thumbprint = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Certificate thumbprint (full 40-char or partial 8+):")
-                .Validate(t => !string.IsNullOrWhiteSpace(t) && t.Replace(" ", "").Length >= 8
-                    ? ValidationResult.Success()
-                    : ValidationResult.Error("[red]Thumbprint must be at least 8 hex characters[/]")));
-
-        var storeName = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Certificate store:")
-                .AddChoices("Root", "My", "CA", "TrustedPeople")
-                .HighlightStyle(HighlightStyle));
+            "Remove a certificate from the Windows certificate store.",
+            "You can browse the store to find the certificate to remove.");
 
         var storeLocation = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Store location:")
                 .AddChoices("CurrentUser", "LocalMachine")
                 .HighlightStyle(HighlightStyle));
+
+        var storeNameChoice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[green]?[/] Certificate store:")
+                .AddChoices("Root (Trusted Root CAs)", "My (Personal)", "CA (Intermediate CAs)", "TrustedPeople")
+                .HighlightStyle(HighlightStyle));
+        var storeName = storeNameChoice.Split(' ')[0];
+
+        var thumbprint = BrowseOrEnterThumbprint(storeName, storeLocation);
 
         WriteEquivalentCommand($"certz trust remove {thumbprint} --store {storeName} --location {storeLocation}");
 
@@ -1152,7 +1171,8 @@ internal static class CertificateWizard
         var files = directories
             .SelectMany(dir => CertificateExtensions
                 .SelectMany(ext => Directory.EnumerateFiles(dir, ext)))
-            .Select(fullPath => {
+            .Select(fullPath =>
+            {
                 string label;
                 // Determine which "root" this file belongs to for the label
                 if (fullPath.StartsWith(certzDirectory, StringComparison.OrdinalIgnoreCase))
@@ -1224,4 +1244,274 @@ internal static class CertificateWizard
         AnsiConsole.MarkupLine($"  [bold cyan]{Markup.Escape(command)}[/]");
         AnsiConsole.WriteLine();
     }
+
+    // =========================================================================
+    // Store browser helpers (Phase 11)
+    // =========================================================================
+
+    private record StoreCertificateChoice(string Display, string Thumbprint, string Subject);
+
+    private static string BrowseOrEnterThumbprint(string storeName, string storeLocation)
+    {
+        var findMethod = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[green]?[/] How would you like to find the certificate?")
+                .AddChoices(
+                    "Browse certificates in store",
+                    "Search by subject (supports wildcards)",
+                    "Enter thumbprint manually")
+                .HighlightStyle(HighlightStyle));
+
+        return findMethod switch
+        {
+            "Browse certificates in store" => BrowseStore(storeName, storeLocation, subjectFilter: null),
+            "Search by subject (supports wildcards)" => SearchBySubject(storeName, storeLocation),
+            _ => PromptThumbprintManually()
+        };
+    }
+
+    private static string BrowseStore(string storeName, string storeLocation, string? subjectFilter)
+    {
+        bool showExpired = false;
+        int? expiringDays = null;
+        bool notExpiredOnly = false;
+
+        if (subjectFilter == null)
+        {
+            var filterChoice = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[green]?[/] Filter certificates:")
+                    .AddChoices("Show all", "Not expired only", "Expiring soon (within N days)", "Expired only")
+                    .HighlightStyle(HighlightStyle));
+
+            switch (filterChoice)
+            {
+                case "Expired only":
+                    showExpired = true;
+                    break;
+                case "Expiring soon (within N days)":
+                    expiringDays = AnsiConsole.Prompt(
+                        new TextPrompt<int>("[green]?[/] Expiring within how many days:")
+                            .DefaultValue(30)
+                            .ValidationErrorMessage("[red]Must be a positive number[/]")
+                            .Validate(d => d > 0));
+                    break;
+                case "Not expired only":
+                    notExpiredOnly = true;
+                    break;
+            }
+        }
+
+        var listOptions = new StoreListOptions
+        {
+            StoreName = storeName,
+            StoreLocation = storeLocation,
+            ShowExpired = showExpired,
+            ExpiringDays = expiringDays
+        };
+
+        var result = StoreListHandler.ListCertificates(listOptions);
+
+        // Apply additional filters
+        var certs = result.Certificates;
+
+        if (notExpiredOnly)
+            certs = certs.Where(c => !c.IsExpired).ToList();
+
+        if (!string.IsNullOrEmpty(subjectFilter) && subjectFilter != "*")
+        {
+            var pattern = "^" + Regex.Escape(subjectFilter)
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".") + "$";
+            var regex = new Regex(pattern, RegexOptions.IgnoreCase);
+            certs = certs.Where(c => regex.IsMatch(c.Subject)).ToList();
+        }
+
+        if (certs.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]  No certificates found matching the filter.[/]");
+            return PromptThumbprintManually();
+        }
+
+        AnsiConsole.MarkupLine($"[grey]  Found {certs.Count} certificate(s) (of {result.TotalCount} total).[/]");
+
+        var choices = certs.Select(c =>
+        {
+            var cn = ExtractCN(c.Subject);
+            var thumbShort = c.Thumbprint[..8];
+            var status = c.IsExpired
+                ? "[red]Expired[/]"
+                : c.DaysRemaining <= 30
+                    ? $"[yellow]Expiring ({c.DaysRemaining}d)[/]"
+                    : "[green]Valid[/]";
+            var display = $"{cn}  {thumbShort}...  {c.NotAfter:yyyy-MM-dd}  {status}";
+            return new StoreCertificateChoice(display, c.Thumbprint, c.Subject);
+        }).ToList();
+
+        var selected = AnsiConsole.Prompt(
+            new SelectionPrompt<StoreCertificateChoice>()
+                .Title("[green]?[/] Select a certificate:")
+                .AddChoices(choices)
+                .UseConverter(c => c.Display)
+                .HighlightStyle(HighlightStyle));
+
+        // Show full thumbprint for easy copying
+        AnsiConsole.MarkupLine($"[grey]  Selected: {Markup.Escape(selected.Subject)}[/]");
+        AnsiConsole.MarkupLine($"[cyan]  Thumbprint: {selected.Thumbprint}[/]");
+
+        return selected.Thumbprint;
+    }
+
+    private static string SearchBySubject(string storeName, string storeLocation)
+    {
+        var filter = AnsiConsole.Prompt(
+            new TextPrompt<string>("[green]?[/] Subject filter (use * for wildcard, e.g. *localhost*):")
+                .Validate(f => !string.IsNullOrWhiteSpace(f)
+                    ? ValidationResult.Success()
+                    : ValidationResult.Error("[red]Filter cannot be empty[/]")));
+
+        return BrowseStore(storeName, storeLocation, subjectFilter: filter);
+    }
+
+    private static string PromptThumbprintManually()
+    {
+        return AnsiConsole.Prompt(
+            new TextPrompt<string>("[green]?[/] Certificate thumbprint (full 40-char or partial 8+):")
+                .WithConverter(input => AlphaNumericRegex().Replace(input, ""))
+                .Validate(t => !string.IsNullOrWhiteSpace(t) && t.Length >= 8
+                    ? ValidationResult.Success()
+                    : ValidationResult.Error("[red]Thumbprint must be at least 8 hex characters[/]")));
+    }
+
+    private static string ExtractCN(string subject)
+    {
+        var match = Regex.Match(subject, @"CN=([^,]+)");
+        return match.Success ? match.Groups[1].Value.Trim() : subject;
+    }
+
+    // =========================================================================
+    // Trust remove display + export helpers (Phase 11)
+    // =========================================================================
+
+    private static void DisplayMatchedCertificates(List<X509Certificate2> certificates)
+    {
+        foreach (var cert in certificates)
+        {
+            var isSelfSigned = string.Equals(cert.Subject, cert.Issuer, StringComparison.Ordinal);
+            var basicConstraints = cert.Extensions["2.5.29.19"] as X509BasicConstraintsExtension;
+            var isCa = basicConstraints?.CertificateAuthority ?? false;
+            var isExpired = cert.NotAfter < DateTime.Now;
+
+            var table = new Table()
+                .Border(TableBorder.Rounded)
+                .BorderColor(Color.Grey)
+                .AddColumn(new TableColumn("[bold]Property[/]").Width(16))
+                .AddColumn(new TableColumn("[bold]Value[/]"));
+
+            table.AddRow("Subject", Markup.Escape(cert.Subject));
+            table.AddRow("Issuer", Markup.Escape(cert.Issuer));
+            table.AddRow("Thumbprint", $"[cyan]{cert.Thumbprint}[/]");
+            table.AddRow("Not Before", cert.NotBefore.ToString("yyyy-MM-dd"));
+            table.AddRow("Not After", cert.NotAfter.ToString("yyyy-MM-dd"));
+            table.AddRow("Is CA", isCa ? "[yellow]Yes[/]" : "No");
+            table.AddRow("Self-Signed", isSelfSigned ? "[yellow]Yes[/]" : "No");
+            table.AddRow("Has Key", cert.HasPrivateKey ? "Yes" : "No");
+            table.AddRow("Status", isExpired ? "[red]Expired[/]" : "[green]Valid[/]");
+
+            AnsiConsole.Write(table);
+        }
+    }
+
+    private static void SaveRemovalSummary(List<X509Certificate2> certificates, string storeName, string storeLocation)
+    {
+        var defaultPath = $"removed-certs-{DateTimeOffset.UtcNow:yyyy-MM-dd}.txt";
+        var path = AnsiConsole.Prompt(
+            new TextPrompt<string>("[green]?[/] Output file path:")
+                .DefaultValue(defaultPath));
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Certificate Removal Summary");
+        sb.AppendLine($"Generated: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        sb.AppendLine($"Store: {storeLocation}\\{storeName}");
+        sb.AppendLine();
+
+        for (var i = 0; i < certificates.Count; i++)
+        {
+            var cert = certificates[i];
+            var basicConstraints = cert.Extensions["2.5.29.19"] as X509BasicConstraintsExtension;
+            var isCa = basicConstraints?.CertificateAuthority ?? false;
+            var isSelfSigned = string.Equals(cert.Subject, cert.Issuer, StringComparison.Ordinal);
+            var isExpired = cert.NotAfter < DateTime.Now;
+
+            sb.AppendLine($"Certificate #{i + 1}:");
+            sb.AppendLine($"  Subject:     {cert.Subject}");
+            sb.AppendLine($"  Issuer:      {cert.Issuer}");
+            sb.AppendLine($"  Thumbprint:  {cert.Thumbprint}");
+            sb.AppendLine($"  Not Before:  {cert.NotBefore:yyyy-MM-dd}");
+            sb.AppendLine($"  Not After:   {cert.NotAfter:yyyy-MM-dd}");
+            sb.AppendLine($"  Is CA:       {(isCa ? "Yes" : "No")}");
+            sb.AppendLine($"  Self-Signed: {(isSelfSigned ? "Yes" : "No")}");
+            sb.AppendLine($"  Has Key:     {(cert.HasPrivateKey ? "Yes" : "No")}");
+            sb.AppendLine($"  Status:      {(isExpired ? "Expired" : "Valid")}");
+            sb.AppendLine();
+        }
+
+        File.WriteAllText(path, sb.ToString());
+        AnsiConsole.MarkupLine($"[green]  Saved certificate details to {Markup.Escape(path)}[/]");
+    }
+
+    // =========================================================================
+    // URL normalization helpers (Phase 11)
+    // =========================================================================
+
+    private static (string Url, string? Warning) NormalizeUrl(string input)
+    {
+        input = input.Trim();
+
+        // Already has https://
+        if (input.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return (input, null);
+
+        // Has http:// — check if CRL endpoint
+        if (input.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Uri.TryCreate(input, UriKind.Absolute, out var uri))
+            {
+                var isCrl = uri.AbsolutePath.EndsWith(".crl", StringComparison.OrdinalIgnoreCase)
+                            || uri.Host.StartsWith("crl.", StringComparison.OrdinalIgnoreCase);
+
+                if (isCrl)
+                    return (input, "CRL endpoint uses non-secure HTTP. Proceeding with caution.");
+            }
+
+            // Non-CRL http:// — upgrade to https://
+            var upgraded = "https://" + input[7..];
+            return (upgraded, "Non-secure URL detected. Upgrading to HTTPS.");
+        }
+
+        // No protocol — prepend https://
+        return ("https://" + input, null);
+    }
+
+    private static string PromptUrl(string title = "[green]?[/] URL (e.g. example.com or https://example.com):")
+    {
+        var raw = AnsiConsole.Prompt(
+            new TextPrompt<string>(title)
+                .Validate(u => !string.IsNullOrWhiteSpace(u)
+                    ? ValidationResult.Success()
+                    : ValidationResult.Error("[red]URL cannot be empty[/]")));
+
+        var (url, warning) = NormalizeUrl(raw);
+
+        if (warning != null)
+            AnsiConsole.MarkupLine($"[yellow]  {warning}[/]");
+
+        if (!string.Equals(url, raw, StringComparison.Ordinal))
+            AnsiConsole.MarkupLine($"[grey]  Using: {Markup.Escape(url)}[/]");
+
+        return url;
+    }
+
+    [GeneratedRegex(@"[^0-9a-fA-F]+$")]
+    private static partial Regex AlphaNumericRegex();
 }
