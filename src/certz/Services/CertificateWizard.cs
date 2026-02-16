@@ -2,6 +2,7 @@ using certz.Formatters;
 using certz.Models;
 using certz.Options;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 using System.Text;
 using System.Text.RegularExpressions;
 using static System.Net.Mime.MediaTypeNames;
@@ -17,7 +18,7 @@ internal static partial class CertificateWizard
     private static readonly Style HighlightStyle = new(Color.Green);
     private static readonly Style WarningStyle = new(Color.Yellow);
 
-    private const string CancelChoice = "\u2190 Cancel";
+    private const string CancelChoice = "[Red]Cancel[/]";
 
     /// <summary>
     /// Throws OperationCanceledException if the selected value is the cancel sentinel.
@@ -517,10 +518,17 @@ internal static partial class CertificateWizard
 
     internal static async Task RunGlobalWizard(IOutputFormatter formatter)
     {
+        // Wrap the console to intercept Escape key presses during prompts
+        var originalConsole = AnsiConsole.Console;
+        var escapableConsole = new EscapeCancellableConsole(originalConsole);
+        AnsiConsole.Console = escapableConsole;
+
+        try
+        {
         WriteWelcome("Certz Interactive Wizard",
             "Welcome to certz guided mode.",
             "Answer a few questions and certz will handle the rest.",
-            "Press Ctrl+C at any time to cancel.");
+            "Press Escape to cancel the current step, or Ctrl+C to exit.");
 
         // Pending follow-up task set by contextual menus (null = show main menu)
         string? nextTask = null;
@@ -1108,6 +1116,12 @@ internal static partial class CertificateWizard
                 pendingStoreLocation = null;
                 ctx = new WizardContext();
             }
+        }
+        }
+        finally
+        {
+            // Restore the original console on exit
+            AnsiConsole.Console = originalConsole;
         }
     }
 
@@ -1993,4 +2007,48 @@ internal static partial class CertificateWizard
 
     [GeneratedRegex(@"[^0-9a-fA-F]+$")]
     private static partial Regex AlphaNumericRegex();
+
+    // =========================================================================
+    // Escape key cancellation support
+    // =========================================================================
+
+    /// <summary>
+    /// Wraps an IAnsiConsole to intercept the Escape key during prompts,
+    /// triggering cancellation via OperationCanceledException.
+    /// </summary>
+    private sealed class EscapeCancellableConsole(IAnsiConsole inner) : IAnsiConsole
+    {
+        public Profile Profile => inner.Profile;
+        public IAnsiConsoleCursor Cursor => inner.Cursor;
+        public IAnsiConsoleInput Input { get; } = new EscapeCancellableInput(inner.Input);
+        public IExclusivityMode ExclusivityMode => inner.ExclusivityMode;
+        public RenderPipeline Pipeline => inner.Pipeline;
+
+        public void Clear(bool home) => inner.Clear(home);
+        public void Write(IRenderable renderable) => inner.Write(renderable);
+    }
+
+    /// <summary>
+    /// Intercepts keyboard input and throws OperationCanceledException when Escape is pressed.
+    /// </summary>
+    private sealed class EscapeCancellableInput(IAnsiConsoleInput originalInput) : IAnsiConsoleInput
+    {
+        public bool IsKeyAvailable() => originalInput.IsKeyAvailable();
+
+        public ConsoleKeyInfo? ReadKey(bool intercept)
+        {
+            var key = originalInput.ReadKey(intercept);
+            if (key?.Key == ConsoleKey.Escape)
+                throw new OperationCanceledException("Cancelled by Escape key");
+            return key;
+        }
+
+        public async Task<ConsoleKeyInfo?> ReadKeyAsync(bool intercept, CancellationToken cancellationToken)
+        {
+            var key = await originalInput.ReadKeyAsync(intercept, cancellationToken);
+            if (key?.Key == ConsoleKey.Escape)
+                throw new OperationCanceledException("Cancelled by Escape key");
+            return key;
+        }
+    }
 }
