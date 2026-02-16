@@ -713,6 +713,7 @@ internal static partial class CertificateWizard
                                         nextTask = "Inspect a certificate";
                                         break;
                                     case "Inspect another certificate":
+                                        ctx = new WizardContext(); // Clear so full wizard runs
                                         nextTask = "Inspect a certificate";
                                         break;
                                 }
@@ -820,6 +821,7 @@ internal static partial class CertificateWizard
                                         nextTask = "Lint / validate a certificate";
                                         break;
                                     case "Lint another certificate":
+                                        ctx = new WizardContext(); // Clear so full wizard runs
                                         nextTask = "Lint / validate a certificate";
                                         break;
                                 }
