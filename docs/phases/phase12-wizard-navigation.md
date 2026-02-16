@@ -231,10 +231,10 @@ var steps = new (string Name, Action<OptionsBuilder> Run)[]
 
 | # | Improvement | Status | Commit |
 |---|------------|--------|--------|
-| 1 | Contextual post-operation menus | Planned | — |
-| 2 | Store browser loop | Planned | — |
-| 3 | Context forwarding | Planned | — |
-| 4 | Summary-and-edit (docs only) | Complete | — |
+| 1 | Contextual post-operation menus | Complete | 89e2e82 |
+| 2 | Store browser loop | Complete | f71a581 |
+| 3 | Context forwarding | Complete | — |
+| 4 | Summary-and-edit (docs only) | Documented | — |
 
 ---
 

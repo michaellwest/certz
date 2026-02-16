@@ -488,6 +488,21 @@ internal static partial class CertificateWizard
     // Follow-up action returned by contextual post-operation menus
     private enum FollowUpAction { MainMenu, Exit, FollowUp }
 
+    /// <summary>
+    /// Tracks the last operation's parameters so follow-up actions can reuse
+    /// source/password without re-prompting (e.g., "Lint this certificate" after inspect).
+    /// </summary>
+    private record WizardContext
+    {
+        public string? Source { get; init; }
+        public string? Password { get; init; }
+        public string? StoreName { get; init; }
+        public string? StoreLocation { get; init; }
+        public InspectSourceType? SourceType { get; init; }
+        public string? OutputFile { get; init; }
+        public string? OutputPassword { get; init; }
+    }
+
     internal static async Task RunGlobalWizard(IOutputFormatter formatter)
     {
         WriteWelcome("Certz Interactive Wizard",
@@ -502,6 +517,9 @@ internal static partial class CertificateWizard
         string? pendingStoreName = null;
         string? pendingStoreLocation = null;
 
+        // Context forwarding: tracks last operation's parameters for follow-up reuse
+        var ctx = new WizardContext();
+
         while (true)
         {
             string task;
@@ -515,9 +533,10 @@ internal static partial class CertificateWizard
             }
             else
             {
-                // Returning to main menu clears store context
+                // Returning to main menu clears store context and forwarded context
                 pendingStoreName = null;
                 pendingStoreLocation = null;
+                ctx = new WizardContext();
                 AnsiConsole.WriteLine();
 
                 task = AnsiConsole.Prompt(
@@ -556,13 +575,22 @@ internal static partial class CertificateWizard
                         var result = await CreateService.CreateDevCertificate(options);
                         formatter.WriteCertificateCreated(result);
 
+                        ctx = new WizardContext
+                        {
+                            Source = options.PfxFile?.FullName,
+                            Password = result.Password,
+                            SourceType = InspectSourceType.File,
+                            OutputFile = options.PfxFile?.FullName,
+                            OutputPassword = result.Password
+                        };
+
                         var followUp = PromptFollowUp(
                             "Inspect the created certificate",
                             "Create another certificate");
                         switch (followUp)
                         {
                             case FollowUpAction.Exit: return;
-                            case FollowUpAction.FollowUp when followUp == FollowUpAction.FollowUp:
+                            case FollowUpAction.FollowUp:
                                 nextTask = _lastFollowUpChoice switch
                                 {
                                     "Inspect the created certificate" => "Inspect a certificate",
@@ -581,6 +609,15 @@ internal static partial class CertificateWizard
                             options = options with { PfxFile = new FileInfo($"{options.Name.Replace(" ", "-").ToLowerInvariant()}.pfx") };
                         var result = await CreateService.CreateCACertificate(options);
                         formatter.WriteCertificateCreated(result);
+
+                        ctx = new WizardContext
+                        {
+                            Source = options.PfxFile?.FullName,
+                            Password = result.Password,
+                            SourceType = InspectSourceType.File,
+                            OutputFile = options.PfxFile?.FullName,
+                            OutputPassword = result.Password
+                        };
 
                         var followUp = PromptFollowUp(
                             "Inspect the created certificate",
@@ -619,6 +656,19 @@ internal static partial class CertificateWizard
                             inspectSourceType = InspectSourceType.Store;
                             WriteEquivalentCommand($"certz inspect {thumbprint} --store {pendingStoreName} --location {pendingStoreLocation}");
                         }
+                        // If context has a file source from a previous operation, use it directly
+                        else if (ctx.Source != null && ctx.SourceType == InspectSourceType.File)
+                        {
+                            inspectOptions = new InspectOptions
+                            {
+                                Source = ctx.Source,
+                                Password = ctx.Password,
+                                ShowChain = AnsiConsole.Confirm("[green]?[/] Show certificate chain?", defaultValue: false)
+                            };
+                            inspectSourceType = InspectSourceType.File;
+                            WriteEquivalentCommand($"certz inspect \"{ctx.Source}\"{(ctx.Password != null ? " --password <hidden>" : "")}");
+                            ctx = new WizardContext(); // Clear after use
+                        }
                         else
                         {
                             (inspectOptions, inspectSourceType) = RunInspectWizard();
@@ -631,6 +681,15 @@ internal static partial class CertificateWizard
                             _ => CertificateInspector.InspectFile(inspectOptions)
                         };
                         formatter.WriteCertificateInspected(inspectResult);
+
+                        ctx = new WizardContext
+                        {
+                            Source = inspectOptions.Source,
+                            Password = inspectOptions.Password,
+                            StoreName = inspectOptions.StoreName,
+                            StoreLocation = inspectOptions.StoreLocation,
+                            SourceType = inspectSourceType
+                        };
 
                         // Offer store-specific follow-ups when source was a store
                         var inspectFollowUpChoices = inspectSourceType == InspectSourceType.Store
@@ -694,6 +753,28 @@ internal static partial class CertificateWizard
                             lintSourceType = InspectSourceType.Store;
                             WriteEquivalentCommand($"certz lint {thumbprint} --store {pendingStoreName} --location {pendingStoreLocation} --policy {policyKey}");
                         }
+                        // If context has source from a previous operation (e.g., inspect → lint this cert)
+                        else if (ctx.Source != null && ctx.SourceType != null)
+                        {
+                            var policy = AnsiConsole.Prompt(
+                                new SelectionPrompt<string>()
+                                    .Title("[green]?[/] Validation policy:")
+                                    .AddChoices("cabf (CA/Browser Forum)", "mozilla (Mozilla NSS)", "dev (development)", "all (all policies)")
+                                    .HighlightStyle(HighlightStyle));
+                            var policyKey = policy.Split(' ')[0];
+
+                            lintOptions = new LintOptions
+                            {
+                                Source = ctx.Source,
+                                Password = ctx.Password,
+                                StoreName = ctx.StoreName,
+                                StoreLocation = ctx.StoreLocation,
+                                PolicySet = policyKey
+                            };
+                            lintSourceType = ctx.SourceType.Value;
+                            WriteEquivalentCommand($"certz lint \"{ctx.Source}\" --policy {policyKey}");
+                            ctx = new WizardContext(); // Clear after use
+                        }
                         else
                         {
                             (lintOptions, lintSourceType) = RunLintWizard();
@@ -708,6 +789,15 @@ internal static partial class CertificateWizard
                         formatter.WriteLintResult(lintResult);
                         if (!lintResult.Passed)
                             AnsiConsole.MarkupLine($"[red]  Lint failed with {lintResult.ErrorCount} error(s).[/]");
+
+                        ctx = new WizardContext
+                        {
+                            Source = lintOptions.Source,
+                            Password = lintOptions.Password,
+                            StoreName = lintOptions.StoreName,
+                            StoreLocation = lintOptions.StoreLocation,
+                            SourceType = lintSourceType
+                        };
 
                         // Offer store-specific follow-ups when source was a store
                         var lintFollowUpChoices = lintSourceType == InspectSourceType.Store
@@ -786,6 +876,13 @@ internal static partial class CertificateWizard
                         var (filePath, password, storeName, storeLocation) = RunTrustAddWizard();
                         var result = TrustHandler.AddToStore(filePath, password, storeName, storeLocation);
                         formatter.WriteTrustAdded(result);
+
+                        ctx = new WizardContext
+                        {
+                            Source = filePath,
+                            Password = password,
+                            SourceType = InspectSourceType.File
+                        };
 
                         var followUp = PromptFollowUp(
                             "Inspect the trusted certificate",
@@ -914,6 +1011,13 @@ internal static partial class CertificateWizard
                         };
                         formatter.WriteConversionResult(result);
 
+                        ctx = new WizardContext
+                        {
+                            Source = options.OutputFile?.FullName,
+                            SourceType = InspectSourceType.File,
+                            OutputFile = options.OutputFile?.FullName
+                        };
+
                         var followUp = PromptFollowUp(
                             "Inspect the converted file",
                             "Convert another certificate");
@@ -948,6 +1052,13 @@ internal static partial class CertificateWizard
                         var options = RunRenewWizard();
                         var result = await RenewService.RenewCertificate(options);
                         formatter.WriteRenewResult(result);
+
+                        ctx = new WizardContext
+                        {
+                            Source = options.OutputFile?.FullName,
+                            SourceType = InspectSourceType.File,
+                            OutputFile = options.OutputFile?.FullName
+                        };
 
                         var followUp = PromptFollowUp(
                             "Inspect the renewed certificate",
