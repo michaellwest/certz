@@ -130,13 +130,7 @@ internal static class CertificateInspector
             _ => StoreLocation.CurrentUser
         };
 
-        var name = options.StoreName?.ToLowerInvariant() switch
-        {
-            "root" => StoreName.Root,
-            "ca" => StoreName.CertificateAuthority,
-            "my" or null => StoreName.My,
-            _ => StoreName.My
-        };
+        var name = StoreListHandler.ParseStoreName(options.StoreName);
 
         using var store = new X509Store(name, location);
         store.Open(OpenFlags.ReadOnly);
