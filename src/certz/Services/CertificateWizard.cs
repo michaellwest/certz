@@ -1249,7 +1249,7 @@ internal static partial class CertificateWizard
     // Store browser helpers (Phase 11)
     // =========================================================================
 
-    private record StoreCertificateChoice(string Display, string Thumbprint, string Subject);
+    private record StoreCertificateChoice(string Display, string Thumbprint, string Subject, string StatusColor = "green");
 
     private static string BrowseOrEnterThumbprint(string storeName, string storeLocation)
     {
@@ -1335,17 +1335,28 @@ internal static partial class CertificateWizard
 
         AnsiConsole.MarkupLine($"[grey]  Found {certs.Count} certificate(s) (of {result.TotalCount} total).[/]");
 
+        // Calculate column widths for aligned display
+        var maxCnLen = certs.Max(c => ExtractCN(c.Subject).Length);
+        // Status text lengths vary: "Expired" (7), "Expiring (Nd)" (13-15), "Valid" (5)
+        var maxStatusLen = certs.Max(c => c.IsExpired ? 7
+            : c.DaysRemaining <= 30 ? $"Expiring ({c.DaysRemaining}d)".Length
+            : 5);
+
         var choices = certs.Select(c =>
         {
-            var cn = ExtractCN(c.Subject);
+            var cn = ExtractCN(c.Subject).PadRight(maxCnLen);
             var thumbShort = c.Thumbprint[..8];
-            var status = c.IsExpired
-                ? "[red]Expired[/]"
+            var statusText = c.IsExpired
+                ? "Expired"
                 : c.DaysRemaining <= 30
-                    ? $"[yellow]Expiring ({c.DaysRemaining}d)[/]"
-                    : "[green]Valid[/]";
-            var display = $"{cn}  {thumbShort}...  {c.NotAfter:yyyy-MM-dd}  {status}";
-            return new StoreCertificateChoice(display, c.Thumbprint, c.Subject);
+                    ? $"Expiring ({c.DaysRemaining}d)"
+                    : "Valid";
+            var statusColor = c.IsExpired ? "red"
+                : c.DaysRemaining <= 30 ? "yellow"
+                : "green";
+            // Entire row colored by status; HighlightStyle (cyan) overrides on the selected row
+            var display = $"[{statusColor}]{cn}  {thumbShort}...  {c.NotAfter:yyyy-MM-dd}  {statusText.PadRight(maxStatusLen)}[/]";
+            return new StoreCertificateChoice(display, c.Thumbprint, c.Subject, statusColor);
         }).ToList();
 
         var selected = AnsiConsole.Prompt(
@@ -1353,7 +1364,7 @@ internal static partial class CertificateWizard
                 .Title("[green]?[/] Select a certificate:")
                 .AddChoices(choices)
                 .UseConverter(c => c.Display)
-                .HighlightStyle(HighlightStyle));
+                .HighlightStyle(new Style(Color.Cyan1)));
 
         // Show full thumbprint for easy copying
         AnsiConsole.MarkupLine($"[grey]  Selected: {Markup.Escape(selected.Subject)}[/]");
