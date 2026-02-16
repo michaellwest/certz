@@ -17,6 +17,18 @@ internal static partial class CertificateWizard
     private static readonly Style HighlightStyle = new(Color.Green);
     private static readonly Style WarningStyle = new(Color.Yellow);
 
+    private const string CancelChoice = "\u2190 Cancel";
+
+    /// <summary>
+    /// Throws OperationCanceledException if the selected value is the cancel sentinel.
+    /// </summary>
+    private static string ThrowIfCancelled(string value)
+    {
+        if (value == CancelChoice)
+            throw new OperationCanceledException("Wizard cancelled by user");
+        return value;
+    }
+
     internal static DevCertificateOptions RunDevCertificateWizard()
     {
         // Welcome header
@@ -565,6 +577,8 @@ internal static partial class CertificateWizard
                         .HighlightStyle(HighlightStyle));
             }
 
+            try
+            {
             switch (task)
             {
                 case "Create a development certificate":
@@ -1084,6 +1098,16 @@ internal static partial class CertificateWizard
                     AnsiConsole.MarkupLine("[grey]Goodbye.[/]");
                     return;
             }
+            }
+            catch (OperationCanceledException)
+            {
+                AnsiConsole.MarkupLine("[yellow]  Operation cancelled.[/]");
+                // Clear all context and return to main menu
+                nextTask = null;
+                pendingStoreName = null;
+                pendingStoreLocation = null;
+                ctx = new WizardContext();
+            }
         }
     }
 
@@ -1131,11 +1155,11 @@ internal static partial class CertificateWizard
         WriteWelcome("Inspect Certificate",
             "View detailed information about a certificate from a file, URL, or Windows certificate store.");
 
-        var sourceChoice = AnsiConsole.Prompt(
+        var sourceChoice = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Certificate source:")
-                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
         var sourceType = sourceChoice switch
         {
@@ -1167,16 +1191,16 @@ internal static partial class CertificateWizard
                 break;
 
             default: // Store
-                storeLocation = AnsiConsole.Prompt(
+                storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title("[green]?[/] Store location:")
-                        .AddChoices("CurrentUser", "LocalMachine")
-                        .HighlightStyle(HighlightStyle));
-                storeName = AnsiConsole.Prompt(
+                        .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+                storeName = ThrowIfCancelled(AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title("[green]?[/] Certificate store:")
-                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople")
-                        .HighlightStyle(HighlightStyle));
+                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
                 var inspectStoreKey = storeName.Split(' ')[0];
                 source = BrowseOrEnterThumbprint(inspectStoreKey, storeLocation);
                 storeName = inspectStoreKey;
@@ -1207,11 +1231,11 @@ internal static partial class CertificateWizard
         WriteWelcome("Lint Certificate",
             "Validate a certificate against CA/Browser Forum and Mozilla NSS requirements.");
 
-        var sourceChoice = AnsiConsole.Prompt(
+        var sourceChoice = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Certificate source:")
-                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
         var sourceType = sourceChoice switch
         {
@@ -1241,27 +1265,27 @@ internal static partial class CertificateWizard
                 break;
 
             default: // Store
-                storeLocation = AnsiConsole.Prompt(
+                storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title("[green]?[/] Store location:")
-                        .AddChoices("CurrentUser", "LocalMachine")
-                        .HighlightStyle(HighlightStyle));
-                storeName = AnsiConsole.Prompt(
+                        .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+                storeName = ThrowIfCancelled(AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title("[green]?[/] Certificate store:")
-                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople")
-                        .HighlightStyle(HighlightStyle));
+                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
                 var lintStoreKey = storeName.Split(' ')[0];
                 source = BrowseOrEnterThumbprint(lintStoreKey, storeLocation);
                 storeName = lintStoreKey;
                 break;
         }
 
-        var policy = AnsiConsole.Prompt(
+        var policy = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Validation policy:")
-                .AddChoices("cabf (CA/Browser Forum)", "mozilla (Mozilla NSS)", "dev (development)", "all (all policies)")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("cabf (CA/Browser Forum)", "mozilla (Mozilla NSS)", "dev (development)", "all (all policies)", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
         var policyKey = policy.Split(' ')[0];
 
@@ -1295,18 +1319,18 @@ internal static partial class CertificateWizard
                 .Secret());
         var password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
 
-        var storeName = AnsiConsole.Prompt(
+        var storeName = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Target store:")
-                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
         var storeKey = storeName.Split(' ')[0];
 
-        var storeLocation = AnsiConsole.Prompt(
+        var storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Store location:")
-                .AddChoices("CurrentUser (current user only)", "LocalMachine (all users, requires admin)")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("CurrentUser (current user only)", "LocalMachine (all users, requires admin)", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
         var locationKey = storeLocation.Split(' ')[0];
 
         if (locationKey == "LocalMachine")
@@ -1323,17 +1347,17 @@ internal static partial class CertificateWizard
             "Remove a certificate from the Windows certificate store.",
             "You can browse the store to find the certificate to remove.");
 
-        var storeLocation = AnsiConsole.Prompt(
+        var storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Store location:")
-                .AddChoices("CurrentUser", "LocalMachine")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
-        var storeNameChoice = AnsiConsole.Prompt(
+        var storeNameChoice = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Certificate store:")
-                .AddChoices("Root (Trusted Root CAs)", "My (Personal)", "CA (Intermediate CAs)", "TrustedPeople")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("Root (Trusted Root CAs)", "My (Personal)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
         var storeName = storeNameChoice.Split(' ')[0];
 
         var thumbprint = BrowseOrEnterThumbprint(storeName, storeLocation);
@@ -1355,11 +1379,11 @@ internal static partial class CertificateWizard
 
         var inputPath = PromptCertificateFile("[green]?[/] Input certificate file:");
 
-        var targetChoice = AnsiConsole.Prompt(
+        var targetChoice = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Target format:")
-                .AddChoices("PEM (.pem / .crt)", "DER (.der / .cer)", "PFX / PKCS#12 (.pfx)")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("PEM (.pem / .crt)", "DER (.der / .cer)", "PFX / PKCS#12 (.pfx)", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
         var outputFormat = targetChoice switch
         {
@@ -1535,24 +1559,24 @@ internal static partial class CertificateWizard
             "Browse certificates installed in the Windows certificate store.",
             "You can filter by expiration status.");
 
-        var storeName = AnsiConsole.Prompt(
+        var storeName = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Certificate store:")
-                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", "TrustedPublisher")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", "TrustedPublisher", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
         var storeKey = storeName.Split(' ')[0];
 
-        var storeLocation = AnsiConsole.Prompt(
+        var storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Store location:")
-                .AddChoices("CurrentUser", "LocalMachine")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
-        var filterChoice = AnsiConsole.Prompt(
+        var filterChoice = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] Filter certificates:")
-                .AddChoices("Show all", "Expired only", "Expiring soon (within N days)")
-                .HighlightStyle(HighlightStyle));
+                .AddChoices("Show all", "Expired only", "Expiring soon (within N days)", CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
         bool showExpired = false;
         int? expiringDays = null;
@@ -1628,12 +1652,15 @@ internal static partial class CertificateWizard
         if (files.Count > 0)
         {
             files.Add(new FileChoice($"[[manual]] {manualLabel}", ""));
+            files.Add(new FileChoice(CancelChoice, CancelChoice));
             var choice = AnsiConsole.Prompt(
                 new SelectionPrompt<FileChoice>()
                     .Title(title)
                     .AddChoices(files)
                     .UseConverter(f => f.Display)
                     .HighlightStyle(HighlightStyle));
+
+            ThrowIfCancelled(choice.FullPath);
 
             if (!string.IsNullOrEmpty(choice.FullPath))
                 return choice.FullPath;
@@ -1689,14 +1716,15 @@ internal static partial class CertificateWizard
 
     private static string BrowseOrEnterThumbprint(string storeName, string storeLocation)
     {
-        var findMethod = AnsiConsole.Prompt(
+        var findMethod = ThrowIfCancelled(AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[green]?[/] How would you like to find the certificate?")
                 .AddChoices(
                     "Browse certificates in store",
                     "Search by subject (supports wildcards)",
-                    "Enter thumbprint manually")
-                .HighlightStyle(HighlightStyle));
+                    "Enter thumbprint manually",
+                    CancelChoice)
+                .HighlightStyle(HighlightStyle)));
 
         return findMethod switch
         {
@@ -1714,11 +1742,11 @@ internal static partial class CertificateWizard
 
         if (subjectFilter == null)
         {
-            var filterChoice = AnsiConsole.Prompt(
+            var filterChoice = ThrowIfCancelled(AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
                     .Title("[green]?[/] Filter certificates:")
-                    .AddChoices("Show all", "Not expired only", "Expiring soon (within N days)", "Expired only")
-                    .HighlightStyle(HighlightStyle));
+                    .AddChoices("Show all", "Not expired only", "Expiring soon (within N days)", "Expired only", CancelChoice)
+                    .HighlightStyle(HighlightStyle)));
 
             switch (filterChoice)
             {
@@ -1795,12 +1823,16 @@ internal static partial class CertificateWizard
             return new StoreCertificateChoice(display, c.Thumbprint, c.Subject, statusColor);
         }).ToList();
 
+        choices.Add(new StoreCertificateChoice(CancelChoice, CancelChoice, "", "grey"));
+
         var selected = AnsiConsole.Prompt(
             new SelectionPrompt<StoreCertificateChoice>()
                 .Title("[green]?[/] Select a certificate:")
                 .AddChoices(choices)
                 .UseConverter(c => c.Display)
                 .HighlightStyle(new Style(Color.Cyan1)));
+
+        ThrowIfCancelled(selected.Thumbprint);
 
         // Show full thumbprint for easy copying
         AnsiConsole.MarkupLine($"[grey]  Selected: {Markup.Escape(selected.Subject)}[/]");
