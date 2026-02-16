@@ -485,6 +485,9 @@ internal static partial class CertificateWizard
     // Global wizard entry point — invoked by `certz --guided`
     // =========================================================================
 
+    // Follow-up action returned by contextual post-operation menus
+    private enum FollowUpAction { MainMenu, Exit, FollowUp }
+
     internal static async Task RunGlobalWizard(IOutputFormatter formatter)
     {
         WriteWelcome("Certz Interactive Wizard",
@@ -492,34 +495,47 @@ internal static partial class CertificateWizard
             "Answer a few questions and certz will handle the rest.",
             "Press Ctrl+C at any time to cancel.");
 
+        // Pending follow-up task set by contextual menus (null = show main menu)
+        string? nextTask = null;
+
         while (true)
         {
-            AnsiConsole.WriteLine();
+            string task;
 
-            var task = AnsiConsole.Prompt(
-                new SelectionPrompt<string>()
-                    .Title("[bold green]?[/] What would you like to do?")
-                    .AddChoiceGroup("Create",
-                    [
-                        "Create a development certificate",
-                        "Create a Certificate Authority (CA)"
-                    ])
-                    .AddChoiceGroup("Inspect & Validate",
-                    [
-                        "Inspect a certificate",
-                        "Lint / validate a certificate"
-                    ])
-                    .AddChoiceGroup("Manage",
-                    [
-                        "List certificates in store",
-                        "Add certificate to trust store",
-                        "Remove certificate from trust store",
-                        "Convert certificate format",
-                        "Monitor certificates for expiration",
-                        "Renew a certificate"
-                    ])
-                    .AddChoices("Exit")
-                    .HighlightStyle(HighlightStyle));
+            if (nextTask != null)
+            {
+                task = nextTask;
+                nextTask = null;
+            }
+            else
+            {
+                AnsiConsole.WriteLine();
+
+                task = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[bold green]?[/] What would you like to do?")
+                        .AddChoiceGroup("Create",
+                        [
+                            "Create a development certificate",
+                            "Create a Certificate Authority (CA)"
+                        ])
+                        .AddChoiceGroup("Inspect & Validate",
+                        [
+                            "Inspect a certificate",
+                            "Lint / validate a certificate"
+                        ])
+                        .AddChoiceGroup("Manage",
+                        [
+                            "List certificates in store",
+                            "Add certificate to trust store",
+                            "Remove certificate from trust store",
+                            "Convert certificate format",
+                            "Monitor certificates for expiration",
+                            "Renew a certificate"
+                        ])
+                        .AddChoices("Exit")
+                        .HighlightStyle(HighlightStyle));
+            }
 
             switch (task)
             {
@@ -530,6 +546,22 @@ internal static partial class CertificateWizard
                             options = options with { PfxFile = new FileInfo($"{options.Domain.Replace("*", "wildcard").Replace(".", "-")}.pfx") };
                         var result = await CreateService.CreateDevCertificate(options);
                         formatter.WriteCertificateCreated(result);
+
+                        var followUp = PromptFollowUp(
+                            "Inspect the created certificate",
+                            "Create another certificate");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp when followUp == FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Inspect the created certificate" => "Inspect a certificate",
+                                    "Create another certificate" => "Create a development certificate",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -540,6 +572,22 @@ internal static partial class CertificateWizard
                             options = options with { PfxFile = new FileInfo($"{options.Name.Replace(" ", "-").ToLowerInvariant()}.pfx") };
                         var result = await CreateService.CreateCACertificate(options);
                         formatter.WriteCertificateCreated(result);
+
+                        var followUp = PromptFollowUp(
+                            "Inspect the created certificate",
+                            "Create another certificate");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Inspect the created certificate" => "Inspect a certificate",
+                                    "Create another certificate" => "Create a Certificate Authority (CA)",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -553,6 +601,22 @@ internal static partial class CertificateWizard
                             _ => CertificateInspector.InspectFile(options)
                         };
                         formatter.WriteCertificateInspected(result);
+
+                        var followUp = PromptFollowUp(
+                            "Lint this certificate",
+                            "Inspect another certificate");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Lint this certificate" => "Lint / validate a certificate",
+                                    "Inspect another certificate" => "Inspect a certificate",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -568,6 +632,22 @@ internal static partial class CertificateWizard
                         formatter.WriteLintResult(result);
                         if (!result.Passed)
                             AnsiConsole.MarkupLine($"[red]  Lint failed with {result.ErrorCount} error(s).[/]");
+
+                        var followUp = PromptFollowUp(
+                            "Inspect this certificate (full details)",
+                            "Lint another certificate");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Inspect this certificate (full details)" => "Inspect a certificate",
+                                    "Lint another certificate" => "Lint / validate a certificate",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -576,6 +656,24 @@ internal static partial class CertificateWizard
                         var options = RunStoreListWizard();
                         var result = StoreListHandler.ListCertificates(options);
                         formatter.WriteStoreList(result);
+
+                        var followUp = PromptFollowUp(
+                            "Inspect a certificate from this store",
+                            "Remove a certificate from this store",
+                            "List with different filter");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Inspect a certificate from this store" => "Inspect a certificate",
+                                    "Remove a certificate from this store" => "Remove certificate from trust store",
+                                    "List with different filter" => "List certificates in store",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -584,6 +682,22 @@ internal static partial class CertificateWizard
                         var (filePath, password, storeName, storeLocation) = RunTrustAddWizard();
                         var result = TrustHandler.AddToStore(filePath, password, storeName, storeLocation);
                         formatter.WriteTrustAdded(result);
+
+                        var followUp = PromptFollowUp(
+                            "Inspect the trusted certificate",
+                            "Add another certificate");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Inspect the trusted certificate" => "Inspect a certificate",
+                                    "Add another certificate" => "Add certificate to trust store",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -641,6 +755,22 @@ internal static partial class CertificateWizard
                                 }
                             }
                         }
+
+                        var removeFollowUp = PromptFollowUp(
+                            "Remove another certificate",
+                            "List certificates in store");
+                        switch (removeFollowUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Remove another certificate" => "Remove certificate from trust store",
+                                    "List certificates in store" => "List certificates in store",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -654,6 +784,22 @@ internal static partial class CertificateWizard
                             _ => await ConvertService.ConvertToPem(options)
                         };
                         formatter.WriteConversionResult(result);
+
+                        var followUp = PromptFollowUp(
+                            "Inspect the converted file",
+                            "Convert another certificate");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Inspect the converted file" => "Inspect a certificate",
+                                    "Convert another certificate" => "Convert certificate format",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -662,6 +808,9 @@ internal static partial class CertificateWizard
                         var options = RunMonitorWizard();
                         var result = await MonitorService.MonitorAsync(options);
                         formatter.WriteMonitorResult(result, options.QuietMode);
+
+                        var followUp = PromptFollowUp();
+                        if (followUp == FollowUpAction.Exit) return;
                         break;
                     }
 
@@ -670,6 +819,22 @@ internal static partial class CertificateWizard
                         var options = RunRenewWizard();
                         var result = await RenewService.RenewCertificate(options);
                         formatter.WriteRenewResult(result);
+
+                        var followUp = PromptFollowUp(
+                            "Inspect the renewed certificate",
+                            "Renew another certificate");
+                        switch (followUp)
+                        {
+                            case FollowUpAction.Exit: return;
+                            case FollowUpAction.FollowUp:
+                                nextTask = _lastFollowUpChoice switch
+                                {
+                                    "Inspect the renewed certificate" => "Inspect a certificate",
+                                    "Renew another certificate" => "Renew a certificate",
+                                    _ => null
+                                };
+                                break;
+                        }
                         break;
                     }
 
@@ -677,11 +842,40 @@ internal static partial class CertificateWizard
                     AnsiConsole.MarkupLine("[grey]Goodbye.[/]");
                     return;
             }
-
-            AnsiConsole.WriteLine();
-            var doAnother = AnsiConsole.Confirm("[green]?[/] Do another operation?", defaultValue: false);
-            if (!doAnother) break;
         }
+    }
+
+    // Tracks the specific follow-up choice selected by the user
+    private static string? _lastFollowUpChoice;
+
+    /// <summary>
+    /// Displays a contextual follow-up menu after an operation completes.
+    /// Always includes "Back to main menu" and "Exit" options.
+    /// </summary>
+    private static FollowUpAction PromptFollowUp(params string[] contextualChoices)
+    {
+        AnsiConsole.WriteLine();
+
+        var choices = new List<string>(contextualChoices)
+        {
+            "Back to main menu",
+            "Exit"
+        };
+
+        var choice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold green]?[/] What next?")
+                .AddChoices(choices)
+                .HighlightStyle(HighlightStyle));
+
+        _lastFollowUpChoice = choice;
+
+        return choice switch
+        {
+            "Exit" => FollowUpAction.Exit,
+            "Back to main menu" => FollowUpAction.MainMenu,
+            _ => FollowUpAction.FollowUp
+        };
     }
 
     // =========================================================================
