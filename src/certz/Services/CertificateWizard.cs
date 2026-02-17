@@ -18,7 +18,35 @@ internal static partial class CertificateWizard
     private static readonly Style HighlightStyle = new(Color.Green);
     private static readonly Style WarningStyle = new(Color.Yellow);
 
-    private const string CancelChoice = "[Red]Cancel[/]";
+    private const string CancelChoice = "[grey50]Cancel[/]";
+
+    /// <summary>
+    /// Flow-control exception thrown when the user presses Left arrow to go back a step.
+    /// </summary>
+    private sealed class WizardBackException : Exception;
+
+    /// <summary>
+    /// Reference to the active input wrapper so helpers can toggle back-navigation.
+    /// Null when running outside the global wizard (no escape/back interception).
+    /// </summary>
+    private static EscapeCancellableInput? _activeInput;
+
+    private static void SetBackNavigation(bool enabled)
+    {
+        if (_activeInput != null)
+            _activeInput.BackNavigationEnabled = enabled;
+    }
+
+    /// <summary>
+    /// Wraps a TextPrompt call, disabling left-arrow back navigation so the arrow
+    /// key works for cursor movement within the text field.
+    /// </summary>
+    private static T PromptText<T>(TextPrompt<T> prompt)
+    {
+        SetBackNavigation(false);
+        try { return AnsiConsole.Prompt(prompt); }
+        finally { SetBackNavigation(true); }
+    }
 
     /// <summary>
     /// Throws OperationCanceledException if the selected value is the cancel sentinel.
@@ -37,137 +65,156 @@ internal static partial class CertificateWizard
             "This wizard will guide you through creating a development certificate.",
             "Perfect for local HTTPS testing, API development, and debugging.");
 
-        // Step 1: Domain
-        WriteStepHeader(1, 6, "Domain Name");
-        WriteHelp(
-            "The primary domain for your certificate.",
-            "For local development, 'localhost' is recommended.",
-            "You can also use custom domains like 'myapp.local' or 'api.dev'.");
-
-        var domain = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Primary domain name:")
-                .DefaultValue("localhost")
-                .ValidationErrorMessage("[red]Domain name cannot be empty[/]")
-                .Validate(d => !string.IsNullOrWhiteSpace(d)));
-
-        // Step 2: Additional SANs
-        WriteStepHeader(2, 6, "Subject Alternative Names (SANs)");
-        WriteHelp(
-            "SANs allow your certificate to be valid for multiple domains.",
-            "Common additions: 127.0.0.1, ::1, *.localhost",
-            "The primary domain is automatically included.");
-
+        var domain = "localhost";
         var additionalSans = new List<string>();
-        var addSans = AnsiConsole.Confirm("[green]?[/] Add additional SANs beyond the primary domain?", defaultValue: false);
-        if (addSans)
-        {
-            AnsiConsole.MarkupLine("[grey]  Enter SANs one per line. Leave empty to finish.[/]");
-            while (true)
-            {
-                var san = AnsiConsole.Prompt(
-                    new TextPrompt<string>("    [grey]SAN:[/]")
-                        .AllowEmpty());
-                if (string.IsNullOrWhiteSpace(san)) break;
-                additionalSans.Add(san);
-            }
-        }
-
-        // Step 3: Validity
-        WriteStepHeader(3, 6, "Certificate Validity");
-        WriteHelp(
-            "How long the certificate should be valid.",
-            "Recommended: 90 days (aligns with Let's Encrypt renewals)",
-            "Maximum: 398 days (CA/Browser Forum limit for public certs)");
-
-        var days = AnsiConsole.Prompt(
-            new TextPrompt<int>("[green]?[/] Validity period (days):")
-                .DefaultValue(90)
-                .ValidationErrorMessage("[red]Days must be between 1 and 398[/]")
-                .Validate(d => d >= 1 && d <= 398));
-
-        // Step 4: Key Type
-        WriteStepHeader(4, 6, "Key Algorithm");
-        WriteHelp(
-            "ECDSA is modern, fast, and optimized for TLS 1.3.",
-            "RSA has wider compatibility with older systems.",
-            "P-256 (256-bit ECDSA) is recommended for most use cases.");
-
-        var keyType = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Select key algorithm:")
-                .AddChoices(new[] {
-                    "ECDSA-P256 (Recommended)",
-                    "ECDSA-P384",
-                    "RSA 3072-bit",
-                    "RSA 4096-bit"
-                })
-                .HighlightStyle(HighlightStyle));
-
-        var (keyTypeValue, keySize) = ParseKeyTypeSelection(keyType);
-
-        // Step 5: Trust Store
-        WriteStepHeader(5, 6, "Trust Store Installation");
-        WriteHelp(
-            "Installing to the trust store makes browsers accept the certificate.",
-            "Without this, you'll see security warnings in browsers.",
-            "The certificate is added to your Trusted Root store.");
-
-        var trust = AnsiConsole.Confirm("[green]?[/] Install certificate to system trust store?", defaultValue: false);
+        var days = 90;
+        var keyTypeValue = "ECDSA-P256";
+        var keySize = 256;
+        var trust = false;
         var trustLocation = StoreLocation.CurrentUser;
-
-        if (trust)
-        {
-            trustLocation = AnsiConsole.Prompt(
-                new SelectionPrompt<StoreLocation>()
-                    .Title("[green]?[/] Trust store location:")
-                    .AddChoices(StoreLocation.CurrentUser, StoreLocation.LocalMachine)
-                    .UseConverter(loc => loc == StoreLocation.CurrentUser
-                        ? "CurrentUser (current user only)"
-                        : "LocalMachine (all users, requires admin)")
-                    .HighlightStyle(HighlightStyle));
-
-            if (trustLocation == StoreLocation.LocalMachine)
-            {
-                AnsiConsole.MarkupLine("[yellow]  Note: LocalMachine requires administrator privileges.[/]");
-            }
-        }
-
-        // Step 6: Output
-        WriteStepHeader(6, 6, "Output Files");
-        WriteHelp(
-            "The PFX file contains both the certificate and private key.",
-            "You can also export separate .cer and .key files if needed.");
-
-        var defaultPfxName = $"{domain.Replace("*", "wildcard").Replace(".", "-")}.pfx";
-        var pfxPath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Output PFX filename:")
-                .DefaultValue(defaultPfxName));
-
-        var exportSeparate = AnsiConsole.Confirm("[green]?[/] Also export separate .cer and .key files?", defaultValue: false);
+        var pfxPath = "";
+        var exportSeparate = false;
         FileInfo? certFile = null;
         FileInfo? keyFile = null;
-        if (exportSeparate)
-        {
-            certFile = new FileInfo(Path.ChangeExtension(pfxPath, ".cer"));
-            keyFile = new FileInfo(Path.ChangeExtension(pfxPath, ".key"));
-        }
-
-        // Password
-        var generatePassword = AnsiConsole.Confirm("[green]?[/] Auto-generate secure password?", defaultValue: true);
         string? password = null;
         FileInfo? passwordFile = null;
-        if (!generatePassword)
-        {
-            password = AnsiConsole.Prompt(
-                new TextPrompt<string>("[green]?[/] Enter password:")
-                    .Secret()
-                    .ValidationErrorMessage("[red]Password cannot be empty[/]")
-                    .Validate(p => !string.IsNullOrWhiteSpace(p)));
-        }
-        else
-        {
-            passwordFile = PromptPasswordFile(pfxPath);
-        }
+
+        new WizardRunner("Certz", "Create", "Dev Certificate")
+            .AddStep("Domain Name", () =>
+            {
+                WriteHelp(
+                    "The primary domain for your certificate.",
+                    "For local development, 'localhost' is recommended.",
+                    "You can also use custom domains like 'myapp.local' or 'api.dev'.");
+
+                domain = PromptText(
+                    new TextPrompt<string>("[green]?[/] Primary domain name:")
+                        .DefaultValue("localhost")
+                        .ValidationErrorMessage("[red]Domain name cannot be empty[/]")
+                        .Validate(d => !string.IsNullOrWhiteSpace(d)));
+            })
+            .AddStep("Subject Alternative Names", () =>
+            {
+                WriteHelp(
+                    "SANs allow your certificate to be valid for multiple domains.",
+                    "Common additions: 127.0.0.1, ::1, *.localhost",
+                    "The primary domain is automatically included.");
+
+                additionalSans = [];
+                var addSans = AnsiConsole.Confirm("[green]?[/] Add additional SANs beyond the primary domain?", defaultValue: false);
+                if (addSans)
+                {
+                    SetBackNavigation(false);
+                    AnsiConsole.MarkupLine("[grey]  Enter SANs one per line. Leave empty to finish.[/]");
+                    while (true)
+                    {
+                        var san = AnsiConsole.Prompt(
+                            new TextPrompt<string>("    [grey]SAN:[/]")
+                                .AllowEmpty());
+                        if (string.IsNullOrWhiteSpace(san)) break;
+                        additionalSans.Add(san);
+                    }
+                    SetBackNavigation(true);
+                }
+            })
+            .AddStep("Certificate Validity", () =>
+            {
+                WriteHelp(
+                    "How long the certificate should be valid.",
+                    "Recommended: 90 days (aligns with Let's Encrypt renewals)",
+                    "Maximum: 398 days (CA/Browser Forum limit for public certs)");
+
+                days = PromptText(
+                    new TextPrompt<int>("[green]?[/] Validity period (days):")
+                        .DefaultValue(90)
+                        .ValidationErrorMessage("[red]Days must be between 1 and 398[/]")
+                        .Validate(d => d >= 1 && d <= 398));
+            })
+            .AddStep("Key Algorithm", () =>
+            {
+                WriteHelp(
+                    "ECDSA is modern, fast, and optimized for TLS 1.3.",
+                    "RSA has wider compatibility with older systems.",
+                    "P-256 (256-bit ECDSA) is recommended for most use cases.");
+
+                var keyType = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Select key algorithm:")
+                        .AddChoices(new[] {
+                            "ECDSA-P256 (Recommended)",
+                            "ECDSA-P384",
+                            "RSA 3072-bit",
+                            "RSA 4096-bit"
+                        })
+                        .HighlightStyle(HighlightStyle));
+
+                (keyTypeValue, keySize) = ParseKeyTypeSelection(keyType);
+            })
+            .AddStep("Trust Store", () =>
+            {
+                WriteHelp(
+                    "Installing to the trust store makes browsers accept the certificate.",
+                    "Without this, you'll see security warnings in browsers.",
+                    "The certificate is added to your Trusted Root store.");
+
+                trust = AnsiConsole.Confirm("[green]?[/] Install certificate to system trust store?", defaultValue: false);
+                trustLocation = StoreLocation.CurrentUser;
+
+                if (trust)
+                {
+                    trustLocation = AnsiConsole.Prompt(
+                        new SelectionPrompt<StoreLocation>()
+                            .Title("[green]?[/] Trust store location:")
+                            .AddChoices(StoreLocation.CurrentUser, StoreLocation.LocalMachine)
+                            .UseConverter(loc => loc == StoreLocation.CurrentUser
+                                ? "CurrentUser (current user only)"
+                                : "LocalMachine (all users, requires admin)")
+                            .HighlightStyle(HighlightStyle));
+
+                    if (trustLocation == StoreLocation.LocalMachine)
+                    {
+                        AnsiConsole.MarkupLine("[yellow]  Note: LocalMachine requires administrator privileges.[/]");
+                    }
+                }
+            })
+            .AddStep("Output Files", () =>
+            {
+                WriteHelp(
+                    "The PFX file contains both the certificate and private key.",
+                    "You can also export separate .cer and .key files if needed.");
+
+                var defaultPfxName = $"{domain.Replace("*", "wildcard").Replace(".", "-")}.pfx";
+                pfxPath = PromptText(
+                    new TextPrompt<string>("[green]?[/] Output PFX filename:")
+                        .DefaultValue(defaultPfxName));
+
+                exportSeparate = AnsiConsole.Confirm("[green]?[/] Also export separate .cer and .key files?", defaultValue: false);
+                certFile = null;
+                keyFile = null;
+                if (exportSeparate)
+                {
+                    certFile = new FileInfo(Path.ChangeExtension(pfxPath, ".cer"));
+                    keyFile = new FileInfo(Path.ChangeExtension(pfxPath, ".key"));
+                }
+
+                // Password
+                var generatePassword = AnsiConsole.Confirm("[green]?[/] Auto-generate secure password?", defaultValue: true);
+                password = null;
+                passwordFile = null;
+                if (!generatePassword)
+                {
+                    password = PromptText(
+                        new TextPrompt<string>("[green]?[/] Enter password:")
+                            .Secret()
+                            .ValidationErrorMessage("[red]Password cannot be empty[/]")
+                            .Validate(p => !string.IsNullOrWhiteSpace(p)));
+                }
+                else
+                {
+                    passwordFile = PromptPasswordFile(pfxPath);
+                }
+            })
+            .Run();
 
         var options = new DevCertificateOptions
         {
@@ -202,129 +249,143 @@ internal static partial class CertificateWizard
             "This wizard will guide you through creating a Certificate Authority.",
             "A CA can sign other certificates, creating a chain of trust.");
 
-        // Step 1: CA Name
-        WriteStepHeader(1, 5, "CA Identity");
-        WriteHelp(
-            "The Common Name (CN) identifies your Certificate Authority.",
-            "Choose a descriptive name like 'My Development Root CA'.",
-            "This name appears in certificate details.");
-
-        var name = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] CA Common Name:")
-                .DefaultValue("Development Root CA")
-                .ValidationErrorMessage("[red]CA name cannot be empty[/]")
-                .Validate(n => !string.IsNullOrWhiteSpace(n)));
-
-        // Step 2: Validity
-        WriteStepHeader(2, 5, "Certificate Validity");
-        WriteHelp(
-            "CA certificates typically have longer validity periods.",
-            "Recommended: 10 years for root CAs, 5 years for intermediate CAs.",
-            "Certificates issued by this CA cannot exceed its validity.");
-
-        var days = AnsiConsole.Prompt(
-            new TextPrompt<int>("[green]?[/] Validity period (days):")
-                .DefaultValue(3650)
-                .ValidationErrorMessage("[red]Days must be at least 1[/]")
-                .Validate(d => d >= 1));
-
-        // Step 3: Path Length Constraint
-        WriteStepHeader(3, 5, "Path Length Constraint");
-        WriteHelp(
-            "Path length limits how many levels of CAs can exist below this one.",
-            "0 = Can only issue end-entity certificates (leaf CA)",
-            "1 = Can create one level of intermediate CAs",
-            "-1 = No constraint (unlimited depth)");
-
-        var pathLengthChoice = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Path length constraint:")
-                .AddChoices(new[] {
-                    "No constraint (can create unlimited intermediate CAs)",
-                    "0 - Leaf CA only (can only issue end-entity certs)",
-                    "1 - One intermediate level allowed",
-                    "2 - Two intermediate levels allowed"
-                })
-                .HighlightStyle(HighlightStyle));
-
-        var pathLength = pathLengthChoice switch
-        {
-            "0 - Leaf CA only (can only issue end-entity certs)" => 0,
-            "1 - One intermediate level allowed" => 1,
-            "2 - Two intermediate levels allowed" => 2,
-            _ => -1
-        };
-
-        // Step 4: Key Type
-        WriteStepHeader(4, 5, "Key Algorithm");
-        WriteHelp(
-            "For CA certificates, stronger keys are recommended.",
-            "ECDSA P-384 provides excellent security with good performance.",
-            "RSA 4096-bit is a conservative choice for maximum compatibility.");
-
-        var keyType = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Select key algorithm:")
-                .AddChoices(new[] {
-                    "ECDSA-P384 (Recommended for CA)",
-                    "ECDSA-P256",
-                    "RSA 4096-bit",
-                    "RSA 3072-bit"
-                })
-                .HighlightStyle(HighlightStyle));
-
-        var (keyTypeValue, keySize) = ParseKeyTypeSelection(keyType);
-
-        // Step 5: Trust Store
-        WriteStepHeader(5, 5, "Trust Store Installation");
-        WriteHelp(
-            "Installing the CA to the trust store enables trust for all certificates it signs.",
-            "This is typically desired for development root CAs.",
-            "You may see a Windows security prompt.");
-
-        var trust = AnsiConsole.Confirm("[green]?[/] Install CA to trusted root store?", defaultValue: true);
+        var name = "Development Root CA";
+        var days = 3650;
+        var pathLength = -1;
+        var keyTypeValue = "ECDSA-P384";
+        var keySize = 384;
+        var trust = true;
         var trustLocation = StoreLocation.CurrentUser;
-
-        if (trust)
-        {
-            trustLocation = AnsiConsole.Prompt(
-                new SelectionPrompt<StoreLocation>()
-                    .Title("[green]?[/] Trust store location:")
-                    .AddChoices(StoreLocation.CurrentUser, StoreLocation.LocalMachine)
-                    .UseConverter(loc => loc == StoreLocation.CurrentUser
-                        ? "CurrentUser (current user only)"
-                        : "LocalMachine (all users, requires admin)")
-                    .HighlightStyle(HighlightStyle));
-
-            if (trustLocation == StoreLocation.LocalMachine)
-            {
-                AnsiConsole.MarkupLine("[yellow]  Note: LocalMachine requires administrator privileges.[/]");
-            }
-        }
-
-        // Output file
-        AnsiConsole.WriteLine();
-        var defaultPfxName = $"{name.Replace(" ", "-").ToLowerInvariant()}.pfx";
-        var pfxPath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Output PFX filename:")
-                .DefaultValue(defaultPfxName));
-
-        // Password
-        var generatePassword = AnsiConsole.Confirm("[green]?[/] Auto-generate secure password?", defaultValue: true);
+        var pfxPath = "";
         string? password = null;
         FileInfo? passwordFile = null;
-        if (!generatePassword)
-        {
-            password = AnsiConsole.Prompt(
-                new TextPrompt<string>("[green]?[/] Enter password:")
-                    .Secret()
-                    .ValidationErrorMessage("[red]Password cannot be empty[/]")
-                    .Validate(p => !string.IsNullOrWhiteSpace(p)));
-        }
-        else
-        {
-            passwordFile = PromptPasswordFile(pfxPath);
-        }
+
+        new WizardRunner("Certz", "Create", "Certificate Authority")
+            .AddStep("CA Identity", () =>
+            {
+                WriteHelp(
+                    "The Common Name (CN) identifies your Certificate Authority.",
+                    "Choose a descriptive name like 'My Development Root CA'.",
+                    "This name appears in certificate details.");
+
+                name = PromptText(
+                    new TextPrompt<string>("[green]?[/] CA Common Name:")
+                        .DefaultValue("Development Root CA")
+                        .ValidationErrorMessage("[red]CA name cannot be empty[/]")
+                        .Validate(n => !string.IsNullOrWhiteSpace(n)));
+            })
+            .AddStep("Certificate Validity", () =>
+            {
+                WriteHelp(
+                    "CA certificates typically have longer validity periods.",
+                    "Recommended: 10 years for root CAs, 5 years for intermediate CAs.",
+                    "Certificates issued by this CA cannot exceed its validity.");
+
+                days = PromptText(
+                    new TextPrompt<int>("[green]?[/] Validity period (days):")
+                        .DefaultValue(3650)
+                        .ValidationErrorMessage("[red]Days must be at least 1[/]")
+                        .Validate(d => d >= 1));
+            })
+            .AddStep("Path Length Constraint", () =>
+            {
+                WriteHelp(
+                    "Path length limits how many levels of CAs can exist below this one.",
+                    "0 = Can only issue end-entity certificates (leaf CA)",
+                    "1 = Can create one level of intermediate CAs",
+                    "-1 = No constraint (unlimited depth)");
+
+                var pathLengthChoice = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Path length constraint:")
+                        .AddChoices(new[] {
+                            "No constraint (can create unlimited intermediate CAs)",
+                            "0 - Leaf CA only (can only issue end-entity certs)",
+                            "1 - One intermediate level allowed",
+                            "2 - Two intermediate levels allowed"
+                        })
+                        .HighlightStyle(HighlightStyle));
+
+                pathLength = pathLengthChoice switch
+                {
+                    "0 - Leaf CA only (can only issue end-entity certs)" => 0,
+                    "1 - One intermediate level allowed" => 1,
+                    "2 - Two intermediate levels allowed" => 2,
+                    _ => -1
+                };
+            })
+            .AddStep("Key Algorithm", () =>
+            {
+                WriteHelp(
+                    "For CA certificates, stronger keys are recommended.",
+                    "ECDSA P-384 provides excellent security with good performance.",
+                    "RSA 4096-bit is a conservative choice for maximum compatibility.");
+
+                var keyType = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Select key algorithm:")
+                        .AddChoices(new[] {
+                            "ECDSA-P384 (Recommended for CA)",
+                            "ECDSA-P256",
+                            "RSA 4096-bit",
+                            "RSA 3072-bit"
+                        })
+                        .HighlightStyle(HighlightStyle));
+
+                (keyTypeValue, keySize) = ParseKeyTypeSelection(keyType);
+            })
+            .AddStep("Trust Store & Output", () =>
+            {
+                WriteHelp(
+                    "Installing the CA to the trust store enables trust for all certificates it signs.",
+                    "This is typically desired for development root CAs.",
+                    "You may see a Windows security prompt.");
+
+                trust = AnsiConsole.Confirm("[green]?[/] Install CA to trusted root store?", defaultValue: true);
+                trustLocation = StoreLocation.CurrentUser;
+
+                if (trust)
+                {
+                    trustLocation = AnsiConsole.Prompt(
+                        new SelectionPrompt<StoreLocation>()
+                            .Title("[green]?[/] Trust store location:")
+                            .AddChoices(StoreLocation.CurrentUser, StoreLocation.LocalMachine)
+                            .UseConverter(loc => loc == StoreLocation.CurrentUser
+                                ? "CurrentUser (current user only)"
+                                : "LocalMachine (all users, requires admin)")
+                            .HighlightStyle(HighlightStyle));
+
+                    if (trustLocation == StoreLocation.LocalMachine)
+                    {
+                        AnsiConsole.MarkupLine("[yellow]  Note: LocalMachine requires administrator privileges.[/]");
+                    }
+                }
+
+                // Output file
+                AnsiConsole.WriteLine();
+                var defaultPfxName = $"{name.Replace(" ", "-").ToLowerInvariant()}.pfx";
+                pfxPath = PromptText(
+                    new TextPrompt<string>("[green]?[/] Output PFX filename:")
+                        .DefaultValue(defaultPfxName));
+
+                // Password
+                var generatePassword = AnsiConsole.Confirm("[green]?[/] Auto-generate secure password?", defaultValue: true);
+                password = null;
+                passwordFile = null;
+                if (!generatePassword)
+                {
+                    password = PromptText(
+                        new TextPrompt<string>("[green]?[/] Enter password:")
+                            .Secret()
+                            .ValidationErrorMessage("[red]Password cannot be empty[/]")
+                            .Validate(p => !string.IsNullOrWhiteSpace(p)));
+                }
+                else
+                {
+                    passwordFile = PromptPasswordFile(pfxPath);
+                }
+            })
+            .Run();
 
         var options = new CACertificateOptions
         {
@@ -371,17 +432,6 @@ internal static partial class CertificateWizard
             Padding = new Padding(1, 0)
         };
         AnsiConsole.Write(panel);
-        AnsiConsole.WriteLine();
-    }
-
-    private static void WriteStepHeader(int step, int totalSteps, string title)
-    {
-        AnsiConsole.WriteLine();
-        AnsiConsole.Write(new Rule($"[bold]Step {step} of {totalSteps}: {title}[/]")
-        {
-            Justification = Justify.Left,
-            Style = Style.Parse("blue dim")
-        });
         AnsiConsole.WriteLine();
     }
 
@@ -518,9 +568,11 @@ internal static partial class CertificateWizard
 
     internal static async Task RunGlobalWizard(IOutputFormatter formatter)
     {
-        // Wrap the console to intercept Escape key presses during prompts
+        // Wrap the console to intercept Escape/Left arrow key presses during prompts
         var originalConsole = AnsiConsole.Console;
-        var escapableConsole = new EscapeCancellableConsole(originalConsole);
+        var input = new EscapeCancellableInput(originalConsole.Input);
+        _activeInput = input;
+        var escapableConsole = new EscapeCancellableConsole(originalConsole, input);
         AnsiConsole.Console = escapableConsole;
 
         try
@@ -1120,7 +1172,8 @@ internal static partial class CertificateWizard
         }
         finally
         {
-            // Restore the original console on exit
+            // Restore the original console and clear input reference on exit
+            _activeInput = null;
             AnsiConsole.Console = originalConsole;
         }
     }
@@ -1169,60 +1222,73 @@ internal static partial class CertificateWizard
         WriteWelcome("Inspect Certificate",
             "View detailed information about a certificate from a file, URL, or Windows certificate store.");
 
-        var sourceChoice = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Certificate source:")
-                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-
-        var sourceType = sourceChoice switch
-        {
-            "URL (HTTPS endpoint)" => InspectSourceType.Url,
-            "Windows Store (browse or enter thumbprint)" => InspectSourceType.Store,
-            _ => InspectSourceType.File
-        };
-
-        string source;
+        var sourceType = InspectSourceType.File;
+        string source = "";
         string? password = null;
         string? storeName = null;
         string? storeLocation = null;
+        var showChain = false;
 
-        switch (sourceType)
-        {
-            case InspectSourceType.File:
-                source = PromptCertificateFile("[green]?[/] Certificate file:");
-                var rawPass = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
-                        .AllowEmpty()
-                        .Secret());
-                password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
-                WriteEquivalentCommand($"certz inspect \"{source}\"{(password != null ? " --password <hidden>" : "")}");
-                break;
-
-            case InspectSourceType.Url:
-                source = PromptUrl();
-                WriteEquivalentCommand($"certz inspect {source}");
-                break;
-
-            default: // Store
-                storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
+        new WizardRunner("Certz", "Inspect")
+            .AddStep("Certificate Source", () =>
+            {
+                var sourceChoice = ThrowIfCancelled(AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
-                        .Title("[green]?[/] Store location:")
-                        .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                        .Title("[green]?[/] Certificate source:")
+                        .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)", CancelChoice)
                         .HighlightStyle(HighlightStyle)));
-                storeName = ThrowIfCancelled(AnsiConsole.Prompt(
-                    new SelectionPrompt<string>()
-                        .Title("[green]?[/] Certificate store:")
-                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
-                        .HighlightStyle(HighlightStyle)));
-                var inspectStoreKey = storeName.Split(' ')[0];
-                source = BrowseOrEnterThumbprint(inspectStoreKey, storeLocation);
-                storeName = inspectStoreKey;
-                WriteEquivalentCommand($"certz inspect {source} --store {storeName} --location {storeLocation}");
-                break;
-        }
 
-        var showChain = AnsiConsole.Confirm("[green]?[/] Show certificate chain?", defaultValue: false);
+                sourceType = sourceChoice switch
+                {
+                    "URL (HTTPS endpoint)" => InspectSourceType.Url,
+                    "Windows Store (browse or enter thumbprint)" => InspectSourceType.Store,
+                    _ => InspectSourceType.File
+                };
+
+                password = null;
+                storeName = null;
+                storeLocation = null;
+
+                switch (sourceType)
+                {
+                    case InspectSourceType.File:
+                        source = PromptCertificateFile("[green]?[/] Certificate file:");
+                        var rawPass = PromptText(
+                            new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
+                                .AllowEmpty()
+                                .Secret());
+                        password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+                        WriteEquivalentCommand($"certz inspect \"{source}\"{(password != null ? " --password <hidden>" : "")}");
+                        break;
+
+                    case InspectSourceType.Url:
+                        source = PromptUrl();
+                        WriteEquivalentCommand($"certz inspect {source}");
+                        break;
+
+                    default: // Store
+                        storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
+                            new SelectionPrompt<string>()
+                                .Title("[green]?[/] Store location:")
+                                .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                                .HighlightStyle(HighlightStyle)));
+                        storeName = ThrowIfCancelled(AnsiConsole.Prompt(
+                            new SelectionPrompt<string>()
+                                .Title("[green]?[/] Certificate store:")
+                                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                                .HighlightStyle(HighlightStyle)));
+                        var inspectStoreKey = storeName.Split(' ')[0];
+                        source = BrowseOrEnterThumbprint(inspectStoreKey, storeLocation);
+                        storeName = inspectStoreKey;
+                        WriteEquivalentCommand($"certz inspect {source} --store {storeName} --location {storeLocation}");
+                        break;
+                }
+            })
+            .AddStep("Display Options", () =>
+            {
+                showChain = AnsiConsole.Confirm("[green]?[/] Show certificate chain?", defaultValue: false);
+            })
+            .Run();
 
         var options = new InspectOptions
         {
@@ -1245,65 +1311,78 @@ internal static partial class CertificateWizard
         WriteWelcome("Lint Certificate",
             "Validate a certificate against CA/Browser Forum and Mozilla NSS requirements.");
 
-        var sourceChoice = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Certificate source:")
-                .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-
-        var sourceType = sourceChoice switch
-        {
-            "URL (HTTPS endpoint)" => InspectSourceType.Url,
-            "Windows Store (browse or enter thumbprint)" => InspectSourceType.Store,
-            _ => InspectSourceType.File
-        };
-
-        string source;
+        var sourceType = InspectSourceType.File;
+        string source = "";
         string? password = null;
         string? storeName = null;
         string? storeLocation = null;
+        var policyKey = "cabf";
 
-        switch (sourceType)
-        {
-            case InspectSourceType.File:
-                source = PromptCertificateFile("[green]?[/] Certificate file:");
-                var rawPass = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
-                        .AllowEmpty()
-                        .Secret());
-                password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
-                break;
-
-            case InspectSourceType.Url:
-                source = PromptUrl();
-                break;
-
-            default: // Store
-                storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
+        new WizardRunner("Certz", "Lint")
+            .AddStep("Certificate Source", () =>
+            {
+                var sourceChoice = ThrowIfCancelled(AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
-                        .Title("[green]?[/] Store location:")
-                        .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                        .Title("[green]?[/] Certificate source:")
+                        .AddChoices("File (PFX, PEM, DER, CRT)", "URL (HTTPS endpoint)", "Windows Store (browse or enter thumbprint)", CancelChoice)
                         .HighlightStyle(HighlightStyle)));
-                storeName = ThrowIfCancelled(AnsiConsole.Prompt(
+
+                sourceType = sourceChoice switch
+                {
+                    "URL (HTTPS endpoint)" => InspectSourceType.Url,
+                    "Windows Store (browse or enter thumbprint)" => InspectSourceType.Store,
+                    _ => InspectSourceType.File
+                };
+
+                password = null;
+                storeName = null;
+                storeLocation = null;
+
+                switch (sourceType)
+                {
+                    case InspectSourceType.File:
+                        source = PromptCertificateFile("[green]?[/] Certificate file:");
+                        var rawPass = PromptText(
+                            new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
+                                .AllowEmpty()
+                                .Secret());
+                        password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+                        break;
+
+                    case InspectSourceType.Url:
+                        source = PromptUrl();
+                        break;
+
+                    default: // Store
+                        storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
+                            new SelectionPrompt<string>()
+                                .Title("[green]?[/] Store location:")
+                                .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                                .HighlightStyle(HighlightStyle)));
+                        storeName = ThrowIfCancelled(AnsiConsole.Prompt(
+                            new SelectionPrompt<string>()
+                                .Title("[green]?[/] Certificate store:")
+                                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                                .HighlightStyle(HighlightStyle)));
+                        var lintStoreKey = storeName.Split(' ')[0];
+                        source = BrowseOrEnterThumbprint(lintStoreKey, storeLocation);
+                        storeName = lintStoreKey;
+                        break;
+                }
+            })
+            .AddStep("Validation Policy", () =>
+            {
+                var policy = ThrowIfCancelled(AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
-                        .Title("[green]?[/] Certificate store:")
-                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                        .Title("[green]?[/] Validation policy:")
+                        .AddChoices("cabf (CA/Browser Forum)", "mozilla (Mozilla NSS)", "dev (development)", "all (all policies)", CancelChoice)
                         .HighlightStyle(HighlightStyle)));
-                var lintStoreKey = storeName.Split(' ')[0];
-                source = BrowseOrEnterThumbprint(lintStoreKey, storeLocation);
-                storeName = lintStoreKey;
-                break;
-        }
 
-        var policy = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Validation policy:")
-                .AddChoices("cabf (CA/Browser Forum)", "mozilla (Mozilla NSS)", "dev (development)", "all (all policies)", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
+                policyKey = policy.Split(' ')[0];
 
-        var policyKey = policy.Split(' ')[0];
-
-        WriteEquivalentCommand($"certz lint \"{source}\" --policy {policyKey}");
+                WriteEquivalentCommand($"certz lint \"{source}\" --policy {policyKey}");
+            })
+            .Run();
 
         return (new LintOptions
         {
@@ -1325,32 +1404,44 @@ internal static partial class CertificateWizard
             "Install a certificate into the Windows certificate store.",
             "Trusted certificates are accepted by browsers and other applications.");
 
-        var filePath = PromptCertificateFile("[green]?[/] Certificate file:");
+        var filePath = "";
+        string? password = null;
+        var storeKey = "Root";
+        var locationKey = "CurrentUser";
 
-        var rawPass = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
-                .AllowEmpty()
-                .Secret());
-        var password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+        new WizardRunner("Certz", "Trust", "Add")
+            .AddStep("Certificate File", () =>
+            {
+                filePath = PromptCertificateFile("[green]?[/] Certificate file:");
 
-        var storeName = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Target store:")
-                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-        var storeKey = storeName.Split(' ')[0];
+                var rawPass = PromptText(
+                    new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
+                        .AllowEmpty()
+                        .Secret());
+                password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+            })
+            .AddStep("Target Store", () =>
+            {
+                var storeName = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Target store:")
+                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+                storeKey = storeName.Split(' ')[0];
 
-        var storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Store location:")
-                .AddChoices("CurrentUser (current user only)", "LocalMachine (all users, requires admin)", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-        var locationKey = storeLocation.Split(' ')[0];
+                var storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Store location:")
+                        .AddChoices("CurrentUser (current user only)", "LocalMachine (all users, requires admin)", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+                locationKey = storeLocation.Split(' ')[0];
 
-        if (locationKey == "LocalMachine")
-            AnsiConsole.MarkupLine("[yellow]  Note: LocalMachine requires administrator privileges.[/]");
+                if (locationKey == "LocalMachine")
+                    AnsiConsole.MarkupLine("[yellow]  Note: LocalMachine requires administrator privileges.[/]");
 
-        WriteEquivalentCommand($"certz trust add \"{filePath}\" --store {storeKey} --location {locationKey}");
+                WriteEquivalentCommand($"certz trust add \"{filePath}\" --store {storeKey} --location {locationKey}");
+            })
+            .Run();
 
         return (filePath, password, storeKey, locationKey);
     }
@@ -1361,22 +1452,33 @@ internal static partial class CertificateWizard
             "Remove a certificate from the Windows certificate store.",
             "You can browse the store to find the certificate to remove.");
 
-        var storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Store location:")
-                .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
+        var storeLocation = "CurrentUser";
+        var storeName = "Root";
+        var thumbprint = "";
 
-        var storeNameChoice = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Certificate store:")
-                .AddChoices("Root (Trusted Root CAs)", "My (Personal)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-        var storeName = storeNameChoice.Split(' ')[0];
+        new WizardRunner("Certz", "Trust", "Remove")
+            .AddStep("Store Location", () =>
+            {
+                storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Store location:")
+                        .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
 
-        var thumbprint = BrowseOrEnterThumbprint(storeName, storeLocation);
+                var storeNameChoice = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Certificate store:")
+                        .AddChoices("Root (Trusted Root CAs)", "My (Personal)", "CA (Intermediate CAs)", "TrustedPeople", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+                storeName = storeNameChoice.Split(' ')[0];
+            })
+            .AddStep("Select Certificate", () =>
+            {
+                thumbprint = BrowseOrEnterThumbprint(storeName, storeLocation);
 
-        WriteEquivalentCommand($"certz trust remove {thumbprint} --store {storeName} --location {storeLocation}");
+                WriteEquivalentCommand($"certz trust remove {thumbprint} --store {storeName} --location {storeLocation}");
+            })
+            .Run();
 
         return (thumbprint, storeName, storeLocation);
     }
@@ -1391,59 +1493,74 @@ internal static partial class CertificateWizard
             "Convert between PEM, DER, and PFX/PKCS#12 formats.",
             "Input format is detected automatically from the file contents.");
 
-        var inputPath = PromptCertificateFile("[green]?[/] Input certificate file:");
-
-        var targetChoice = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Target format:")
-                .AddChoices("PEM (.pem / .crt)", "DER (.der / .cer)", "PFX / PKCS#12 (.pfx)", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-
-        var outputFormat = targetChoice switch
-        {
-            "DER (.der / .cer)" => FormatType.Der,
-            "PFX / PKCS#12 (.pfx)" => FormatType.Pfx,
-            _ => FormatType.Pem
-        };
-
-        var formatExt = outputFormat switch
-        {
-            FormatType.Der => "der",
-            FormatType.Pfx => "pfx",
-            _ => "pem"
-        };
-
-        var autoOutput = FormatDetectionService.GenerateOutputPath(new FileInfo(inputPath), outputFormat);
-        var outputPath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Output file path:")
-                .DefaultValue(autoOutput));
-
+        var inputPath = "";
+        var outputFormat = FormatType.Pem;
+        var outputPath = "";
         string? password = null;
         FileInfo? passwordFile = null;
-        if (outputFormat == FormatType.Pfx)
-        {
-            var rawPass = AnsiConsole.Prompt(
-                new TextPrompt<string>("[green]?[/] PFX password (leave blank to auto-generate):")
-                    .AllowEmpty()
-                    .Secret());
-            password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
 
-            if (password == null)
+        new WizardRunner("Certz", "Convert")
+            .AddStep("Input File", () =>
             {
-                passwordFile = PromptPasswordFile(outputPath);
-            }
-        }
-        else
-        {
-            // PFX input may need a password to read
-            var rawPass = AnsiConsole.Prompt(
-                new TextPrompt<string>("[green]?[/] Source PFX password (leave blank if not a PFX):")
-                    .AllowEmpty()
-                    .Secret());
-            password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
-        }
+                inputPath = PromptCertificateFile("[green]?[/] Input certificate file:");
+            })
+            .AddStep("Target Format", () =>
+            {
+                var targetChoice = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Target format:")
+                        .AddChoices("PEM (.pem / .crt)", "DER (.der / .cer)", "PFX / PKCS#12 (.pfx)", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
 
-        WriteEquivalentCommand($"certz convert \"{inputPath}\" --to {formatExt} --output \"{outputPath}\"");
+                outputFormat = targetChoice switch
+                {
+                    "DER (.der / .cer)" => FormatType.Der,
+                    "PFX / PKCS#12 (.pfx)" => FormatType.Pfx,
+                    _ => FormatType.Pem
+                };
+            })
+            .AddStep("Output & Password", () =>
+            {
+                var formatExt = outputFormat switch
+                {
+                    FormatType.Der => "der",
+                    FormatType.Pfx => "pfx",
+                    _ => "pem"
+                };
+
+                var autoOutput = FormatDetectionService.GenerateOutputPath(new FileInfo(inputPath), outputFormat);
+                outputPath = PromptText(
+                    new TextPrompt<string>("[green]?[/] Output file path:")
+                        .DefaultValue(autoOutput));
+
+                password = null;
+                passwordFile = null;
+                if (outputFormat == FormatType.Pfx)
+                {
+                    var rawPass = PromptText(
+                        new TextPrompt<string>("[green]?[/] PFX password (leave blank to auto-generate):")
+                            .AllowEmpty()
+                            .Secret());
+                    password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+
+                    if (password == null)
+                    {
+                        passwordFile = PromptPasswordFile(outputPath);
+                    }
+                }
+                else
+                {
+                    // PFX input may need a password to read
+                    var rawPass = PromptText(
+                        new TextPrompt<string>("[green]?[/] Source PFX password (leave blank if not a PFX):")
+                            .AllowEmpty()
+                            .Secret());
+                    password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+                }
+
+                WriteEquivalentCommand($"certz convert \"{inputPath}\" --to {formatExt} --output \"{outputPath}\"");
+            })
+            .Run();
 
         var options = new ConvertOptions
         {
@@ -1468,35 +1585,47 @@ internal static partial class CertificateWizard
             "Enter paths and URLs one per line. Leave blank to finish.");
 
         var sources = new List<string>();
+        var warnDays = 30;
+        var quietMode = false;
 
-        while (true)
-        {
-            var prompt = sources.Count == 0
-                ? "[green]?[/] Path, directory, or URL to monitor:"
-                : "[green]?[/] Add another (leave blank to finish):";
+        new WizardRunner("Certz", "Monitor")
+            .AddStep("Sources", () =>
+            {
+                sources = [];
+                SetBackNavigation(false);
+                while (true)
+                {
+                    var prompt = sources.Count == 0
+                        ? "[green]?[/] Path, directory, or URL to monitor:"
+                        : "[green]?[/] Add another (leave blank to finish):";
 
-            var entry = AnsiConsole.Prompt(
-                new TextPrompt<string>(prompt)
-                    .AllowEmpty());
+                    var entry = AnsiConsole.Prompt(
+                        new TextPrompt<string>(prompt)
+                            .AllowEmpty());
 
-            if (string.IsNullOrWhiteSpace(entry)) break;
-            sources.Add(entry.Trim());
-        }
+                    if (string.IsNullOrWhiteSpace(entry)) break;
+                    sources.Add(entry.Trim());
+                }
+                SetBackNavigation(true);
 
-        if (sources.Count == 0)
-            throw new OperationCanceledException("No sources specified.");
+                if (sources.Count == 0)
+                    throw new OperationCanceledException("No sources specified.");
+            })
+            .AddStep("Options", () =>
+            {
+                warnDays = PromptText(
+                    new TextPrompt<int>("[green]?[/] Warn when expiring within (days):")
+                        .DefaultValue(30)
+                        .ValidationErrorMessage("[red]Must be a positive number[/]")
+                        .Validate(d => d > 0));
 
-        var warnDays = AnsiConsole.Prompt(
-            new TextPrompt<int>("[green]?[/] Warn when expiring within (days):")
-                .DefaultValue(30)
-                .ValidationErrorMessage("[red]Must be a positive number[/]")
-                .Validate(d => d > 0));
+                quietMode = AnsiConsole.Confirm(
+                    "[green]?[/] Show only certificates within warning threshold?", defaultValue: false);
 
-        var quietMode = AnsiConsole.Confirm(
-            "[green]?[/] Show only certificates within warning threshold?", defaultValue: false);
-
-        var sourcesArg = string.Join(" ", sources.Select(s => $"\"{s}\""));
-        WriteEquivalentCommand($"certz monitor {sourcesArg} --warn {warnDays}{(quietMode ? " --quiet" : "")}");
+                var sourcesArg = string.Join(" ", sources.Select(s => $"\"{s}\""));
+                WriteEquivalentCommand($"certz monitor {sourcesArg} --warn {warnDays}{(quietMode ? " --quiet" : "")}");
+            })
+            .Run();
 
         return new MonitorOptions
         {
@@ -1516,42 +1645,57 @@ internal static partial class CertificateWizard
             "Extend the validity of an existing certificate.",
             "Existing parameters (key type, SANs) are detected automatically from the source.");
 
-        var source = PromptCertificateFile(
-            "[green]?[/] Source certificate:",
-            "Enter thumbprint or path manually...",
-            validateExists: false);
-
+        var source = "";
         string? password = null;
-        if (File.Exists(source))
-        {
-            var rawPass = AnsiConsole.Prompt(
-                new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
-                    .AllowEmpty()
-                    .Secret());
-            password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
-        }
+        var days = 90;
+        var keepKey = false;
+        var outputPath = "";
 
-        var days = AnsiConsole.Prompt(
-            new TextPrompt<int>("[green]?[/] New validity period (days):")
-                .DefaultValue(90)
-                .ValidationErrorMessage("[red]Days must be between 1 and 398[/]")
-                .Validate(d => d >= 1 && d <= 398));
+        new WizardRunner("Certz", "Renew")
+            .AddStep("Source Certificate", () =>
+            {
+                source = PromptCertificateFile(
+                    "[green]?[/] Source certificate:",
+                    "Enter thumbprint or path manually...",
+                    validateExists: false);
 
-        var keepKey = AnsiConsole.Confirm(
-            "[green]?[/] Preserve existing private key (no new key generation)?", defaultValue: false);
+                password = null;
+                if (File.Exists(source))
+                {
+                    var rawPass = PromptText(
+                        new TextPrompt<string>("[green]?[/] Password (leave blank if none):")
+                            .AllowEmpty()
+                            .Secret());
+                    password = string.IsNullOrEmpty(rawPass) ? null : rawPass;
+                }
+            })
+            .AddStep("Renewal Options", () =>
+            {
+                days = PromptText(
+                    new TextPrompt<int>("[green]?[/] New validity period (days):")
+                        .DefaultValue(90)
+                        .ValidationErrorMessage("[red]Days must be between 1 and 398[/]")
+                        .Validate(d => d >= 1 && d <= 398));
 
-        var defaultOutput = File.Exists(source)
-            ? Path.Combine(
-                Path.GetDirectoryName(source) ?? ".",
-                Path.GetFileNameWithoutExtension(source) + "-renewed" + Path.GetExtension(source))
-            : source + "-renewed.pfx";
+                keepKey = AnsiConsole.Confirm(
+                    "[green]?[/] Preserve existing private key (no new key generation)?", defaultValue: false);
+            })
+            .AddStep("Output", () =>
+            {
+                var defaultOutput = File.Exists(source)
+                    ? Path.Combine(
+                        Path.GetDirectoryName(source) ?? ".",
+                        Path.GetFileNameWithoutExtension(source) + "-renewed" + Path.GetExtension(source))
+                    : source + "-renewed.pfx";
 
-        var outputPath = AnsiConsole.Prompt(
-            new TextPrompt<string>("[green]?[/] Output file path:")
-                .DefaultValue(defaultOutput));
+                outputPath = PromptText(
+                    new TextPrompt<string>("[green]?[/] Output file path:")
+                        .DefaultValue(defaultOutput));
 
-        WriteEquivalentCommand(
-            $"certz renew \"{source}\" --days {days}{(keepKey ? " --keep-key" : "")} --output \"{outputPath}\"");
+                WriteEquivalentCommand(
+                    $"certz renew \"{source}\" --days {days}{(keepKey ? " --keep-key" : "")} --output \"{outputPath}\"");
+            })
+            .Run();
 
         return new RenewOptions
         {
@@ -1573,52 +1717,71 @@ internal static partial class CertificateWizard
             "Browse certificates installed in the Windows certificate store.",
             "You can filter by expiration status.");
 
-        var storeName = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Certificate store:")
-                .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", "TrustedPublisher", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-        var storeKey = storeName.Split(' ')[0];
-
-        var storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Store location:")
-                .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-
-        var filterChoice = ThrowIfCancelled(AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]?[/] Filter certificates:")
-                .AddChoices("Show all", "Expired only", "Expiring soon (within N days)", CancelChoice)
-                .HighlightStyle(HighlightStyle)));
-
+        var storeKey = "My";
+        var storeLocation = "CurrentUser";
         bool showExpired = false;
+        bool validOnly = false;
         int? expiringDays = null;
 
-        switch (filterChoice)
-        {
-            case "Expired only":
-                showExpired = true;
-                break;
-            case "Expiring soon (within N days)":
-                expiringDays = AnsiConsole.Prompt(
-                    new TextPrompt<int>("[green]?[/] Expiring within how many days:")
-                        .DefaultValue(30)
-                        .ValidationErrorMessage("[red]Must be a positive number[/]")
-                        .Validate(d => d > 0));
-                break;
-        }
+        new WizardRunner("Certz", "Store", "List")
+            .AddStep("Store Selection", () =>
+            {
+                var storeName = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Certificate store:")
+                        .AddChoices("My (Personal)", "Root (Trusted Root CAs)", "CA (Intermediate CAs)", "TrustedPeople", "TrustedPublisher", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+                storeKey = storeName.Split(' ')[0];
 
-        var cmd = $"certz store list --store {storeKey} --location {storeLocation}";
-        if (showExpired) cmd += " --expired";
-        if (expiringDays.HasValue) cmd += $" --expiring {expiringDays.Value}";
-        WriteEquivalentCommand(cmd);
+                storeLocation = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Store location:")
+                        .AddChoices("CurrentUser", "LocalMachine", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+            })
+            .AddStep("Filter", () =>
+            {
+                var filterChoice = ThrowIfCancelled(AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[green]?[/] Filter certificates:")
+                        .AddChoices("Show all", "Valid only", "Expiring soon (within N days)", "Expired only", CancelChoice)
+                        .HighlightStyle(HighlightStyle)));
+
+                showExpired = false;
+                validOnly = false;
+                expiringDays = null;
+
+                switch (filterChoice)
+                {
+                    case "Expired only":
+                        showExpired = true;
+                        break;
+                    case "Valid only":
+                        validOnly = true;
+                        break;
+                    case "Expiring soon (within N days)":
+                        expiringDays = PromptText(
+                            new TextPrompt<int>("[green]?[/] Expiring within how many days:")
+                                .DefaultValue(30)
+                                .ValidationErrorMessage("[red]Must be a positive number[/]")
+                                .Validate(d => d > 0));
+                        break;
+                }
+
+                var cmd = $"certz store list --store {storeKey} --location {storeLocation}";
+                if (showExpired) cmd += " --expired";
+                if (validOnly) cmd += " --not-expired";
+                if (expiringDays.HasValue) cmd += $" --expiring {expiringDays.Value}";
+                WriteEquivalentCommand(cmd);
+            })
+            .Run();
 
         return new StoreListOptions
         {
             StoreName = storeKey,
             StoreLocation = storeLocation,
             ShowExpired = showExpired,
+            ValidOnly = validOnly,
             ExpiringDays = expiringDays
         };
     }
@@ -1752,14 +1915,14 @@ internal static partial class CertificateWizard
     {
         bool showExpired = false;
         int? expiringDays = null;
-        bool notExpiredOnly = false;
+        bool validOnly = false;
 
         if (subjectFilter == null)
         {
             var filterChoice = ThrowIfCancelled(AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
                     .Title("[green]?[/] Filter certificates:")
-                    .AddChoices("Show all", "Not expired only", "Expiring soon (within N days)", "Expired only", CancelChoice)
+                    .AddChoices("Show all", "Valid only", "Expiring soon (within N days)", "Expired only", CancelChoice)
                     .HighlightStyle(HighlightStyle)));
 
             switch (filterChoice)
@@ -1774,8 +1937,8 @@ internal static partial class CertificateWizard
                             .ValidationErrorMessage("[red]Must be a positive number[/]")
                             .Validate(d => d > 0));
                     break;
-                case "Not expired only":
-                    notExpiredOnly = true;
+                case "Valid only":
+                    validOnly = true;
                     break;
             }
         }
@@ -1785,6 +1948,7 @@ internal static partial class CertificateWizard
             StoreName = storeName,
             StoreLocation = storeLocation,
             ShowExpired = showExpired,
+            ValidOnly = validOnly,
             ExpiringDays = expiringDays
         };
 
@@ -1792,9 +1956,6 @@ internal static partial class CertificateWizard
 
         // Apply additional filters
         var certs = result.Certificates;
-
-        if (notExpiredOnly)
-            certs = certs.Where(c => !c.IsExpired).ToList();
 
         if (!string.IsNullOrEmpty(subjectFilter) && subjectFilter != "*")
         {
@@ -2009,6 +2170,73 @@ internal static partial class CertificateWizard
     private static partial Regex AlphaNumericRegex();
 
     // =========================================================================
+    // Step-based wizard runner with breadcrumb and back navigation
+    // =========================================================================
+
+    /// <summary>
+    /// Runs a sequence of wizard steps with breadcrumb display, keyboard tips,
+    /// and left-arrow back navigation support.
+    /// </summary>
+    private sealed class WizardRunner
+    {
+        private record Step(string Label, Action Execute);
+
+        private readonly string[] _path;
+        private readonly List<Step> _steps = [];
+
+        /// <param name="breadcrumbPath">
+        /// Segments for the breadcrumb trail, e.g. ("Certz", "Create", "Dev Certificate").
+        /// </param>
+        public WizardRunner(params string[] breadcrumbPath) => _path = breadcrumbPath;
+
+        public WizardRunner AddStep(string label, Action execute)
+        {
+            _steps.Add(new Step(label, execute));
+            return this;
+        }
+
+        public void Run()
+        {
+            int current = 0;
+            while (current < _steps.Count)
+            {
+                var step = _steps[current];
+                AnsiConsole.WriteLine();
+                WriteBreadcrumb(_path, current + 1, _steps.Count, step.Label);
+                WriteTips(canGoBack: current > 0);
+
+                try
+                {
+                    step.Execute();
+                    current++;
+                }
+                catch (WizardBackException)
+                {
+                    if (current > 0) current--;
+                    // At step 0, re-render the same step
+                }
+            }
+        }
+    }
+
+    private static void WriteBreadcrumb(string[] path, int step, int totalSteps, string stepLabel)
+    {
+        var segments = path.Select(s => $"[blue]{Markup.Escape(s)}[/]").ToList();
+        segments.Add($"[bold]Step {step}/{totalSteps}: {Markup.Escape(stepLabel)}[/]");
+        var trail = string.Join($" [grey]>[/] ", segments);
+        AnsiConsole.MarkupLine(trail);
+    }
+
+    private static void WriteTips(bool canGoBack)
+    {
+        var tips = canGoBack
+            ? "[grey]Enter Select  \u2190 Back  Esc Cancel[/]"
+            : "[grey]Enter Select  Esc Cancel[/]";
+        AnsiConsole.MarkupLine($"  {tips}");
+        AnsiConsole.WriteLine();
+    }
+
+    // =========================================================================
     // Escape key cancellation support
     // =========================================================================
 
@@ -2016,11 +2244,11 @@ internal static partial class CertificateWizard
     /// Wraps an IAnsiConsole to intercept the Escape key during prompts,
     /// triggering cancellation via OperationCanceledException.
     /// </summary>
-    private sealed class EscapeCancellableConsole(IAnsiConsole inner) : IAnsiConsole
+    private sealed class EscapeCancellableConsole(IAnsiConsole inner, EscapeCancellableInput escapableInput) : IAnsiConsole
     {
         public Profile Profile => inner.Profile;
         public IAnsiConsoleCursor Cursor => inner.Cursor;
-        public IAnsiConsoleInput Input { get; } = new EscapeCancellableInput(inner.Input);
+        public IAnsiConsoleInput Input { get; } = escapableInput;
         public IExclusivityMode ExclusivityMode => inner.ExclusivityMode;
         public RenderPipeline Pipeline => inner.Pipeline;
 
@@ -2029,10 +2257,17 @@ internal static partial class CertificateWizard
     }
 
     /// <summary>
-    /// Intercepts keyboard input and throws OperationCanceledException when Escape is pressed.
+    /// Intercepts keyboard input: Escape throws OperationCanceledException,
+    /// Left arrow throws WizardBackException (when BackNavigationEnabled is true).
     /// </summary>
     private sealed class EscapeCancellableInput(IAnsiConsoleInput originalInput) : IAnsiConsoleInput
     {
+        /// <summary>
+        /// When true, pressing Left arrow throws WizardBackException.
+        /// Disabled during TextPrompt input so Left arrow moves the cursor.
+        /// </summary>
+        public bool BackNavigationEnabled { get; set; } = true;
+
         public bool IsKeyAvailable() => originalInput.IsKeyAvailable();
 
         public ConsoleKeyInfo? ReadKey(bool intercept)
@@ -2040,6 +2275,8 @@ internal static partial class CertificateWizard
             var key = originalInput.ReadKey(intercept);
             if (key?.Key == ConsoleKey.Escape)
                 throw new OperationCanceledException("Cancelled by Escape key");
+            if (BackNavigationEnabled && key?.Key == ConsoleKey.LeftArrow)
+                throw new WizardBackException();
             return key;
         }
 
@@ -2048,6 +2285,8 @@ internal static partial class CertificateWizard
             var key = await originalInput.ReadKeyAsync(intercept, cancellationToken);
             if (key?.Key == ConsoleKey.Escape)
                 throw new OperationCanceledException("Cancelled by Escape key");
+            if (BackNavigationEnabled && key?.Key == ConsoleKey.LeftArrow)
+                throw new WizardBackException();
             return key;
         }
     }

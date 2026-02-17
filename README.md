@@ -1,4 +1,4 @@
-# certz
+# certz 🔐
 
 A standards-compliant certificate utility built on .NET for Windows, with support for modern cryptographic algorithms and RFC 5280 compliance.
 
@@ -181,6 +181,7 @@ certz create dev test.local --ephemeral --format json
 ```
 
 **Use cases:**
+
 - Testing certificate settings before committing to files
 - CI/CD pipelines without cleanup requirements
 - Security-sensitive environments (keys never touch disk)
@@ -212,16 +213,17 @@ certz create dev example.com --pipe --pipe-format pfx 2>password.txt > cert.b64
 
 **Pipe Formats:**
 
-| Format | Output |
-|--------|--------|
-| `pem` (default) | Certificate + private key in PEM format |
-| `pfx` | Base64-encoded PFX (password required or auto-generated to stderr) |
-| `cert` | Certificate only (PEM format) |
-| `key` | Private key only (PEM format) |
+| Format          | Output                                                             |
+| --------------- | ------------------------------------------------------------------ |
+| `pem` (default) | Certificate + private key in PEM format                            |
+| `pfx`           | Base64-encoded PFX (password required or auto-generated to stderr) |
+| `cert`          | Certificate only (PEM format)                                      |
+| `key`           | Private key only (PEM format)                                      |
 
 ### Restrictions
 
 Both `--ephemeral` and `--pipe` are mutually exclusive with:
+
 - `--file`, `--cert`, `--key` (file output options)
 - `--trust` (cannot install in-memory certificate)
 - `--password-file` (no file to protect)
@@ -336,6 +338,7 @@ certz trust remove ABC123DEF456
 ```
 
 **Partial Thumbprint Matching:**
+
 - Minimum 8 characters required for partial thumbprint
 - Uses prefix matching (StartsWith)
 - If multiple certificates match, `--force` is required
@@ -427,25 +430,25 @@ certz convert server.pfx --to pem --password secret --include-key:false
 
 The input format is automatically detected:
 
-| Extension | Detected Format |
-|-----------|-----------------|
-| .pfx, .p12 | PFX (PKCS#12) |
-| .der | DER (binary) |
-| .pem | PEM (text) |
+| Extension  | Detected Format          |
+| ---------- | ------------------------ |
+| .pfx, .p12 | PFX (PKCS#12)            |
+| .der       | DER (binary)             |
+| .pem       | PEM (text)               |
 | .crt, .cer | Auto-detect from content |
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `--to, -t` | Output format: `pem`, `der`, `pfx` (required) |
-| `--output, -o` | Output file path (default: auto-generated) |
-| `--key` | Private key file (for PFX output) |
-| `--password, -p` | Password for PFX input/output |
-| `--password-file` | Read/write password from file |
-| `--pfx-encryption` | `modern` (default) or `legacy` |
-| `--include-key` | Include private key in output |
-| `--format` | Display format: `text`, `json` |
+| Option             | Description                                   |
+| ------------------ | --------------------------------------------- |
+| `--to, -t`         | Output format: `pem`, `der`, `pfx` (required) |
+| `--output, -o`     | Output file path (default: auto-generated)    |
+| `--key`            | Private key file (for PFX output)             |
+| `--password, -p`   | Password for PFX input/output                 |
+| `--password-file`  | Read/write password from file                 |
+| `--pfx-encryption` | `modern` (default) or `legacy`                |
+| `--include-key`    | Include private key in output                 |
+| `--format`         | Display format: `text`, `json`                |
 
 ### Legacy Syntax
 
@@ -461,11 +464,11 @@ certz convert --pfx devcert.pfx --password YourPassword --out-cert certificate.c
 
 ### Format Reference
 
-| Format | Description | Use Case |
-|--------|-------------|----------|
-| **PEM** | Base64 text with headers | Web servers, most Linux tools |
-| **DER** | Binary ASN.1 encoding | Java keystores, some Windows apps |
-| **PFX** | Password-protected bundle | Windows, IIS, certificate export |
+| Format  | Description               | Use Case                          |
+| ------- | ------------------------- | --------------------------------- |
+| **PEM** | Base64 text with headers  | Web servers, most Linux tools     |
+| **DER** | Binary ASN.1 encoding     | Java keystores, some Windows apps |
+| **PFX** | Password-protected bundle | Windows, IIS, certificate export  |
 
 ---
 
@@ -511,18 +514,19 @@ certz lint cert.pfx --password Pass --format json
 
 ### Policy Sets
 
-| Policy | Description |
-|--------|-------------|
-| `cabf` | CA/Browser Forum Baseline Requirements (default) |
-| `mozilla` | Mozilla NSS Policy (includes CA/B Forum rules) |
-| `dev` | Relaxed rules for development certificates |
-| `all` | All policy checks combined |
+| Policy    | Description                                      |
+| --------- | ------------------------------------------------ |
+| `cabf`    | CA/Browser Forum Baseline Requirements (default) |
+| `mozilla` | Mozilla NSS Policy (includes CA/B Forum rules)   |
+| `dev`     | Relaxed rules for development certificates       |
+| `all`     | All policy checks combined                       |
 
 ### Lint Rules
 
 The lint command checks for common certificate issues:
 
 **CA/B Forum Baseline Requirements:**
+
 - Maximum 398-day validity for leaf certificates
 - RSA key size minimum 2048 bits
 - SHA-1 signatures prohibited
@@ -531,11 +535,13 @@ The lint command checks for common certificate issues:
 - Key Usage extension recommended
 
 **Mozilla NSS Policy:**
+
 - Root CA maximum 25-year validity recommended
 - Intermediate CA maximum 10-year validity recommended
 - Name Constraints recommended for intermediates
 
 **Development Certificate Checks:**
+
 - Warns if validity exceeds 398 days
 - Recommends localhost and 127.0.0.1 in SANs
 
@@ -589,6 +595,7 @@ certz monitor ./certs --password-map passwords.txt --password FallbackPass
 ```
 
 **Password Map File Format:**
+
 ```
 # Lines starting with # are comments
 # Format: glob_pattern=password (first match wins)
@@ -612,15 +619,16 @@ staging-*.pfx=StagingPass
 
 ### Exit Codes
 
-| Code | Description |
-|------|-------------|
-| `0` | All certificates valid and outside warning threshold |
-| `1` | Certificates expiring within threshold (with `--fail-on-warning`) |
-| `2` | Expired certificates found |
+| Code | Description                                                       |
+| ---- | ----------------------------------------------------------------- |
+| `0`  | All certificates valid and outside warning threshold              |
+| `1`  | Certificates expiring within threshold (with `--fail-on-warning`) |
+| `2`  | Expired certificates found                                        |
 
 ### Example Output
 
 **Text Format:**
+
 ```
 Certificate Expiration Monitor
 Threshold: 30 days
@@ -644,6 +652,7 @@ Threshold: 30 days
 ```
 
 **JSON Format:**
+
 ```json
 {
   "success": true,
@@ -720,11 +729,11 @@ The command auto-detects whether a certificate is self-signed by comparing Subje
 
 ### Exit Codes
 
-| Code | Description |
-|------|-------------|
-| `0` | Certificate renewed successfully |
-| `1` | Source certificate not found or invalid |
-| `2` | Cannot renew (missing issuer for CA-signed cert) |
+| Code | Description                                      |
+| ---- | ------------------------------------------------ |
+| `0`  | Certificate renewed successfully                 |
+| `1`  | Source certificate not found or invalid          |
+| `2`  | Cannot renew (missing issuer for CA-signed cert) |
 
 ---
 
@@ -732,11 +741,11 @@ The command auto-detects whether a certificate is self-signed by comparing Subje
 
 These options are available on all commands:
 
-| Option | Description |
-|--------|-------------|
+| Option                  | Description                  |
+| ----------------------- | ---------------------------- |
 | `--format <text\|json>` | Output format for automation |
-| `--help` | Show help for a command |
-| `--version` | Show version information |
+| `--help`                | Show help for a command      |
+| `--version`             | Show version information     |
 
 ---
 
@@ -884,16 +893,16 @@ For detailed testing instructions, see [TESTING.md](TESTING.md).
 
 If you're upgrading from certz v1.x, here's how commands have changed:
 
-| v1.x Command | v2.0 Command |
-|--------------|--------------|
-| `certz create --is-ca` | `certz create ca --name "CA Name"` |
-| `certz create --dns domain` | `certz create dev domain` |
-| `certz install --file cert.pfx` | `certz trust add cert.pfx` |
-| `certz remove --thumb ABC123` | `certz trust remove ABC123` |
-| `certz list` | `certz store list` |
-| `certz info --file cert.pfx` | `certz inspect cert.pfx` |
-| `certz info --url https://...` | `certz inspect https://...` |
-| `certz verify --file cert.pfx` | `certz inspect cert.pfx --chain --crl` |
+| v1.x Command                     | v2.0 Command                                |
+| -------------------------------- | ------------------------------------------- |
+| `certz create --is-ca`           | `certz create ca --name "CA Name"`          |
+| `certz create --dns domain`      | `certz create dev domain`                   |
+| `certz install --file cert.pfx`  | `certz trust add cert.pfx`                  |
+| `certz remove --thumb ABC123`    | `certz trust remove ABC123`                 |
+| `certz list`                     | `certz store list`                          |
+| `certz info --file cert.pfx`     | `certz inspect cert.pfx`                    |
+| `certz info --url https://...`   | `certz inspect https://...`                 |
+| `certz verify --file cert.pfx`   | `certz inspect cert.pfx --chain --crl`      |
 | `certz export --url https://...` | `certz inspect https://... --save cert.cer` |
 
 The v1.x commands are still available for backwards compatibility but will be removed in a future release.

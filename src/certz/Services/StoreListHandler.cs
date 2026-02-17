@@ -33,6 +33,11 @@ internal static class StoreListHandler
                 continue;
             }
 
+            if (options.ValidOnly && isExpired)
+            {
+                continue;
+            }
+
             if (options.ExpiringDays.HasValue && !isExpired && daysRemaining > options.ExpiringDays.Value)
             {
                 continue;

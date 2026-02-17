@@ -24,4 +24,9 @@ internal record StoreListOptions
     /// Show certificates expiring within N days.
     /// </summary>
     public int? ExpiringDays { get; init; }
+
+    /// <summary>
+    /// Show only certificates that have not expired.
+    /// </summary>
+    public bool ValidOnly { get; init; }
 }
