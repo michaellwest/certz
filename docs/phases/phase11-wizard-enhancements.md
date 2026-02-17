@@ -27,7 +27,8 @@ This is a .NET 10 CLI tool using:
 
 - Static partial class with `Run<Feature>Wizard()` methods
 - Returns options records consumed by existing service layer
-- Uses `WriteWelcome()`, `WriteStepHeader()`, `WriteHelp()`, `WriteEquivalentCommand()` helpers
+- Uses `WriteWelcome()`, `WriteHelp()`, `WriteEquivalentCommand()` helpers
+- `WizardRunner` provides step-based loops with breadcrumb trail, keyboard tips, and back navigation
 - Spectre.Console `SelectionPrompt`, `TextPrompt`, and `Confirm` for user input
 
 **Store Infrastructure (already exists):**
@@ -266,7 +267,7 @@ private static string BrowseStore(string storeName, string storeLocation, string
 
         bool showExpired = false;
         int? expiringDays = null;
-        bool notExpiredOnly = false;
+        bool validOnly = false;
 
         switch (filterChoice)
         {
@@ -280,7 +281,7 @@ private static string BrowseStore(string storeName, string storeLocation, string
                         .Validate(d => d > 0));
                 break;
             case "Not expired only":
-                notExpiredOnly = true;
+                validOnly = true;
                 break;
         }
 
@@ -289,6 +290,7 @@ private static string BrowseStore(string storeName, string storeLocation, string
             StoreName = storeName,
             StoreLocation = storeLocation,
             ShowExpired = showExpired,
+            ValidOnly = validOnly,
             ExpiringDays = expiringDays
         };
     }

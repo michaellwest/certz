@@ -21,7 +21,8 @@ This is a .NET 10 CLI tool using:
 
 - Static partial class with `Run<Feature>Wizard()` methods
 - Returns options records consumed by existing service layer
-- Uses `WriteWelcome()`, `WriteStepHeader()`, `WriteHelp()`, `WriteEquivalentCommand()` helpers
+- Uses `WriteWelcome()`, `WriteHelp()`, `WriteEquivalentCommand()` helpers
+- `WizardRunner` provides step-based loops with breadcrumb trail, keyboard tips, and back navigation
 - Spectre.Console `SelectionPrompt`, `TextPrompt`, and `Confirm` for user input
 
 ---
@@ -203,27 +204,16 @@ At the summary screen of `RunDevCertificateWizard()` and `RunCACertificateWizard
 
 ### Implementation Notes
 
-This requires restructuring the linear wizard into a step-function pattern where each step is a callable unit. Spectre.Console prompts are inherently blocking, so "going back" means re-executing the step's prompt.
+The `WizardRunner` class (added for breadcrumbs and back navigation) already provides the step-function infrastructure needed. Each wizard is structured as a series of named steps with closure-captured state, and the runner supports navigating backwards via `WizardBackException`. Extending this to support "edit a setting" at the summary screen would involve:
 
-A reasonable approach:
-
-```csharp
-// Each step is a Func that modifies a builder
-var steps = new (string Name, Action<OptionsBuilder> Run)[]
-{
-    ("Domain Name", b => b.Domain = PromptDomain()),
-    ("SANs", b => b.SANs = PromptSANs()),
-    // ...
-};
-
-// Run all steps forward, then at summary:
-// "Edit a setting" → pick step index → re-run steps[index..] → re-display summary
-```
+1. Adding a `RunFrom(int stepIndex)` method to `WizardRunner`
+2. At the summary screen, presenting a selection of step labels
+3. Calling `RunFrom(selectedIndex)` to re-execute from that step forward
 
 **Deferred to a future phase** because:
 - The current summary + cancel flow is functional
+- Users can already press `←` to go back one step at a time during the wizard
 - The contextual menus (improvement 1) address the bigger pain point
-- The step-function refactor is invasive and should be tested thoroughly
 
 ---
 
