@@ -110,6 +110,7 @@ pwsh -File test/test-convert.ps1
 **When to refresh:** After adding/removing source files, commands, or services.
 
 **Manual refresh:** Update the Code Map section above by running:
+
 ```powershell
 # List all source files for index update
 Get-ChildItem -Path src -Recurse -Include *.cs -Exclude obj,bin |
@@ -118,6 +119,7 @@ Get-ChildItem -Path src -Recurse -Include *.cs -Exclude obj,bin |
 ```
 
 **Auto-refresh hook (add to .git/hooks/post-commit):**
+
 ```bash
 #!/bin/bash
 # Remind to update CLAUDE.md index when source files change
@@ -169,6 +171,7 @@ fi
 - **Portable**: The executable can be placed anywhere on the filesystem and run from any directory.
 
 Build settings that enforce this (in certz.csproj):
+
 ```xml
 <PublishSingleFile>true</PublishSingleFile>
 <SelfContained>true</SelfContained>
@@ -244,42 +247,42 @@ When asked to create a new phase implementation plan or prompt:
 
 ### Command Implementation & Usage
 
-| Task                                           | Source File                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------ |
-| Full CLI reference, all commands, options      | [README.md](README.md)                                                   |
-| Create dev/CA certificates                     | [docs/phases/phase1-create.md](docs/phases/phase1-create.md)             |
-| Inspect certificates (file, URL, store, chain) | [docs/phases/phase2-inspect.md](docs/phases/phase2-inspect.md)           |
-| Trust store operations (add, remove, list)     | [docs/phases/phase3-trust.md](docs/phases/phase3-trust.md)               |
-| Certificate linting (CA/B Forum, Mozilla NSS)  | [docs/phases/phase4-lint.md](docs/phases/phase4-lint.md)                 |
-| Chain visualization (--chain --tree)           | [docs/phases/phase5-chain.md](docs/phases/phase5-chain.md)               |
-| Expiration monitoring                          | [docs/phases/phase6-monitor.md](docs/phases/phase6-monitor.md)           |
-| Certificate renewal                            | [docs/phases/phase7-renew.md](docs/phases/phase7-renew.md)               |
-| Ephemeral mode (--ephemeral, --pipe)           | [docs/phases/phase8-ephemeral.md](docs/phases/phase8-ephemeral.md)       |
-| Format conversion (PEM, DER, PFX)              | [docs/phases/phase9-convert.md](docs/phases/phase9-convert.md)           |
+| Task                                           | Source File                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------------ |
+| Full CLI reference, all commands, options      | [README.md](README.md)                                             |
+| Create dev/CA certificates                     | [docs/phases/phase1-create.md](docs/phases/phase1-create.md)       |
+| Inspect certificates (file, URL, store, chain) | [docs/phases/phase2-inspect.md](docs/phases/phase2-inspect.md)     |
+| Trust store operations (add, remove, list)     | [docs/phases/phase3-trust.md](docs/phases/phase3-trust.md)         |
+| Certificate linting (CA/B Forum, Mozilla NSS)  | [docs/phases/phase4-lint.md](docs/phases/phase4-lint.md)           |
+| Chain visualization (--chain --tree)           | [docs/phases/phase5-chain.md](docs/phases/phase5-chain.md)         |
+| Expiration monitoring                          | [docs/phases/phase6-monitor.md](docs/phases/phase6-monitor.md)     |
+| Certificate renewal                            | [docs/phases/phase7-renew.md](docs/phases/phase7-renew.md)         |
+| Ephemeral mode (--ephemeral, --pipe)           | [docs/phases/phase8-ephemeral.md](docs/phases/phase8-ephemeral.md) |
+| Format conversion (PEM, DER, PFX)              | [docs/phases/phase9-convert.md](docs/phases/phase9-convert.md)     |
 
 ### Architecture & Patterns
 
-| Task                                           | Source File                                                                  |
-| ---------------------------------------------- | ---------------------------------------------------------------------------- |
-| Service class architecture, options pattern    | [docs/architecture.md](docs/architecture.md)                                 |
-| Modernization status, completed work           | [prompts/future-work.md](prompts/future-work.md)                             |
-| Future feature recommendations                 | [docs/feature-recommendations.md](docs/feature-recommendations.md)           |
+| Task                                        | Source File                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------ |
+| Service class architecture, options pattern | [docs/architecture.md](docs/architecture.md)                       |
+| Modernization status, completed work        | [prompts/future-work.md](prompts/future-work.md)                   |
+| Future feature recommendations              | [docs/feature-recommendations.md](docs/feature-recommendations.md) |
 
 ### Testing
 
-| Task                                          | Source File                                                  |
-| --------------------------------------------- | ------------------------------------------------------------ |
-| Testing guide, test scripts, Docker           | [docs/testing.md](docs/testing.md)                           |
-| Test isolation principles (single certz call) | [test/isolation-plan.md](test/isolation-plan.md)             |
-| Test coverage gaps, missing tests             | [test/coverage-analysis.md](test/coverage-analysis.md)       |
-| Docker testing quick reference                | [docs/docker-testing.md](docs/docker-testing.md)             |
+| Task                                          | Source File                                                      |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| Testing guide, test scripts, Docker           | [docs/testing.md](docs/testing.md)                               |
+| Test isolation principles (single certz call) | [test/isolation-plan.md](test/isolation-plan.md)                 |
+| Test coverage gaps, missing tests             | [test/coverage-analysis.md](test/coverage-analysis.md)           |
+| Docker testing quick reference                | [docs/docker-testing.md](docs/docker-testing.md)                 |
 | Docker file structure                         | [docs/docker-files-explained.md](docs/docker-files-explained.md) |
 
 ### Release & Deployment
 
-| Task                                 | Source File                                          |
-| ------------------------------------ | ---------------------------------------------------- |
-| Version history, SHA256 verification | [release/RELEASE_NOTES.md](release/RELEASE_NOTES.md) |
+| Task                                 | Source File                                            |
+| ------------------------------------ | ------------------------------------------------------ |
+| Version history, SHA256 verification | [release/RELEASE_NOTES.md](release/RELEASE_NOTES.md)   |
 | Phase plan template format           | docs/phases/phase1-create.md through phase9-convert.md |
 
 ### Key Established Patterns
@@ -355,19 +358,19 @@ Consult sources in this order (higher priority overrides lower):
 
 #### NEVER
 
-| Rule                                                               | Source                        |
-| ------------------------------------------------------------------ | ----------------------------- |
-| Never use `Environment.ExitCode` in async command handlers         | CLAUDE.md                        |
-| Never use SHA-1 signatures for new certificates                    | docs/phases/phase4-lint.md       |
-| Never allow RSA keys smaller than 2048 bits                        | docs/phases/phase4-lint.md       |
-| Never use certz.exe for test setup/teardown (PowerShell only)      | test/isolation-plan.md           |
-| Never call certz.exe more than once per test case                  | test/isolation-plan.md           |
-| Never use `--ephemeral` and `--pipe` together (mutually exclusive) | docs/phases/phase8-ephemeral.md  |
-| Never combine `--ephemeral`/`--pipe` with file output options      | docs/phases/phase8-ephemeral.md  |
-| Never combine `--ephemeral`/`--pipe` with `--trust`                | docs/phases/phase8-ephemeral.md  |
-| Never default to legacy 3DES PFX encryption                        | README.md                        |
-| Never use `DateTime.Today` or `DateTime.Now` for certificate validity  | README.md, docs/certz-spec.md    |
-| Never omit password display warning for generated passwords        | docs/architecture.md             |
+| Rule                                                                  | Source                          |
+| --------------------------------------------------------------------- | ------------------------------- |
+| Never use `Environment.ExitCode` in async command handlers            | CLAUDE.md                       |
+| Never use SHA-1 signatures for new certificates                       | docs/phases/phase4-lint.md      |
+| Never allow RSA keys smaller than 2048 bits                           | docs/phases/phase4-lint.md      |
+| Never use certz.exe for test setup/teardown (PowerShell only)         | test/isolation-plan.md          |
+| Never call certz.exe more than once per test case                     | test/isolation-plan.md          |
+| Never use `--ephemeral` and `--pipe` together (mutually exclusive)    | docs/phases/phase8-ephemeral.md |
+| Never combine `--ephemeral`/`--pipe` with file output options         | docs/phases/phase8-ephemeral.md |
+| Never combine `--ephemeral`/`--pipe` with `--trust`                   | docs/phases/phase8-ephemeral.md |
+| Never default to legacy 3DES PFX encryption                           | README.md                       |
+| Never use `DateTime.Today` or `DateTime.Now` for certificate validity | README.md, docs/certz-spec.md   |
+| Never omit password display warning for generated passwords           | docs/architecture.md            |
 
 ### Verification Step
 
@@ -394,3 +397,7 @@ This ensures traceability and allows verification of reasoning against authorita
 - [README.md] — Existing `create dev` options for consistency
 
 **Then proceed with implementation following the patterns from those sources.**
+
+## Change Log
+
+When generating a plan or change log in Plan Mode, do not include conversational filler such as 'Now I have all the context needed' or 'Here's the changelog.' Instead, output the plan directly starting with the first action or file change.
