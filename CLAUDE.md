@@ -70,7 +70,7 @@
 |docs/README.md|documentation hub
 |docs/certz-spec.md|CLI specification
 |docs/architecture.md|design patterns, service structure
-|docs/phases/phase{1-9}-*.md|feature implementation plans
+|docs/phases/phase{1-12}-*.md|★SPEC ONLY (read-only after implementation; status tracked in GitHub Issues)
 |docs/testing.md|test execution procedures
 |docs/docker-*.md|container testing guides
 
@@ -232,14 +232,41 @@ The exception is caught by the main exception handler in `Program.cs`, which dis
 
 **Note:** Synchronous handlers (`SetAction((parseResult) => { ... })`) can use `return 1;` directly since they return int.
 
-## Phase Implementation Plans
+## Feature Workflow (GitHub Issues)
 
-When asked to create a new phase implementation plan or prompt:
+Active work tracking has moved to GitHub Issues at **https://github.com/michaellwest/certz/issues**.
 
-- Save the plan to a file named `docs/phases/phase<N>-<feature>.md`
-- Follow the format of existing phase plans (see `docs/phases/phase1-create.md` through `docs/phases/phase9-convert.md`)
-- Include: Status, Overview, Design Decisions, Progress Tracker, Implementation Steps with code samples, Tests, and Verification Checklist
-- Reference existing codebase patterns for consistency
+### Starting a new feature
+
+1. **Open a GitHub Issue** first — title, description, and acceptance criteria go there, not in a markdown file
+2. For complex features, create `docs/phases/phase<N>-<feature>.md` as the **design spec** and link it from the issue body
+3. Reference the issue number in commits (`closes #N`) so the issue closes automatically on merge
+4. The issue is the single source of truth for status; the phase doc is the design artifact
+
+### Phase doc format (spec only, no status fields)
+
+When a spec doc is needed, include:
+
+- **Overview** — what the feature does and why
+- **Design Decisions** — architectural choices and trade-offs
+- **Implementation Steps** — code samples and patterns
+- **Tests** — test scenarios and scripts
+- **Verification Checklist** — quality gates
+
+Do **not** include a Status field or Progress Tracker in the spec doc — those live on the GitHub Issue.
+
+### Existing phase docs
+
+`docs/phases/phase1–12` are **read-only** spec references after implementation. Do not update their content to reflect current status — check GitHub Issues instead.
+
+### GitHub project structure
+
+| Element | Purpose |
+|---------|---------|
+| Labels: `feature`, `bug`, `enhancement`, `deferred` | Classify work |
+| Labels: `cross-platform`, `wizard`, `breaking-change` | Scope tags |
+| Milestone `v0.4`, `v1.0` | Release targeting |
+| Project board columns: Backlog → Ready → In Progress → Done | Kanban status |
 
 ## Certz Knowledge Index
 
@@ -265,8 +292,8 @@ When asked to create a new phase implementation plan or prompt:
 | Task                                        | Source File                                                        |
 | ------------------------------------------- | ------------------------------------------------------------------ |
 | Service class architecture, options pattern | [docs/architecture.md](docs/architecture.md)                       |
-| Modernization status, completed work        | [prompts/future-work.md](prompts/future-work.md)                   |
-| Future feature recommendations              | [docs/feature-recommendations.md](docs/feature-recommendations.md) |
+| Active feature work and status              | https://github.com/michaellwest/certz/issues                       |
+| Architecture decisions, deferred features   | [docs/feature-recommendations.md](docs/feature-recommendations.md) |
 
 ### Testing
 
@@ -280,10 +307,10 @@ When asked to create a new phase implementation plan or prompt:
 
 ### Release & Deployment
 
-| Task                                 | Source File                                            |
-| ------------------------------------ | ------------------------------------------------------ |
-| Version history, SHA256 verification | [release/RELEASE_NOTES.md](release/RELEASE_NOTES.md)   |
-| Phase plan template format           | docs/phases/phase1-create.md through phase9-convert.md |
+| Task                                 | Source File                                          |
+| ------------------------------------ | ---------------------------------------------------- |
+| Version history, SHA256 verification | [release/RELEASE_NOTES.md](release/RELEASE_NOTES.md) |
+| Spec doc format reference            | [docs/phases/phase1-create.md](docs/phases/phase1-create.md) |
 
 ### Key Established Patterns
 
