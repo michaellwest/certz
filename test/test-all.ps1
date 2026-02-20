@@ -189,6 +189,12 @@ $passedSuites = @()
 $failedSuites = @()
 $skippedSuites = @()
 
+# Clear stale CTRF suite files from previous runs before starting
+$testResultsDir = Join-Path $PSScriptRoot "test-results"
+if (Test-Path $testResultsDir) {
+    Remove-Item -Path (Join-Path $testResultsDir "*.json") -Force -ErrorAction SilentlyContinue
+}
+
 Write-Host "`nCertz Test Runner" -ForegroundColor Magenta
 Write-Host "================================" -ForegroundColor Magenta
 
@@ -248,7 +254,6 @@ if ($failedSuites.Count -gt 0) {
 # ============================================================================
 # MERGE PER-SUITE CTRF FILES INTO results.json
 # ============================================================================
-$testResultsDir = Join-Path $PSScriptRoot "test-results"
 $suiteFiles = Get-ChildItem -Path $testResultsDir -Filter "*.json" -ErrorAction SilentlyContinue |
               Where-Object { $_.Name -ne "results.json" }
 
