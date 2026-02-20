@@ -12,4 +12,5 @@ release/**/*
 
 *.key
 
+test/test-results/
 .claude/settings.local.json

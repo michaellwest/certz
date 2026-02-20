@@ -47,6 +47,18 @@ function Initialize-TestEnvironment {
     $script:FilterTestId = $TestId
     $script:FilterCategory = $Category
     $script:TestCategories = $TestCategories
+
+    # CTRF state
+    $script:CtrfTests = [System.Collections.Generic.List[hashtable]]::new()
+    $script:CtrfStartTime = [DateTimeOffset]::UtcNow
+
+    # Derive suite name from calling script (e.g. test-create.ps1 → "create")
+    $callerScript = (Get-PSCallStack)[1].ScriptName
+    if ($callerScript) {
+        $script:CtrfSuite = [System.IO.Path]::GetFileNameWithoutExtension($callerScript) -replace '^test-', ''
+    } else {
+        $script:CtrfSuite = "unknown"
+    }
 }
 
 # ============================================================================
@@ -116,7 +128,8 @@ function Write-TestResult {
         [string]$TestId,
         [string]$TestName,
         [bool]$Success,
-        [string]$Details = ""
+        [string]$Details = "",
+        [long]$DurationMs = 0
     )
 
     $script:TestCount++
@@ -134,6 +147,18 @@ function Write-TestResult {
             Write-Host "       ERROR: $Details" -ForegroundColor Yellow
         }
     }
+
+    # Record CTRF test entry
+    $ctrfTest = @{
+        name     = $TestName
+        status   = if ($Success) { "passed" } else { "failed" }
+        duration = $DurationMs
+        suite    = $script:CtrfSuite
+    }
+    if (-not $Success -and $Details) {
+        $ctrfTest.message = $Details
+    }
+    $script:CtrfTests.Add($ctrfTest)
 }
 
 function Remove-TestFiles {
@@ -330,17 +355,20 @@ function Invoke-Test {
 
     Write-Host "[TEST $TestId] $TestName" -ForegroundColor Cyan
 
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $result = & $TestScript
+        $sw.Stop()
         if ($result -is [hashtable] -and $result.ContainsKey("Success")) {
-            Write-TestResult $TestId $TestName $result.Success $result.Details
+            Write-TestResult $TestId $TestName $result.Success $result.Details $sw.ElapsedMilliseconds
             return $result
         } else {
-            Write-TestResult $TestId $TestName $true ""
+            Write-TestResult $TestId $TestName $true "" $sw.ElapsedMilliseconds
             return [PSCustomObject]@{ Success = $true; Result = $result } | Out-String
         }
     } catch {
-        Write-TestResult $TestId $TestName $false $_.Exception.Message
+        $sw.Stop()
+        Write-TestResult $TestId $TestName $false $_.Exception.Message $sw.ElapsedMilliseconds
         return [PSCustomObject]@{ Success = $false; Error = $_.Exception.Message } | Out-String
     }
 }
@@ -503,6 +531,44 @@ function Remove-CertificateFromStore {
 }
 
 # ============================================================================
+# CTRF OUTPUT
+# ============================================================================
+
+function Write-CtrfResults {
+    <#
+    .SYNOPSIS
+        Writes a per-suite CTRF JSON file to test/test-results/<suite>.json.
+    #>
+    $stopTime = [DateTimeOffset]::UtcNow
+    $outDir = Join-Path $PSScriptRoot "test-results"
+
+    if (-not (Test-Path $outDir)) {
+        New-Item -ItemType Directory -Path $outDir | Out-Null
+    }
+
+    $outFile = Join-Path $outDir "$script:CtrfSuite.json"
+
+    $ctrf = @{
+        results = @{
+            tool    = @{ name = "certz" }
+            summary = @{
+                tests   = $script:PassedTests.Count + $script:FailedTests.Count
+                passed  = $script:PassedTests.Count
+                failed  = $script:FailedTests.Count
+                skipped = 0
+                other   = 0
+                start   = $script:CtrfStartTime.ToUnixTimeMilliseconds()
+                stop    = $stopTime.ToUnixTimeMilliseconds()
+            }
+            tests   = @($script:CtrfTests)
+        }
+    }
+
+    $ctrf | ConvertTo-Json -Depth 10 | Set-Content -Path $outFile -Encoding UTF8
+    Write-Host "  CTRF: $outFile" -ForegroundColor DarkGray
+}
+
+# ============================================================================
 # SUMMARY OUTPUT
 # ============================================================================
 
@@ -524,6 +590,8 @@ function Write-TestSummary {
         Write-Host "`nFailed Tests:" -ForegroundColor Red
         $script:FailedTests | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
     }
+
+    Write-CtrfResults
 
     if (-not $SkipCleanup) {
         Write-Host "`nCleaning up test files..." -ForegroundColor Yellow

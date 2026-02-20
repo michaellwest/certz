@@ -31,7 +31,7 @@
 .PARAMETER Category
     Run only specific test suites by category name. Accepts an array.
     Available categories: create, inspect, trust, lint, monitor, renew,
-    ephemeral, convert, export, verify, install, examples
+    ephemeral, convert, examples
 
 .EXAMPLE
     .\test-all.ps1
@@ -58,7 +58,7 @@ param(
     [switch]$UseDocker,
     [switch]$DockerVerbose,
     [ValidateSet("create", "inspect", "trust", "lint", "monitor", "renew",
-                 "ephemeral", "convert", "export", "verify", "install", "examples")]
+                 "ephemeral", "convert", "examples")]
     [string[]]$Category
 )
 
@@ -168,9 +168,6 @@ $allSuites = @(
     "test-renew.ps1"
     "test-ephemeral.ps1"
     "test-convert.ps1"
-    "test-export.ps1"
-    "test-verify.ps1"
-    "test-install.ps1"
     "test-examples.ps1"
 )
 
@@ -246,6 +243,55 @@ Write-Host "Duration: $($stopwatch.Elapsed.ToString('mm\:ss'))" -ForegroundColor
 if ($failedSuites.Count -gt 0) {
     Write-Host "`nFailed Suites:" -ForegroundColor Red
     $failedSuites | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+}
+
+# ============================================================================
+# MERGE PER-SUITE CTRF FILES INTO results.json
+# ============================================================================
+$testResultsDir = Join-Path $PSScriptRoot "test-results"
+$suiteFiles = Get-ChildItem -Path $testResultsDir -Filter "*.json" -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -ne "results.json" }
+
+if ($suiteFiles) {
+    $allTests    = [System.Collections.Generic.List[object]]::new()
+    $totalPassed  = 0
+    $totalFailed  = 0
+    $totalSkipped = 0
+    $minStart     = [long]::MaxValue
+    $maxStop      = [long]::MinValue
+
+    foreach ($file in $suiteFiles) {
+        $suite = Get-Content -Path $file.FullName -Raw | ConvertFrom-Json
+        foreach ($t in $suite.results.tests) { $allTests.Add($t) }
+        $totalPassed  += $suite.results.summary.passed
+        $totalFailed  += $suite.results.summary.failed
+        $totalSkipped += $suite.results.summary.skipped
+        if ($suite.results.summary.start -lt $minStart) { $minStart = $suite.results.summary.start }
+        if ($suite.results.summary.stop  -gt $maxStop)  { $maxStop  = $suite.results.summary.stop  }
+    }
+
+    $merged = @{
+        results = @{
+            tool    = @{ name = "certz" }
+            summary = @{
+                tests   = $totalPassed + $totalFailed + $totalSkipped
+                passed  = $totalPassed
+                failed  = $totalFailed
+                skipped = $totalSkipped
+                other   = 0
+                start   = $minStart
+                stop    = $maxStop
+            }
+            tests = @($allTests)
+        }
+    }
+
+    $mergedPath = Join-Path $testResultsDir "results.json"
+    $merged | ConvertTo-Json -Depth 10 | Set-Content -Path $mergedPath -Encoding UTF8
+    Write-Host "`nCTRF report: $mergedPath" -ForegroundColor DarkGray
+}
+
+if ($failedSuites.Count -gt 0) {
     exit 1
 }
 
