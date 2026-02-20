@@ -20,7 +20,7 @@ services:
     environment:
       - DOTNET_ENVIRONMENT=Test
     volumes:
-      - .\test-results:C:\app\test-results
+      - .\test\test-results:C:\app\test\test-results
     isolation: process
 
   # Development test runner with volume mounts (no rebuild needed for changes)
@@ -38,5 +38,5 @@ services:
       - ./debug/certz.pdb:C:\app\certz.pdb:ro
       - ./test:C:\app\test:ro
       # Mount test results output (optional)
-      - .\test-results:C:\app\test-results
+      - .\test\test-results:C:\app\test\test-results
     isolation: process

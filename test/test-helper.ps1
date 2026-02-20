@@ -150,7 +150,7 @@ function Write-TestResult {
 
     # Record CTRF test entry
     $ctrfTest = @{
-        name     = $TestName
+        name     = "$TestId $TestName"
         status   = if ($Success) { "passed" } else { "failed" }
         duration = $DurationMs
         suite    = $script:CtrfSuite
