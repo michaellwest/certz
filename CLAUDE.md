@@ -240,7 +240,7 @@ Active work tracking has moved to GitHub Issues at **https://github.com/michaell
 
 1. **Open a GitHub Issue** first — title, description, and acceptance criteria go there, not in a markdown file
 2. For complex features, create `docs/phases/phase<N>-<feature>.md` as the **design spec** and link it from the issue body
-3. Reference the issue number in commits (`closes #N`) so the issue closes automatically on merge
+3. **Always** reference the issue number in every commit message (`closes #N` or `refs #N`) so the issue links automatically — a commit with no issue number must not be made
 4. The issue is the single source of truth for status; the phase doc is the design artifact
 
 ### Phase doc format (spec only, no status fields)
@@ -382,6 +382,8 @@ Consult sources in this order (higher priority overrides lower):
 | Use UTC time (`DateTimeOffset.UtcNow`) for certificate validity dates       | README.md, docs/certz-spec.md |
 | Use modern PFX encryption (AES-256-CBC) by default                          | README.md                     |
 | Include Basic Constraints extension for CA certificates                     | docs/phases/phase4-lint.md    |
+| Identify a GitHub Issue before committing any code changes                  | CLAUDE.md (Feature Workflow)  |
+| Include the GitHub Issue number (`closes #N` or `refs #N`) in every commit message | CLAUDE.md (Feature Workflow) |
 
 #### NEVER
 
@@ -398,6 +400,7 @@ Consult sources in this order (higher priority overrides lower):
 | Never default to legacy 3DES PFX encryption                           | README.md                       |
 | Never use `DateTime.Today` or `DateTime.Now` for certificate validity | README.md, docs/certz-spec.md   |
 | Never omit password display warning for generated passwords           | docs/architecture.md            |
+| Never create a git commit without first identifying a GitHub Issue number to reference | CLAUDE.md (Feature Workflow) |
 
 ### Verification Step
 
