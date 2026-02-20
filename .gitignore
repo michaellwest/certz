@@ -11,3 +11,5 @@ release/**/*
 *.cer
 
 *.key
+
+.claude/settings.local.json

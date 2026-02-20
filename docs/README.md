@@ -28,7 +28,7 @@ All features have been implemented and documented in phase plans.
 | 9 | Format Conversion | Complete | [phase9-convert.md](phases/phase9-convert.md) |
 | 10 | Global Guided Wizard | Complete | [phase10-guided.md](phases/phase10-guided.md) |
 | 11 | Wizard UX Enhancements | Complete | [phase11-wizard-enhancements.md](phases/phase11-wizard-enhancements.md) |
-| 12 | Wizard Navigation Improvements | In Progress | [phase12-wizard-navigation.md](phases/phase12-wizard-navigation.md) |
+| 12 | Wizard Navigation Improvements | Complete | [phase12-wizard-navigation.md](phases/phase12-wizard-navigation.md) |
 
 ---
 

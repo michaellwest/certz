@@ -49,14 +49,8 @@ rootCommand.SetAction(async (parseResult) =>
 });
 
 // Register all commands
-rootCommand.AddListCommand();
-rootCommand.AddInstallCommand();
 rootCommand.AddCreateCommand();
-rootCommand.AddRemoveCommand();
-rootCommand.AddExportCommand();
 rootCommand.AddConvertCommand();
-rootCommand.AddInfoCommand();
-rootCommand.AddVerifyCommand();
 rootCommand.AddInspectCommand();
 rootCommand.AddLintCommand();
 rootCommand.AddMonitorCommand();

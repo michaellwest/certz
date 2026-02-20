@@ -889,22 +889,3 @@ Run the test suites:
 
 For detailed testing instructions, see [TESTING.md](TESTING.md).
 
----
-
-## Migration from v1.x
-
-If you're upgrading from certz v1.x, here's how commands have changed:
-
-| v1.x Command                     | v2.0 Command                                |
-| -------------------------------- | ------------------------------------------- |
-| `certz create --is-ca`           | `certz create ca --name "CA Name"`          |
-| `certz create --dns domain`      | `certz create dev domain`                   |
-| `certz install --file cert.pfx`  | `certz trust add cert.pfx`                  |
-| `certz remove --thumb ABC123`    | `certz trust remove ABC123`                 |
-| `certz list`                     | `certz store list`                          |
-| `certz info --file cert.pfx`     | `certz inspect cert.pfx`                    |
-| `certz info --url https://...`   | `certz inspect https://...`                 |
-| `certz verify --file cert.pfx`   | `certz inspect cert.pfx --chain --crl`      |
-| `certz export --url https://...` | `certz inspect https://... --save cert.cer` |
-
-The v1.x commands are still available for backwards compatibility but will be removed in a future release.

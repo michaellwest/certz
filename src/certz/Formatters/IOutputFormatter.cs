@@ -11,8 +11,6 @@ internal interface IOutputFormatter
     void WriteTrustAdded(TrustOperationResult result);
     void WriteTrustRemoved(TrustOperationResult result);
     void WriteConversionResult(ConversionResult result);
-    void WriteExportResult(ExportResult result);
-    void WriteVerificationResult(CertificateVerificationResult result);
     void WriteLintResult(LintResult result);
     void WriteMonitorResult(MonitorResult result, bool quietMode);
     void WriteRenewResult(RenewResult result);
