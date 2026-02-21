@@ -85,8 +85,8 @@
 ## Quick Build & Test Commands
 
 ```powershell
-# Build debug
-dotnet build
+# Build debug (outputs to debug\certz.exe)
+.\build-debug.ps1
 
 # Build release (single-file executable)
 .\build-release.ps1

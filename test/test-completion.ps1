@@ -6,7 +6,7 @@
 # Invocation format: certz '[suggest:N]' '<full command line>'
 
 param(
-    [string]$CertzExe = "$PSScriptRoot\..\src\certz\bin\Debug\net10.0\win-x64\certz.exe"
+    [string]$CertzExe = "$PSScriptRoot\..\debug\certz.exe"
 )
 
 # Fall back to release build if debug build is not present
@@ -15,7 +15,7 @@ if (-not (Test-Path $CertzExe)) {
 }
 
 if (-not (Test-Path $CertzExe)) {
-    Write-Error "certz.exe not found. Run .\build-release.ps1 or dotnet build first."
+    Write-Error "certz.exe not found. Run .\build-debug.ps1 or .\build-release.ps1 first."
     exit 1
 }
 
