@@ -84,52 +84,90 @@ internal static class CompletionCommand
 
     private static void InstallPowerShellCompletion(string exePath)
     {
-        // Ask PowerShell for the current user's profile path
-        var psi = new ProcessStartInfo("pwsh")
-        {
-            Arguments = "-NoProfile -Command \"$PROFILE\"",
-            RedirectStandardOutput = true,
-            UseShellExecute = false
-        };
+        const string marker = "Register-ArgumentCompleter -Native -CommandName @('certz'";
+        var script = BuildPowerShellScript(exePath);
+        var profiles = CollectPowerShellProfiles();
 
-        string profilePath;
+        Console.WriteLine("certz completion --install");
+        Console.WriteLine();
+
+        bool anyInstalled = false;
+        foreach (var profile in profiles)
+        {
+            var dir = Path.GetDirectoryName(profile);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            var existing = File.Exists(profile) ? File.ReadAllText(profile) : string.Empty;
+            if (existing.Contains(marker))
+            {
+                Console.WriteLine($"  [=] {profile}");
+                Console.WriteLine($"      (already installed -- skipped)");
+            }
+            else
+            {
+                File.AppendAllText(profile, Environment.NewLine + script);
+                Console.WriteLine($"  [+] {profile}");
+                Console.WriteLine($"      (installed)");
+                anyInstalled = true;
+            }
+        }
+
+        Console.WriteLine();
+        if (anyInstalled)
+            Console.WriteLine("Run `. $PROFILE` in each open PowerShell session to activate.");
+        else
+            Console.WriteLine("No changes made -- certz completion was already present in all profiles.");
+    }
+
+    private static List<string> CollectPowerShellProfiles()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var profiles = new List<string>();
+
+        // Query each shell for its $PROFILE path (handles custom profile locations)
+        foreach (var shell in new[] { "pwsh", "powershell" })
+        {
+            var path = QueryProfilePath(shell);
+            if (path is not null && seen.Add(path))
+                profiles.Add(path);
+        }
+
+        // Fall back to well-known locations when neither shell is on PATH
+        if (profiles.Count == 0)
+        {
+            var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            foreach (var subdir in new[] { "PowerShell", "WindowsPowerShell" })
+            {
+                var path = Path.Combine(docs, subdir, "Microsoft.PowerShell_profile.ps1");
+                if (seen.Add(path))
+                    profiles.Add(path);
+            }
+        }
+
+        return profiles;
+    }
+
+    private static string? QueryProfilePath(string shell)
+    {
         try
         {
-            using var proc = Process.Start(psi)
-                ?? throw new InvalidOperationException("Failed to start pwsh.");
-            profilePath = proc.StandardOutput.ReadToEnd().Trim();
+            var psi = new ProcessStartInfo(shell)
+            {
+                Arguments = "-NoProfile -Command \"$PROFILE\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            };
+            using var proc = Process.Start(psi);
+            if (proc is null) return null;
+            var path = proc.StandardOutput.ReadToEnd().Trim();
             proc.WaitForExit();
+            return string.IsNullOrWhiteSpace(path) ? null : path;
         }
         catch
         {
-            // Fall back to the well-known default when pwsh is not on PATH
-            profilePath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "PowerShell",
-                "Microsoft.PowerShell_profile.ps1");
+            return null;
         }
-
-        if (string.IsNullOrWhiteSpace(profilePath))
-            throw new InvalidOperationException("Could not determine PowerShell profile path.");
-
-        var dir = Path.GetDirectoryName(profilePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        var script = BuildPowerShellScript(exePath);
-
-        // Avoid duplicate registration if the user runs --install more than once
-        var existing = File.Exists(profilePath) ? File.ReadAllText(profilePath) : string.Empty;
-        if (existing.Contains("Register-ArgumentCompleter -Native -CommandName @('certz'"))
-        {
-            Console.WriteLine($"certz completion is already present in: {profilePath}");
-            Console.WriteLine("Run `. $PROFILE` in PowerShell to reload.");
-            return;
-        }
-
-        File.AppendAllText(profilePath, Environment.NewLine + script);
-        Console.WriteLine($"Appended certz completion to: {profilePath}");
-        Console.WriteLine("Run `. $PROFILE` in PowerShell to activate.");
     }
 
     private static string BuildPowerShellInstructions(string exePath) =>
