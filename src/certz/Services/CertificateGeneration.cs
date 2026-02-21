@@ -3,8 +3,15 @@ namespace certz.Services;
 internal static class CertificateGeneration
 {
     private const int RSAMinimumKeySizeInBits = 2048;
-    private const string ServerAuthenticationEnhancedKeyUsageOid = "1.3.6.1.5.5.7.3.1";
-    private const string ServerAuthenticationEnhancedKeyUsageOidFriendlyName = "Server Authentication";
+
+    private static readonly Dictionary<string, (string Oid, string FriendlyName)> EkuMap =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["serverAuth"]      = ("1.3.6.1.5.5.7.3.1", "Server Authentication"),
+            ["clientAuth"]      = ("1.3.6.1.5.5.7.3.2", "Client Authentication"),
+            ["codeSigning"]     = ("1.3.6.1.5.5.7.3.3", "Code Signing"),
+            ["emailProtection"] = ("1.3.6.1.5.5.7.3.4", "Email Protection"),
+        };
 
     internal static X509Certificate2 GenerateCertificate(
         string[] dnsNames,
@@ -23,7 +30,8 @@ internal static class CertificateGeneration
         string? subjectOU = null,
         string? subjectC = null,
         string? subjectST = null,
-        string? subjectL = null)
+        string? subjectL = null,
+        string[]? eku = null)
     {
         // Build full Distinguished Name
         var subjectBuilder = new System.Text.StringBuilder();
@@ -103,11 +111,14 @@ internal static class CertificateGeneration
         X509EnhancedKeyUsageExtension enhancedKeyUsage = null;
         if (!isCA)
         {
-            enhancedKeyUsage = new X509EnhancedKeyUsageExtension(
-                new OidCollection()
-                {
-                    new Oid(ServerAuthenticationEnhancedKeyUsageOid, ServerAuthenticationEnhancedKeyUsageOidFriendlyName)
-                }, critical: false);
+            var ekuNames = (eku != null && eku.Length > 0) ? eku : new[] { "serverAuth" };
+            var oids = new OidCollection();
+            foreach (var name in ekuNames)
+            {
+                if (EkuMap.TryGetValue(name, out var entry))
+                    oids.Add(new Oid(entry.Oid, entry.FriendlyName));
+            }
+            enhancedKeyUsage = new X509EnhancedKeyUsageExtension(oids, critical: false);
         }
 
         // Basic Constraints
@@ -319,7 +330,8 @@ internal static class CertificateGeneration
         string? subjectC = null,
         string? subjectST = null,
         string? subjectL = null,
-        X509Certificate2 issuerCertificate = null!)
+        X509Certificate2 issuerCertificate = null!,
+        string[]? eku = null)
     {
         // Build full Distinguished Name
         var subjectBuilder = new System.Text.StringBuilder();
@@ -413,11 +425,14 @@ internal static class CertificateGeneration
         X509EnhancedKeyUsageExtension? enhancedKeyUsage = null;
         if (!isCA)
         {
-            enhancedKeyUsage = new X509EnhancedKeyUsageExtension(
-                new OidCollection()
-                {
-                    new Oid(ServerAuthenticationEnhancedKeyUsageOid, ServerAuthenticationEnhancedKeyUsageOidFriendlyName)
-                }, critical: false);
+            var ekuNames = (eku != null && eku.Length > 0) ? eku : new[] { "serverAuth" };
+            var oids = new OidCollection();
+            foreach (var name in ekuNames)
+            {
+                if (EkuMap.TryGetValue(name, out var entry))
+                    oids.Add(new Oid(entry.Oid, entry.FriendlyName));
+            }
+            enhancedKeyUsage = new X509EnhancedKeyUsageExtension(oids, critical: false);
         }
 
         // Basic Constraints

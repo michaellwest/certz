@@ -54,4 +54,9 @@ internal record DevCertificateOptions
     /// Password for PFX pipe output.
     /// </summary>
     public string? PipePassword { get; init; }
+
+    /// <summary>
+    /// Extended Key Usage friendly names (e.g. serverAuth, clientAuth). Defaults to serverAuth.
+    /// </summary>
+    public string[] Eku { get; init; } = Array.Empty<string>();
 }

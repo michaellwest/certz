@@ -551,4 +551,29 @@ internal static class OptionBuilders
             DefaultValueFactory = _ => false
         };
     }
+
+    /// <summary>
+    /// Creates the --eku option for specifying Extended Key Usage values.
+    /// </summary>
+    internal static Option<string[]> CreateEkuOption()
+    {
+        var option = new Option<string[]>("--eku")
+        {
+            Description = "Extended Key Usage (can be repeated). Values: serverAuth, clientAuth, codeSigning, emailProtection. Default: serverAuth.",
+            AllowMultipleArgumentsPerToken = true
+        };
+        option.Validators.Add(result =>
+        {
+            var values = result.GetValueOrDefault<string[]>() ?? Array.Empty<string>();
+            var valid = new[] { "serverAuth", "clientAuth", "codeSigning", "emailProtection" };
+            foreach (var v in values)
+            {
+                if (!valid.Contains(v, StringComparer.OrdinalIgnoreCase))
+                {
+                    result.AddError($"Unknown EKU value '{v}'. Valid values: {string.Join(", ", valid)}");
+                }
+            }
+        });
+        return option;
+    }
 }
