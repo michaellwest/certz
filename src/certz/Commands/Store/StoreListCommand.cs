@@ -2,6 +2,7 @@ using certz.Formatters;
 using certz.Models;
 using certz.Options;
 using certz.Services;
+using System.CommandLine.Completions;
 
 namespace certz.Commands.Store;
 
@@ -33,12 +34,18 @@ internal static class StoreCommand
             Description = "Store name (My, Root, CA, TrustedPeople, TrustedPublisher)",
             DefaultValueFactory = _ => "My"
         };
+        storeOption.CompletionSources.Add(new[]
+        {
+            "My", "Root", "CA", "TrustedPeople", "TrustedPublisher",
+            "AuthRoot", "AddressBook", "Disallowed"
+        });
 
         var locationOption = new Option<string>("--location", "-l")
         {
             Description = "Store location (CurrentUser, LocalMachine)",
             DefaultValueFactory = _ => "CurrentUser"
         };
+        locationOption.CompletionSources.Add(new[] { "CurrentUser", "LocalMachine" });
         locationOption.Validators.Add(result =>
         {
             var location = result.GetValueOrDefault<string?>();

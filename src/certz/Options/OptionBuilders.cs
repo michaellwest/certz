@@ -1,4 +1,5 @@
 using certz.Services;
+using System.CommandLine.Completions;
 
 namespace certz.Options;
 
@@ -100,6 +101,8 @@ internal static class OptionBuilders
             }
         });
 
+        daysOption.CompletionSources.Add(new[] { "30", "90", "180", "365", "398" });
+
         return daysOption;
     }
 
@@ -110,6 +113,11 @@ internal static class OptionBuilders
             Description = "Specifies the store name.",
             DefaultValueFactory = _ => StoreName.My
         };
+        storeNameOption.CompletionSources.Add(new[]
+        {
+            "My", "Root", "CA", "TrustedPeople", "TrustedPublisher",
+            "AuthRoot", "AddressBook", "Disallowed"
+        });
         return storeNameOption;
     }
 
@@ -120,6 +128,7 @@ internal static class OptionBuilders
             Description = "Specifies the store location.",
             DefaultValueFactory = _ => StoreLocation.LocalMachine
         };
+        storeLocationOption.CompletionSources.Add(new[] { "LocalMachine", "CurrentUser" });
         return storeLocationOption;
     }
 
@@ -179,6 +188,21 @@ internal static class OptionBuilders
             }
         });
 
+        // Only suggest key sizes when --key-type RSA has been typed
+        keySizeOption.CompletionSources.Add((CompletionContext ctx) =>
+        {
+            var tokens = ctx.ParseResult.Tokens;
+            for (int i = 0; i < tokens.Count - 1; i++)
+            {
+                if ((tokens[i].Value == "--key-type" || tokens[i].Value == "--kt") &&
+                    tokens[i + 1].Value.Equals("RSA", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new[] { "2048", "3072", "4096" };
+                }
+            }
+            return Array.Empty<string>();
+        });
+
         return keySizeOption;
     }
 
@@ -200,10 +224,35 @@ internal static class OptionBuilders
             }
         });
 
+        hashAlgorithmOption.CompletionSources.Add(new[] { "auto", "SHA256", "SHA384", "SHA512" });
+
         return hashAlgorithmOption;
     }
 
     internal static readonly string[] validKeyTypes = ["RSA", "ECDSA-P256", "ECDSA-P384", "ECDSA-P521"];
+
+    private static readonly string[] validEkuValues =
+        ["serverAuth", "clientAuth", "codeSigning", "emailProtection"];
+
+    private static readonly string[] iso3166Alpha2 =
+    [
+        "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
+        "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS",
+        "BT", "BV", "BW", "BY", "BZ", "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN",
+        "CO", "CR", "CU", "CV", "CW", "CX", "CY", "CZ", "DE", "DJ", "DK", "DM", "DO", "DZ", "EC", "EE",
+        "EG", "EH", "ER", "ES", "ET", "FI", "FJ", "FK", "FM", "FO", "FR", "GA", "GB", "GD", "GE", "GF",
+        "GG", "GH", "GI", "GL", "GM", "GN", "GP", "GQ", "GR", "GS", "GT", "GU", "GW", "GY", "HK", "HM",
+        "HN", "HR", "HT", "HU", "ID", "IE", "IL", "IM", "IN", "IO", "IQ", "IR", "IS", "IT", "JE", "JM",
+        "JO", "JP", "KE", "KG", "KH", "KI", "KM", "KN", "KP", "KR", "KW", "KY", "KZ", "LA", "LB", "LC",
+        "LI", "LK", "LR", "LS", "LT", "LU", "LV", "LY", "MA", "MC", "MD", "ME", "MF", "MG", "MH", "MK",
+        "ML", "MM", "MN", "MO", "MP", "MQ", "MR", "MS", "MT", "MU", "MV", "MW", "MX", "MY", "MZ", "NA",
+        "NC", "NE", "NF", "NG", "NI", "NL", "NO", "NP", "NR", "NU", "NZ", "OM", "PA", "PE", "PF", "PG",
+        "PH", "PK", "PL", "PM", "PN", "PR", "PS", "PT", "PW", "PY", "QA", "RE", "RO", "RS", "RU", "RW",
+        "SA", "SB", "SC", "SD", "SE", "SG", "SH", "SI", "SJ", "SK", "SL", "SM", "SN", "SO", "SR", "SS",
+        "ST", "SV", "SX", "SY", "SZ", "TC", "TD", "TF", "TG", "TH", "TJ", "TK", "TL", "TM", "TN", "TO",
+        "TR", "TT", "TV", "TW", "TZ", "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VI",
+        "VN", "VU", "WF", "WS", "YE", "YT", "ZA", "ZM", "ZW"
+    ];
 
     internal static Option<string> CreateKeyTypeOption()
     {
@@ -222,6 +271,8 @@ internal static class OptionBuilders
                 result.AddError($"Key type must be one of: {string.Join(", ", validKeyTypes)}");
             }
         });
+
+        keyTypeOption.CompletionSources.Add(validKeyTypes);
 
         return keyTypeOption;
     }
@@ -242,6 +293,21 @@ internal static class OptionBuilders
             {
                 result.AddError("RSA padding must be 'pkcs1' or 'pss'.");
             }
+        });
+
+        // Only suggest padding modes when --key-type RSA has been typed
+        rsaPaddingOption.CompletionSources.Add((CompletionContext ctx) =>
+        {
+            var tokens = ctx.ParseResult.Tokens;
+            for (int i = 0; i < tokens.Count - 1; i++)
+            {
+                if ((tokens[i].Value == "--key-type" || tokens[i].Value == "--kt") &&
+                    tokens[i + 1].Value.Equals("RSA", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new[] { "pkcs1", "pss" };
+                }
+            }
+            return Array.Empty<string>();
         });
 
         return rsaPaddingOption;
@@ -334,6 +400,8 @@ internal static class OptionBuilders
             }
         });
 
+        subjectCOption.CompletionSources.Add(iso3166Alpha2);
+
         return subjectCOption;
     }
 
@@ -384,6 +452,8 @@ internal static class OptionBuilders
             }
         });
 
+        pfxEncryptionOption.CompletionSources.Add(new[] { "modern", "legacy" });
+
         return pfxEncryptionOption;
     }
 
@@ -415,6 +485,8 @@ internal static class OptionBuilders
             }
         });
 
+        formatOption.CompletionSources.Add(new[] { "text", "json" });
+
         return formatOption;
     }
 
@@ -437,6 +509,7 @@ internal static class OptionBuilders
                 ? StoreLocation.LocalMachine
                 : StoreLocation.CurrentUser
         };
+        trustLocationOption.CompletionSources.Add(new[] { "LocalMachine", "CurrentUser" });
         return trustLocationOption;
     }
 
@@ -526,6 +599,7 @@ internal static class OptionBuilders
                 result.AddError("--pipe-format must be one of: pem, pfx, cert, key");
             }
         });
+        option.CompletionSources.Add(new[] { "pem", "pfx", "cert", "key" });
         return option;
     }
 
@@ -574,6 +648,7 @@ internal static class OptionBuilders
                 }
             }
         });
+        option.CompletionSources.Add(validEkuValues);
         return option;
     }
 }

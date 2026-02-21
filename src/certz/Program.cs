@@ -9,8 +9,12 @@ using certz.Commands.Trust;
 using certz.Formatters;
 using certz.Options;
 using certz.Services;
+using System.CommandLine.Completions;
 
 var rootCommand = new RootCommand("Certz: A Simple Certificate Utility");
+
+// Register the [suggest] directive for shell tab completion
+rootCommand.Directives.Add(new SuggestDirective());
 
 // Add global --format option
 var formatOption = OptionBuilders.CreateFormatOption();
@@ -58,6 +62,7 @@ rootCommand.AddRenewCommand();
 rootCommand.AddStoreCommand();
 rootCommand.AddTrustCommand();
 rootCommand.AddExamplesCommand();
+rootCommand.AddCompletionCommand();
 
 try
 {
@@ -66,7 +71,27 @@ try
         EnableDefaultExceptionHandler = false
     };
 
-    return await rootCommand.Parse(args).InvokeAsync(configuration);
+    var parseResult = rootCommand.Parse(args);
+
+    // Typo correction: suggest the nearest known option name for unrecognized options
+    foreach (var token in parseResult.UnmatchedTokens)
+    {
+        if (!token.StartsWith("-"))
+            continue;
+
+        var suggestion = CollectOptionNames(rootCommand)
+            .Where(o => o != token)
+            .Select(o => (name: o, dist: LevenshteinDistance(token, o)))
+            .Where(x => x.dist is >= 1 and <= 3)
+            .OrderBy(x => x.dist)
+            .Select(x => x.name)
+            .FirstOrDefault();
+
+        if (suggestion is not null)
+            Console.Error.WriteLine($"  Did you mean '{suggestion}'?");
+    }
+
+    return await parseResult.InvokeAsync(configuration);
 }
 catch (LintFailedException)
 {
@@ -93,4 +118,29 @@ catch (Exception exception)
     Console.Error.WriteLine(message);
     Console.ForegroundColor = originalColor;
     return 1;
+}
+
+// Collect all option aliases recursively across the full command tree
+static IEnumerable<string> CollectOptionNames(Command cmd)
+{
+    foreach (var opt in cmd.Options)
+        foreach (var alias in opt.Aliases)
+            yield return alias;
+    foreach (var sub in cmd.Subcommands)
+        foreach (var name in CollectOptionNames(sub))
+            yield return name;
+}
+
+// Levenshtein edit distance for typo correction (used by "Did you mean?" suggestion)
+static int LevenshteinDistance(string a, string b)
+{
+    int[,] d = new int[a.Length + 1, b.Length + 1];
+    for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+    for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+    for (int i = 1; i <= a.Length; i++)
+        for (int j = 1; j <= b.Length; j++)
+            d[i, j] = Math.Min(
+                Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                d[i - 1, j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+    return d[a.Length, b.Length];
 }
