@@ -1,9 +1,19 @@
 using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace certz.Commands;
 
 internal static class CompletionCommand
 {
+    // Delimiters that wrap the certz block in the profile so --install can find and
+    // replace it on future runs (handles path changes, line-ending fixes, upgrades).
+    private const string BlockBegin = "# BEGIN certz completion";
+    private const string BlockEnd   = "# END certz completion";
+
+    // Marker present in old-format installations (no delimiters).
+    private const string OldMarker = "Register-ArgumentCompleter -Native -CommandName @('certz'";
+
     internal static void AddCompletionCommand(this RootCommand rootCommand)
     {
         var shellArgument = new Argument<string>("shell")
@@ -35,7 +45,7 @@ internal static class CompletionCommand
 
         completionCommand.SetAction((parseResult) =>
         {
-            var shell = parseResult.GetValue(shellArgument) ?? "powershell";
+            var shell   = parseResult.GetValue(shellArgument) ?? "powershell";
             var explain = parseResult.GetValue(explainOption);
             var install = parseResult.GetValue(installOption);
 
@@ -46,17 +56,11 @@ internal static class CompletionCommand
             {
                 case "powershell":
                     if (explain)
-                    {
                         Console.Write(BuildPowerShellInstructions(exePath));
-                    }
                     else if (install)
-                    {
                         InstallPowerShellCompletion(exePath);
-                    }
                     else
-                    {
                         Console.Write(BuildPowerShellScript(exePath));
-                    }
                     break;
                 default:
                     throw new ArgumentException(
@@ -67,11 +71,13 @@ internal static class CompletionCommand
         rootCommand.Add(completionCommand);
     }
 
+    // ---------------------------------------------------------------------------
+    // Script generation
+    // ---------------------------------------------------------------------------
+
     private static string BuildPowerShellScript(string exePath)
     {
-        // ReplaceLineEndings normalizes to LF regardless of source-file line endings,
-        // so the written script never introduces \r characters into the profile.
-        var script = $$"""
+        var inner = $$"""
         Set-Alias -Name certz -Value "{{exePath}}" -Scope Global -Option AllScope -Force
         Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {
             param($wordToComplete, $commandAst, $cursorPosition)
@@ -82,58 +88,113 @@ internal static class CompletionCommand
                         $_, $_, 'ParameterValue', $_)
                 }
         }
-
         """;
-        return script.ReplaceLineEndings("\n");
+
+        // Wrap with delimiters so --install can locate and replace the block.
+        // ReplaceLineEndings("\n") normalizes to LF regardless of source-file
+        // line endings, so \r never appears in what we write to the profile.
+        return $"{BlockBegin}\n{inner.ReplaceLineEndings("\n").TrimEnd()}\n{BlockEnd}\n";
     }
+
+    // ---------------------------------------------------------------------------
+    // --install: write (or update) both PS7 and PS5 profiles
+    // ---------------------------------------------------------------------------
 
     private static void InstallPowerShellCompletion(string exePath)
     {
-        const string marker = "Register-ArgumentCompleter -Native -CommandName @('certz'";
-        var script = BuildPowerShellScript(exePath);
+        var script   = BuildPowerShellScript(exePath);
         var profiles = CollectPowerShellProfiles();
 
         Console.WriteLine("certz completion --install");
         Console.WriteLine();
 
-        bool anyInstalled = false;
+        bool anyChanged = false;
         foreach (var profile in profiles)
         {
             var dir = Path.GetDirectoryName(profile);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
+            // Read with BOM detection so we handle files created by PowerShell 5's >>
             var existing = File.Exists(profile) ? File.ReadAllText(profile) : string.Empty;
-            if (existing.Contains(marker))
+
+            string updated;
+            string status;
+
+            if (existing.Contains(BlockBegin))
             {
-                Console.WriteLine($"  [=] {profile}");
-                Console.WriteLine($"      (already installed -- skipped)");
+                // New format: replace the delimited block in-place
+                updated = ReplaceDelimitedBlock(existing, script);
+                status  = updated == existing ? "already up to date" : "updated";
+            }
+            else if (existing.Contains(OldMarker))
+            {
+                // Old format (no delimiters): replace via regex
+                updated = ReplaceOldBlock(existing, script);
+                status  = updated != existing ? "updated from old format" : "old format -- could not replace";
             }
             else
             {
-                // Write with explicit UTF-8 without BOM and LF separator so we never
-                // introduce \r characters or a BOM into the profile file.
-                var separator = existing.Length > 0 ? "\n" : string.Empty;
-                File.AppendAllText(profile, separator + script, new System.Text.UTF8Encoding(false));
-                Console.WriteLine($"  [+] {profile}");
-                Console.WriteLine($"      (installed)");
-                anyInstalled = true;
+                // Fresh install: append with an LF separator
+                var sep = existing.Length > 0 ? "\n" : string.Empty;
+                updated = existing + sep + script;
+                status  = "installed";
             }
+
+            if (updated != existing)
+            {
+                // Always write UTF-8 without BOM to keep profiles clean
+                File.WriteAllText(profile, updated, new UTF8Encoding(false));
+                anyChanged = true;
+            }
+
+            var icon = status.StartsWith("already") ? "=" : status.StartsWith("old format --") ? "!" : status == "updated" || status == "updated from old format" ? "~" : "+";
+            Console.WriteLine($"  [{icon}] {profile}");
+            Console.WriteLine($"      ({status})");
         }
 
         Console.WriteLine();
-        if (anyInstalled)
-            Console.WriteLine("Run `. $PROFILE` in each open PowerShell session to activate.");
-        else
-            Console.WriteLine("No changes made -- certz completion was already present in all profiles.");
+        Console.WriteLine(anyChanged
+            ? "Run `. $PROFILE` in each open PowerShell session to activate."
+            : "No changes made -- all profiles are already up to date.");
     }
+
+    // Replace the delimited certz block with newBlock; preserves surrounding content.
+    private static string ReplaceDelimitedBlock(string content, string newBlock)
+    {
+        var beginIdx = content.IndexOf(BlockBegin, StringComparison.Ordinal);
+        var endIdx   = content.IndexOf(BlockEnd,   StringComparison.Ordinal);
+        if (beginIdx < 0 || endIdx < 0) return content;
+
+        endIdx += BlockEnd.Length;
+        // Consume the newline after the end marker
+        if (endIdx < content.Length && content[endIdx] == '\n') endIdx++;
+        else if (endIdx + 1 < content.Length && content[endIdx] == '\r' && content[endIdx + 1] == '\n') endIdx += 2;
+
+        return content[..beginIdx] + newBlock + content[endIdx..];
+    }
+
+    // Replace the old-format certz block (no delimiters) using a regex.
+    // Matches: optional Set-Alias certz line, then Register-ArgumentCompleter
+    // block through the top-level closing } at column 0.
+    private static string ReplaceOldBlock(string content, string newBlock)
+    {
+        // \n} matches a newline immediately followed by } at the start of a line.
+        // The lazy .*? stops at the first such occurrence (the outer closing brace).
+        const string pat = @"(?:Set-Alias\s+-Name\s+certz\b[^\n]*\n)?Register-ArgumentCompleter\s+-Native\s+-CommandName\s+@\('certz'[^\n]*\n(?:[^\n]*\n)*?\}\n*";
+        var m = Regex.Match(content, pat, RegexOptions.Singleline);
+        return m.Success ? content[..m.Index] + newBlock + content[(m.Index + m.Length)..] : content;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Profile discovery
+    // ---------------------------------------------------------------------------
 
     private static List<string> CollectPowerShellProfiles()
     {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen     = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var profiles = new List<string>();
 
-        // Query each shell for its $PROFILE path (handles custom profile locations)
         foreach (var shell in new[] { "pwsh", "powershell" })
         {
             var path = QueryProfilePath(shell);
@@ -162,9 +223,9 @@ internal static class CompletionCommand
         {
             var psi = new ProcessStartInfo(shell)
             {
-                Arguments = "-NoProfile -Command \"$PROFILE\"",
+                Arguments           = "-NoProfile -Command \"$PROFILE\"",
                 RedirectStandardOutput = true,
-                UseShellExecute = false
+                UseShellExecute     = false
             };
             using var proc = Process.Start(psi);
             if (proc is null) return null;
@@ -177,6 +238,10 @@ internal static class CompletionCommand
             return null;
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // --explain
+    // ---------------------------------------------------------------------------
 
     private static string BuildPowerShellInstructions(string exePath) =>
         $$"""
@@ -194,6 +259,9 @@ internal static class CompletionCommand
                certz create dev --key-type <TAB>
                certz create dev --eku <TAB>
                certz --format <TAB>
+
+        Running --install again is safe: it replaces an existing certz block
+        in-place (fixing line endings or path changes) rather than appending.
 
         The generated script includes a Set-Alias that maps 'certz' to the
         full path of this executable, so completion works even when certz is
