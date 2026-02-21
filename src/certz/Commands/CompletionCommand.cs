@@ -67,8 +67,11 @@ internal static class CompletionCommand
         rootCommand.Add(completionCommand);
     }
 
-    private static string BuildPowerShellScript(string exePath) =>
-        $$"""
+    private static string BuildPowerShellScript(string exePath)
+    {
+        // ReplaceLineEndings normalizes to LF regardless of source-file line endings,
+        // so the written script never introduces \r characters into the profile.
+        var script = $$"""
         Set-Alias -Name certz -Value "{{exePath}}" -Scope Global -Option AllScope -Force
         Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {
             param($wordToComplete, $commandAst, $cursorPosition)
@@ -81,6 +84,8 @@ internal static class CompletionCommand
         }
 
         """;
+        return script.ReplaceLineEndings("\n");
+    }
 
     private static void InstallPowerShellCompletion(string exePath)
     {
@@ -106,7 +111,10 @@ internal static class CompletionCommand
             }
             else
             {
-                File.AppendAllText(profile, Environment.NewLine + script);
+                // Write with explicit UTF-8 without BOM and LF separator so we never
+                // introduce \r characters or a BOM into the profile file.
+                var separator = existing.Length > 0 ? "\n" : string.Empty;
+                File.AppendAllText(profile, separator + script, new System.Text.UTF8Encoding(false));
                 Console.WriteLine($"  [+] {profile}");
                 Console.WriteLine($"      (installed)");
                 anyInstalled = true;
