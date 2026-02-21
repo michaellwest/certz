@@ -81,7 +81,7 @@ internal static class CompletionCommand
         Set-Alias -Name certz -Value "{{exePath}}" -Scope Global -Option AllScope -Force
         Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {
             param($wordToComplete, $commandAst, $cursorPosition)
-            & certz '[suggest]' --position $cursorPosition "$commandAst" 2>$null |
+            & certz "[suggest:$cursorPosition]" "$commandAst" 2>$null |
                 Where-Object { $_ } |
                 ForEach-Object {
                     [System.Management.Automation.CompletionResult]::new(

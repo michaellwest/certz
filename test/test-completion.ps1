@@ -120,7 +120,7 @@ if (($r -join "`n") -match '--install') {
 }
 
 $script:r = & $CertzExe completion powershell 2>$null
-Assert-Contains "completion script mentions certz suggest" $r "    & certz '[suggest]' --position `$cursorPosition ""`$commandAst"" 2>`$null |"
+Assert-Contains "completion script mentions certz suggest" $r '    & certz "[suggest:$cursorPosition]" "$commandAst" 2>$null |'
 
 Write-Host "`n=== --key-type completions ===" -ForegroundColor Cyan
 
