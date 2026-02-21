@@ -75,7 +75,7 @@ function Suggest {
 Write-Host "`n=== certz completion command ===" -ForegroundColor Cyan
 
 $script:r = & $CertzExe completion powershell 2>$null
-Assert-Contains "completion powershell" $r "Register-ArgumentCompleter -Native -CommandName certz -ScriptBlock {"
+Assert-Contains "completion powershell" $r "Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {"
 
 $script:r = & $CertzExe completion powershell --explain 2>$null
 # Use -match because $PROFILE appears mid-line (not a standalone element)

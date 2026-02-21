@@ -46,7 +46,7 @@ internal static class CompletionCommand
 
     private const string PowerShellScript =
         """
-        Register-ArgumentCompleter -Native -CommandName certz -ScriptBlock {
+        Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {
             param($wordToComplete, $commandAst, $cursorPosition)
             & certz '[suggest]' --position $cursorPosition "$commandAst" 2>$null |
                 Where-Object { $_ } |
