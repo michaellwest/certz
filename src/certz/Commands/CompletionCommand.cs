@@ -73,5 +73,10 @@ internal static class CompletionCommand
                certz create dev --eku <TAB>
                certz --format <TAB>
 
+        Note: completion is registered for the command names 'certz' and 'certz.exe'.
+        If you invoke the binary with a path prefix (e.g. .\certz.exe or C:\tools\certz.exe)
+        add an alias to your profile so completion fires:
+               Set-Alias certz C:\full\path\to\certz.exe
+
         """;
 }

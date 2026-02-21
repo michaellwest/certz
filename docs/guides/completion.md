@@ -140,13 +140,21 @@ This is in addition to System.CommandLine's own built-in error messages.
 
 **Tab shows nothing after sourcing the profile**
 
-Make sure certz is on your `$PATH` or use the full path in the registered completer:
+Completion is registered for the command names `certz` and `certz.exe`. If you invoke
+certz with a path prefix (e.g. `.\certz.exe` or `C:\tools\certz.exe`), PowerShell treats
+that as a different command name and the completer will not fire.
+
+The fix is to add an alias to your profile that maps the short name to the full path:
 
 ```powershell
-# Check if certz is found
-Get-Command certz
+Set-Alias certz C:\full\path\to\certz.exe
+```
 
-# If not found, add its directory to PATH
+After that, type `certz <TAB>` (without the `.\` prefix) and completion will work.
+
+Alternatively, add certz's directory to `$PATH` so you can invoke it without a prefix:
+
+```powershell
 $env:PATH += ";C:\path\to\certz"
 ```
 
