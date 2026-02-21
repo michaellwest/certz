@@ -24,9 +24,9 @@ Typical flow: create a CA once, then sign any number of dev certificates with it
 
 ```mermaid
 graph LR
-    CA["certz create ca\n--name Dev CA"] -->|signs| DEV["certz create dev\napi.local --issuer-cert ca.pfx"]
-    DEV --> Browser["Browser trusts api.local\n(because Dev CA is in trust store)"]
-    CA -->|trust add| Store["Windows / macOS\ntrust store"]
+    CA["certz create ca<br/>--name Dev CA"] -->|signs| DEV["certz create dev<br/>api.local --issuer-cert ca.pfx"]
+    DEV --> Browser["Browser trusts api.local<br/>(because Dev CA is in trust store)"]
+    CA -->|trust add| Store["Windows / macOS<br/>trust store"]
     Store --> Browser
 ```
 
@@ -227,10 +227,10 @@ Example output:
 
 ```mermaid
 graph TB
-    Root["Root CA\n(path-length = 1)"] --> Int["Intermediate CA\n(path-length = 0)"]
+    Root["Root CA<br/>(path-length = 1)"] --> Int["Intermediate CA<br/>(path-length = 0)"]
     Int --> Leaf1["leaf: api.local"]
     Int --> Leaf2["leaf: app.local"]
-    Root -. "cannot sign\nleaf directly\nwithout intermediate" .-> Leaf1
+    Root -. "cannot sign leaf directly" .-> Leaf1
 ```
 
 | `--path-length` | Meaning |
