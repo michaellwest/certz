@@ -67,6 +67,7 @@ When you run `certz create dev app.local` without extra flags:
 |--------|---------|-------------|
 | `<domain>` | (required) | Common Name and primary SAN. |
 | `--san <name>` | (none) | Additional Subject Alternative Names. Repeatable. certz auto-detects IP vs DNS. See [SANs](../concepts/subject-alternative-names.md). |
+| `--eku <value>` | `serverAuth` | Extended Key Usage. Repeatable. Values: `serverAuth`, `clientAuth`, `codeSigning`, `emailProtection`. See [EKU](../concepts/enhanced-key-usage.md). |
 | `--days <n>` | `90` | Validity in days. Maximum 398 (CA/B Forum limit for leaf certs). |
 | `--key-type` | `ECDSA-P256` | Key algorithm: `ECDSA-P256`, `ECDSA-P384`, `ECDSA-P521`, `RSA`. See [RSA vs ECDSA](../concepts/rsa-vs-ecdsa.md). |
 | `--key-size` | `3072` | RSA key size in bits: `2048`, `3072`, `4096`. Only applies when `--key-type RSA`. |

@@ -57,6 +57,7 @@ $TestCategories = @{
     "pem-output" = @("pem-1.1", "pem-1.2", "pem-1.3", "pem-1.4")
     "trust" = @("tru-1.1", "tru-1.2")
     "guided" = @("gui-1.1")  # Interactive tests (manual only)
+    "eku" = @("eku-1.1", "eku-1.2", "eku-1.3", "eku-1.4")
 }
 
 # Initialize test environment
@@ -220,6 +221,110 @@ Invoke-Test -TestId "dev-1.5" -TestName "Create dev cert with custom validity" -
     $cert.Dispose()
 
     [PSCustomObject]@{ Success = $true; Details = "Dev cert created with 30-day validity" }
+}
+
+# ============================================================================
+# EKU (EXTENDED KEY USAGE) TESTS
+# ============================================================================
+Write-TestHeader "Testing --eku Option"
+
+# EKU OID constants (X.509)
+$OidServerAuth = "1.3.6.1.5.5.7.3.1"
+$OidClientAuth = "1.3.6.1.5.5.7.3.2"
+$OidEkuExtension = "2.5.29.37"
+
+# Test eku-1.1: Default EKU is Server Authentication only
+Invoke-Test -TestId "eku-1.1" -TestName "Default EKU contains Server Authentication" -FilePrefix "eku-default" -TestScript {
+    # ACTION: Single certz.exe call (no --eku flag)
+    $output = & .\certz.exe create dev eku-default.local --f eku-default.pfx --p TestPass123 2>&1
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: File exists
+    Assert-FileExists "eku-default.pfx"
+
+    # ASSERTION 3: EKU contains serverAuth OID only
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "eku-default.pfx").Path, "TestPass123")
+    $ekuExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq $OidEkuExtension }
+    if (-not $ekuExt) { throw "Certificate should have Enhanced Key Usage extension" }
+    $eku = $ekuExt -as [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]
+    $oids = @($eku.EnhancedKeyUsages | ForEach-Object { $_.Value })
+    if ($oids -notcontains $OidServerAuth) { throw "EKU should contain serverAuth ($OidServerAuth)" }
+    if ($oids -contains $OidClientAuth)  { throw "EKU should NOT contain clientAuth by default" }
+    $cert.Dispose()
+
+    [PSCustomObject]@{ Success = $true; Details = "Default EKU is Server Authentication only" }
+}
+
+# Test eku-1.2: --eku clientAuth adds Client Authentication OID
+Invoke-Test -TestId "eku-1.2" -TestName "--eku clientAuth adds Client Authentication EKU" -FilePrefix "eku-client" -TestScript {
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe create dev eku-client.local --eku clientAuth --f eku-client.pfx --p TestPass123 2>&1
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: File exists
+    Assert-FileExists "eku-client.pfx"
+
+    # ASSERTION 3: EKU contains clientAuth OID
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "eku-client.pfx").Path, "TestPass123")
+    $ekuExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq $OidEkuExtension }
+    if (-not $ekuExt) { throw "Certificate should have Enhanced Key Usage extension" }
+    $eku = $ekuExt -as [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]
+    $oids = @($eku.EnhancedKeyUsages | ForEach-Object { $_.Value })
+    if ($oids -notcontains $OidClientAuth) { throw "EKU should contain clientAuth ($OidClientAuth)" }
+    $cert.Dispose()
+
+    [PSCustomObject]@{ Success = $true; Details = "Client Authentication EKU present" }
+}
+
+# Test eku-1.3: --eku serverAuth --eku clientAuth produces dual-purpose cert
+Invoke-Test -TestId "eku-1.3" -TestName "--eku serverAuth --eku clientAuth produces dual-purpose cert" -FilePrefix "eku-dual" -TestScript {
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe create dev eku-dual.local --eku serverAuth --eku clientAuth --f eku-dual.pfx --p TestPass123 2>&1
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: File exists
+    Assert-FileExists "eku-dual.pfx"
+
+    # ASSERTION 3: EKU contains both serverAuth and clientAuth OIDs
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "eku-dual.pfx").Path, "TestPass123")
+    $ekuExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq $OidEkuExtension }
+    if (-not $ekuExt) { throw "Certificate should have Enhanced Key Usage extension" }
+    $eku = $ekuExt -as [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]
+    $oids = @($eku.EnhancedKeyUsages | ForEach-Object { $_.Value })
+    if ($oids -notcontains $OidServerAuth) { throw "EKU should contain serverAuth ($OidServerAuth)" }
+    if ($oids -notcontains $OidClientAuth)  { throw "EKU should contain clientAuth ($OidClientAuth)" }
+    if ($oids.Count -ne 2) { throw "EKU should have exactly 2 OIDs, got: $($oids.Count)" }
+    $cert.Dispose()
+
+    [PSCustomObject]@{ Success = $true; Details = "Dual-purpose EKU: serverAuth + clientAuth" }
+}
+
+# Test eku-1.4: Unknown --eku value produces exit code 1
+Invoke-Test -TestId "eku-1.4" -TestName "Unknown --eku value is rejected" -FilePrefix "eku-invalid" -TestScript {
+    # ACTION: Single certz.exe call with an invalid EKU name
+    $output = & .\certz.exe create dev eku-invalid.local --eku badValue --ephemeral 2>&1
+    $outputStr = $output -join "`n"
+
+    # ASSERTION 1: Exit code should be non-zero (validation error)
+    if ($LASTEXITCODE -eq 0) {
+        throw "Expected non-zero exit code for unknown --eku value, got 0"
+    }
+
+    # ASSERTION 2: Error message mentions the invalid value
+    if ($outputStr -notmatch "badValue") {
+        throw "Error output should mention the invalid value 'badValue'"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "Invalid EKU value rejected with exit code $LASTEXITCODE" }
 }
 
 # ============================================================================

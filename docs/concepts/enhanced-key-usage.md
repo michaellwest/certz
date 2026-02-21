@@ -55,11 +55,33 @@ These errors all mean the certificate's EKU does not match what the client expec
 
 ## EKU and certz
 
-Currently, certz sets EKU automatically based on the certificate type:
-- `create dev` always sets Server Authentication
-- `create ca` does not set leaf EKU
+certz sets EKU based on the certificate type and any `--eku` flags you provide:
 
-EKU is not user-configurable in the current release. Client Authentication (mTLS) support is tracked in [GitHub issue #4](https://github.com/michaellwest/certz/issues/4), which will add a `--purpose client-auth` flag that sets the Client Authentication OID instead of or in addition to Server Authentication.
+- `create dev` defaults to Server Authentication. Use `--eku` to change or extend this.
+- `create ca` does not set leaf EKU extensions. CA certificates use `keyCertSign` and `cRLSign` Key Usage flags instead.
+
+### Controlling EKU with --eku
+
+The `--eku` option on `certz create dev` accepts friendly names and can be repeated:
+
+```bash
+# Client authentication only (mTLS, VPN)
+certz create dev client.local --eku clientAuth --file client.pfx
+
+# Dual-purpose: HTTPS server and mTLS client in one cert
+certz create dev mtls.local --eku serverAuth --eku clientAuth --file mtls.pfx
+```
+
+Accepted values:
+
+| Value | OID | Use case |
+|-------|-----|---------|
+| `serverAuth` | 1.3.6.1.5.5.7.3.1 | TLS server (default) |
+| `clientAuth` | 1.3.6.1.5.5.7.3.2 | mTLS client, VPN |
+| `codeSigning` | 1.3.6.1.5.5.7.3.3 | Signing executables or scripts |
+| `emailProtection` | 1.3.6.1.5.5.7.3.4 | S/MIME email |
+
+When `--eku` is omitted, `serverAuth` is used automatically, preserving the existing default behaviour.
 
 For cross-referencing certificate purpose against the full inspect output, see [inspect.md](../reference/inspect.md).
 
