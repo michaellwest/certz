@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace certz.Commands;
 
 internal static class CompletionCommand
@@ -17,23 +19,44 @@ internal static class CompletionCommand
             Description = "Show installation instructions instead of the completion script."
         };
 
+        var installOption = new Option<bool>("--install")
+        {
+            Description = "Write the completion script directly to your shell profile (skips stdout)."
+        };
+
         var completionCommand = new Command(
             "completion",
             "Output a shell completion script. Pipe to your profile to activate.")
         {
             shellArgument,
-            explainOption
+            explainOption,
+            installOption
         };
 
         completionCommand.SetAction((parseResult) =>
         {
             var shell = parseResult.GetValue(shellArgument) ?? "powershell";
             var explain = parseResult.GetValue(explainOption);
+            var install = parseResult.GetValue(installOption);
+
+            var exePath = Process.GetCurrentProcess().MainModule?.FileName
+                ?? Environment.GetCommandLineArgs()[0];
 
             switch (shell.ToLowerInvariant())
             {
                 case "powershell":
-                    Console.Write(explain ? PowerShellInstructions : PowerShellScript);
+                    if (explain)
+                    {
+                        Console.Write(BuildPowerShellInstructions(exePath));
+                    }
+                    else if (install)
+                    {
+                        InstallPowerShellCompletion(exePath);
+                    }
+                    else
+                    {
+                        Console.Write(BuildPowerShellScript(exePath));
+                    }
                     break;
                 default:
                     throw new ArgumentException(
@@ -44,8 +67,9 @@ internal static class CompletionCommand
         rootCommand.Add(completionCommand);
     }
 
-    private const string PowerShellScript =
-        """
+    private static string BuildPowerShellScript(string exePath) =>
+        $$"""
+        Set-Alias -Name certz -Value "{{exePath}}" -Scope Global -Option AllScope -Force
         Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {
             param($wordToComplete, $commandAst, $cursorPosition)
             & certz '[suggest]' --position $cursorPosition "$commandAst" 2>$null |
@@ -58,25 +82,76 @@ internal static class CompletionCommand
 
         """;
 
-    private const string PowerShellInstructions =
-        """
+    private static void InstallPowerShellCompletion(string exePath)
+    {
+        // Ask PowerShell for the current user's profile path
+        var psi = new ProcessStartInfo("pwsh")
+        {
+            Arguments = "-NoProfile -Command \"$PROFILE\"",
+            RedirectStandardOutput = true,
+            UseShellExecute = false
+        };
+
+        string profilePath;
+        try
+        {
+            using var proc = Process.Start(psi)
+                ?? throw new InvalidOperationException("Failed to start pwsh.");
+            profilePath = proc.StandardOutput.ReadToEnd().Trim();
+            proc.WaitForExit();
+        }
+        catch
+        {
+            // Fall back to the well-known default when pwsh is not on PATH
+            profilePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "PowerShell",
+                "Microsoft.PowerShell_profile.ps1");
+        }
+
+        if (string.IsNullOrWhiteSpace(profilePath))
+            throw new InvalidOperationException("Could not determine PowerShell profile path.");
+
+        var dir = Path.GetDirectoryName(profilePath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        var script = BuildPowerShellScript(exePath);
+
+        // Avoid duplicate registration if the user runs --install more than once
+        var existing = File.Exists(profilePath) ? File.ReadAllText(profilePath) : string.Empty;
+        if (existing.Contains("Register-ArgumentCompleter -Native -CommandName @('certz'"))
+        {
+            Console.WriteLine($"certz completion is already present in: {profilePath}");
+            Console.WriteLine("Run `. $PROFILE` in PowerShell to reload.");
+            return;
+        }
+
+        File.AppendAllText(profilePath, Environment.NewLine + script);
+        Console.WriteLine($"Appended certz completion to: {profilePath}");
+        Console.WriteLine("Run `. $PROFILE` in PowerShell to activate.");
+    }
+
+    private static string BuildPowerShellInstructions(string exePath) =>
+        $$"""
         To activate certz tab completion in PowerShell:
 
-          1. Append the completion script to your PowerShell profile:
-               certz completion powershell >> $PROFILE
-
-          2. Reload your profile:
+          Option A -- auto-install (recommended):
+               {{exePath}} completion powershell --install
                . $PROFILE
 
-          3. Test it:
+          Option B -- manual:
+               {{exePath}} completion powershell >> $PROFILE
+               . $PROFILE
+
+          Test it:
                certz create dev --key-type <TAB>
                certz create dev --eku <TAB>
                certz --format <TAB>
 
-        Note: completion is registered for the command names 'certz' and 'certz.exe'.
-        If you invoke the binary with a path prefix (e.g. .\certz.exe or C:\tools\certz.exe)
-        add an alias to your profile so completion fires:
-               Set-Alias certz C:\full\path\to\certz.exe
+        The generated script includes a Set-Alias that maps 'certz' to the
+        full path of this executable, so completion works even when certz is
+        not on your PATH.
 
         """;
 }

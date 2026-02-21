@@ -75,7 +75,23 @@ function Suggest {
 Write-Host "`n=== certz completion command ===" -ForegroundColor Cyan
 
 $script:r = & $CertzExe completion powershell 2>$null
-Assert-Contains "completion powershell" $r "Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {"
+$script:joined = $r -join "`n"
+# Script must contain the Set-Alias line (path is machine-specific, so use -match)
+if ($script:joined -match 'Set-Alias') {
+    Write-Host "  PASS: completion powershell contains Set-Alias" -ForegroundColor Green
+    $script:pass++
+} else {
+    Write-Host "  FAIL: completion powershell missing Set-Alias (got: $script:joined)" -ForegroundColor Red
+    $script:fail++
+}
+# Script must contain the Register-ArgumentCompleter line
+if ($script:joined -match [regex]::Escape("Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {")) {
+    Write-Host "  PASS: completion powershell contains Register-ArgumentCompleter" -ForegroundColor Green
+    $script:pass++
+} else {
+    Write-Host "  FAIL: completion powershell missing Register-ArgumentCompleter" -ForegroundColor Red
+    $script:fail++
+}
 
 $script:r = & $CertzExe completion powershell --explain 2>$null
 # Use -match because $PROFILE appears mid-line (not a standalone element)
@@ -86,7 +102,22 @@ if (($r -join "`n") -match 'PROFILE') {
     Write-Host "  FAIL: completion --explain missing PROFILE (got: $($r -join ', '))" -ForegroundColor Red
     $script:fail++
 }
-Assert-NotContains "completion --explain has no script" $r "Register-ArgumentCompleter -Native -CommandName certz -ScriptBlock {"
+# --explain must not emit the script itself
+if (($r -join "`n") -notmatch [regex]::Escape("Register-ArgumentCompleter -Native -CommandName @('certz', 'certz.exe') -ScriptBlock {")) {
+    Write-Host "  PASS: completion --explain has no script" -ForegroundColor Green
+    $script:pass++
+} else {
+    Write-Host "  FAIL: completion --explain should not contain the script" -ForegroundColor Red
+    $script:fail++
+}
+# --explain must mention --install
+if (($r -join "`n") -match '--install') {
+    Write-Host "  PASS: completion --explain mentions --install" -ForegroundColor Green
+    $script:pass++
+} else {
+    Write-Host "  FAIL: completion --explain missing --install" -ForegroundColor Red
+    $script:fail++
+}
 
 $script:r = & $CertzExe completion powershell 2>$null
 Assert-Contains "completion script mentions certz suggest" $r "    & certz '[suggest]' --position `$cursorPosition ""`$commandAst"" 2>`$null |"
