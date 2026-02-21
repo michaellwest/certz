@@ -4,7 +4,27 @@ A standards-compliant certificate utility for creating, inspecting, linting, con
 
 ## Install
 
-Download the latest single-file executable from the [Releases](https://github.com/michaellwest/certz/releases) page. No .NET runtime required — copy `certz.exe` anywhere and run it.
+Download the latest single-file executable from the [Releases](https://github.com/michaellwest/certz/releases) page. No .NET runtime required -- copy `certz.exe` anywhere and run it.
+
+## Shell Completion
+
+Enable tab completion for option names and values in PowerShell:
+
+```powershell
+certz completion powershell >> $PROFILE
+. $PROFILE
+```
+
+After reloading your profile, press Tab after any certz option to cycle through valid values:
+
+```powershell
+certz create dev --key-type <TAB>   # ECDSA-P256  ECDSA-P384  ECDSA-P521  RSA
+certz create dev --eku <TAB>        # serverAuth  clientAuth  codeSigning  emailProtection
+certz --format <TAB>                # json  text
+certz store list --store <TAB>      # My  Root  CA  TrustedPeople  ...
+```
+
+See [docs/guides/completion.md](docs/guides/completion.md) for full details including context-aware completions and troubleshooting.
 
 ## Quick Start
 
