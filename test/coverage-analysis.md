@@ -7,28 +7,27 @@
 
 ## Current Test Files
 
-| Test File            | Commands Tested                            | Test Count | Status       |
-| -------------------- | ------------------------------------------ | ---------- | ------------ |
-| `test-create.ps1`    | `create dev`, `create ca`                  | 18 tests   | ✅ Modern v2 |
-| `test-inspect.ps1`   | `inspect` (file, URL, store, chain, save)  | 17 tests   | ✅ Modern v2 |
-| `test-trust.ps1`     | `trust add`, `trust remove`, `store list`  | 15 tests   | ✅ Modern v2 |
-| `test-convert.ps1`   | `convert` (PEM, DER, PFX conversions)      | 23 tests   | ✅ Modern v2 |
-| `test-lint.ps1`      | `lint` (CA/B Forum, Mozilla NSS)           | 10 tests   | ✅ Modern v2 |
-| `test-monitor.ps1`   | `monitor` (expiration tracking)            | 16 tests   | ✅ Modern v2 |
-| `test-renew.ps1`     | `renew` (certificate renewal)              | 11 tests   | ✅ Modern v2 |
-| `test-ephemeral.ps1` | `--ephemeral`, `--pipe` modes              | 14 tests   | ✅ Modern v2 |
-| `test-examples.ps1`  | `examples` (usage examples display)        | 9 tests    | ✅ Modern v2 |
-| `test-export.ps1`    | `export` (from store, from URL)            | 9 tests    | ✅ Modern v2 |
-| `test-verify.ps1`    | `verify` (file, store validation)          | 7 tests    | ✅ Modern v2 |
-| `test-install.ps1`   | `install` (store install, exportable flag) | 6 tests    | ✅ Modern v2 |
+| Test File             | Commands Tested                            | Test Count |
+| --------------------- | ------------------------------------------ | ---------- |
+| `test-create.ps1`     | `create dev`, `create ca`                  | 18 tests   |
+| `test-inspect.ps1`    | `inspect` (file, URL, store, chain, save)  | 17 tests   |
+| `test-trust.ps1`      | `trust add`, `trust remove`, `store list`  | 15 tests   |
+| `test-convert.ps1`    | `convert` (PEM, DER, PFX conversions)      | 23 tests   |
+| `test-lint.ps1`       | `lint` (CA/B Forum, Mozilla NSS)           | 10 tests   |
+| `test-monitor.ps1`    | `monitor` (expiration tracking)            | 16 tests   |
+| `test-renew.ps1`      | `renew` (certificate renewal)              | 11 tests   |
+| `test-ephemeral.ps1`  | `--ephemeral`, `--pipe` modes              | 14 tests   |
+| `test-examples.ps1`   | `examples` (usage examples display)        | 9 tests    |
+| `test-export.ps1`     | `export` (from store, from URL)            | 9 tests    |
+| `test-verify.ps1`     | `verify` (file, store validation)          | 7 tests    |
+| `test-install.ps1`    | `install` (store install, exportable flag) | 6 tests    |
+| `test-completion.ps1` | `completion` (option-value completion)     | 50 tests   |
 
-**Total: 155 tests across 12 test files**
+**Total: 205 tests across 13 test files**
 
 ---
 
 ## Command Coverage Analysis
-
-### V2 Commands (Hierarchical Structure)
 
 | Command                  | Test File          | Coverage Status                              |
 | ------------------------ | ------------------ | -------------------------------------------- |
@@ -55,14 +54,6 @@
 | `export`                 | test-export.ps1    | ✅ Covered (9 tests: exp-1.1–4.1)            |
 | `verify`                 | test-verify.ps1    | ✅ Covered (7 tests: ver-1.1–4.1)            |
 | `install`                | test-install.ps1   | ✅ Covered (6 tests: ist-1.1–3.2)            |
-
-### Legacy Commands
-
-| Command           | Source File      | Notes                                 |
-| ----------------- | ---------------- | ------------------------------------- |
-| `remove` (legacy) | RemoveCommand.cs | Superseded by `trust remove` (tested) |
-| `list` (legacy)   | ListCommand.cs   | Superseded by `store list` (tested)   |
-| `info` (legacy)   | InfoCommand.cs   | Superseded by `inspect` (tested)      |
 
 ---
 
@@ -92,6 +83,18 @@
 | ------------------------------ | -------- | ----------- |
 | `store list --expired` filter  | Low      | Not covered |
 | `store list --expiring` filter | Low      | Not covered |
+
+### test-completion.ps1 Gaps
+
+| Gap | Priority | Status |
+| --- | -------- | ------ |
+| Subcommand completion: `certz <TAB>` returns `create inspect lint ...` | Low | Not covered |
+| Subcommand completion: `certz create <TAB>` returns `dev ca` | Low | Not covered |
+| Subcommand completion: `certz store <TAB>` returns `list` | Low | Not covered |
+| Subcommand completion: `certz trust <TAB>` returns `add remove` | Low | Not covered |
+
+Note: subcommand completion is provided automatically by System.CommandLine's `SuggestDirective`
+and has been manually verified to work. Tests are omitted for now and can be added later.
 
 ### test-monitor.ps1 Gaps
 
@@ -213,10 +216,11 @@ exit $exitCode
 
 ## Summary
 
-| Status     | Count    | Description                            |
-| ---------- | -------- | -------------------------------------- |
-| ✅ Covered | 12 files | All commands have dedicated test files |
-| ⚠️ Gaps    | ~8       | Medium and low priority (see above)    |
-| ⏳ Future  | 1        | `test-crossplatform.ps1` (Phase 10)    |
+| Status     | Count    | Description                                           |
+| ---------- | -------- | ----------------------------------------------------- |
+| ✅ Covered | 13 files | All commands have dedicated test files                |
+| ⚠️ Gaps    | ~12      | Medium and low priority (see above)                   |
+| ⏳ Future  | 1        | `test-crossplatform.ps1` (Phase 10)                   |
+| ⏳ Future  | 4        | Subcommand completion tests in `test-completion.ps1`  |
 
-**Total tests: 155 across 12 files**
+**Total tests: 205 across 13 files**
