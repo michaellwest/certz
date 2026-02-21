@@ -56,7 +56,8 @@ internal static class CreateService
                 options.SubjectL,
                 options.IssuerCert,
                 options.IssuerKey,
-                options.IssuerPassword);
+                options.IssuerPassword,
+                options.Eku);
         }
         else
         {
@@ -77,7 +78,8 @@ internal static class CreateService
                 options.SubjectOU,
                 options.SubjectC,
                 options.SubjectST,
-                options.SubjectL);
+                options.SubjectL,
+                eku: options.Eku);
         }
 
         // Handle pipe mode - stream to stdout and return
@@ -398,7 +400,8 @@ internal static class CreateService
         string? subjectL,
         FileInfo issuerCertFile,
         FileInfo? issuerKeyFile,
-        string? issuerPassword)
+        string? issuerPassword,
+        string[]? eku = null)
     {
         // Load issuer certificate
         X509Certificate2 issuerCert;
@@ -453,6 +456,7 @@ internal static class CreateService
             subjectC,
             subjectST,
             subjectL,
-            issuerCert);
+            issuerCert,
+            eku: eku);
     }
 }

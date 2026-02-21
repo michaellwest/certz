@@ -44,6 +44,9 @@ internal static class CreateDevCommand
         var passwordFileOption = OptionBuilders.CreatePasswordFileOption();
         var formatOption = OptionBuilders.CreateFormatOption();
 
+        // EKU option
+        var ekuOption = OptionBuilders.CreateEkuOption();
+
         // Ephemeral and pipe options
         var ephemeralOption = OptionBuilders.CreateEphemeralOption();
         var pipeOption = OptionBuilders.CreatePipeOption();
@@ -75,7 +78,8 @@ internal static class CreateDevCommand
             ephemeralOption,
             pipeOption,
             pipeFormatOption,
-            pipePasswordOption
+            pipePasswordOption,
+            ekuOption
         };
 
         command.SetAction(async (parseResult) =>
@@ -176,7 +180,8 @@ internal static class CreateDevCommand
                     Ephemeral = ephemeral,
                     Pipe = pipe,
                     PipeFormat = pipeFormat,
-                    PipePassword = pipePassword
+                    PipePassword = pipePassword,
+                    Eku = parseResult.GetValue(ekuOption) ?? Array.Empty<string>()
                 };
             }
 
