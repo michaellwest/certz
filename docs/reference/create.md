@@ -1,170 +1,310 @@
-# certz create — Reference
+# certz create -- Reference
 
-Create X.509 certificates for local development or as a Certificate Authority. Defaults to ECDSA P-256 keys and 90-day validity.
+Create X.509 certificates for local development or as a Certificate Authority.
 
-**See also:** [RSA vs ECDSA](../concepts/rsa-vs-ecdsa.md) · [Subject Alternative Names](../concepts/subject-alternative-names.md) · [Certificate Lifecycle](../concepts/certificate-lifecycle.md) · [Certificate Chain](../concepts/certificate-chain.md)
+**See also:**
+[RSA vs ECDSA](../concepts/rsa-vs-ecdsa.md) |
+[Subject Alternative Names](../concepts/subject-alternative-names.md) |
+[Certificate Lifecycle](../concepts/certificate-lifecycle.md) |
+[Certificate Chain](../concepts/certificate-chain.md) |
+[Windows Trust Store](../concepts/windows-trust-store.md)
 
 ---
 
-## Development Certificates
+## Overview
 
-Create certificates for local development with modern defaults (ECDSA P-256, 90 days).
+`certz create` has two subcommands:
 
-```bash
-# Basic: Create certificate for localhost
-certz create dev localhost
+| Subcommand | Purpose |
+|------------|---------|
+| `create dev` | Leaf certificate for a hostname. TLS server auth, 90-day default. |
+| `create ca` | Certificate Authority. Signs other certs, 10-year default. |
 
-# With custom domain and auto-trust
-certz create dev api.local --trust
+Typical flow: create a CA once, then sign any number of dev certificates with it:
 
-# With additional Subject Alternative Names
-certz create dev myapp.local --san "*.myapp.local" --san "127.0.0.1"
-
-# Signed by your own CA
-certz create dev api.local --issuer-cert ca.pfx --issuer-password CaPassword
-
-# Interactive wizard mode
-certz create dev localhost --guided
-
-# Output to specific files
-certz create dev localhost --file server.pfx --cert server.cer --key server.key
+```mermaid
+graph LR
+    CA["certz create ca\n--name Dev CA"] -->|signs| DEV["certz create dev\napi.local --issuer-cert ca.pfx"]
+    DEV --> Browser["Browser trusts api.local\n(because Dev CA is in trust store)"]
+    CA -->|trust add| Store["Windows / macOS\ntrust store"]
+    Store --> Browser
 ```
 
-**Options:**
-
-| Option | Description |
-|--------|-------------|
-| `--trust` | Install to Root trust store after creation |
-| `--trust-location` | CurrentUser (default) or LocalMachine |
-| `--san <name>` | Additional Subject Alternative Names (repeatable) |
-| `--days <n>` | Validity period (default: 90, max: 398) |
-| `--key-type` | ECDSA-P256 (default), ECDSA-P384, ECDSA-P521, RSA |
-| `--key-size` | RSA key size: 2048, 3072 (default), 4096 |
-| `--guided` | Launch interactive wizard |
-| `--issuer-cert` | Sign with existing CA (PFX or PEM) |
-| `--issuer-key` | CA private key (for PEM issuer) |
-| `--issuer-password` | Password for CA PFX |
-| `--file` | Output PFX filename |
-| `--cert` | Output certificate filename |
-| `--key` | Output private key filename |
-| `--password` | PFX password (auto-generated if not provided) |
-| `--password-file` | File to write the generated password to |
-| `--ephemeral, -e` | Generate certificate in memory only |
-| `--pipe` | Stream certificate to stdout |
-| `--pipe-format` | Pipe output format: pem, pfx, cert, key |
-| `--pipe-password` | Password for PFX pipe output |
-
 ---
 
-## CA Certificates
+## Development Certificates (`create dev`)
 
-Create Certificate Authority certificates for signing other certificates.
+### Quick Examples
+
+| Goal | Command |
+|------|---------|
+| Basic localhost cert | `certz create dev localhost` |
+| Auto-trust after creation | `certz create dev api.local --trust` |
+| 30-day validity | `certz create dev app.local --days 30` |
+| Extra SANs | `certz create dev app.local --san "*.app.local" --san "192.168.1.10"` |
+| Signed by your CA | `certz create dev api.local --issuer-cert ca.pfx --issuer-password pass` |
+| RSA key | `certz create dev app.local --key-type RSA --key-size 4096` |
+| Custom output filenames | `certz create dev app.local --file server.pfx --cert server.cer --key server.key` |
+| Ephemeral (no files) | `certz create dev app.local --ephemeral` |
+| Pipe to stdout | `certz create dev app.local --pipe` |
+
+### Defaults
+
+When you run `certz create dev app.local` without extra flags:
+
+| Property | Value |
+|----------|-------|
+| Key type | ECDSA P-256 |
+| Validity | 90 days |
+| SANs | CN (`app.local`), `localhost`, `127.0.0.1` (auto-added) |
+| EKU | Server Authentication |
+| Output | `app.local.pfx`, `app.local.cer`, `app.local.key` |
+| Password | Auto-generated, printed to console |
+
+### Full Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `<domain>` | (required) | Common Name and primary SAN. |
+| `--san <name>` | (none) | Additional Subject Alternative Names. Repeatable. certz auto-detects IP vs DNS. See [SANs](../concepts/subject-alternative-names.md). |
+| `--days <n>` | `90` | Validity in days. Maximum 398 (CA/B Forum limit for leaf certs). |
+| `--key-type` | `ECDSA-P256` | Key algorithm: `ECDSA-P256`, `ECDSA-P384`, `ECDSA-P521`, `RSA`. See [RSA vs ECDSA](../concepts/rsa-vs-ecdsa.md). |
+| `--key-size` | `3072` | RSA key size in bits: `2048`, `3072`, `4096`. Only applies when `--key-type RSA`. |
+| `--issuer-cert` | (none) | Sign with this CA file (PFX or PEM+key). Without this, cert is self-signed. |
+| `--issuer-key` | (none) | CA private key file. Required when `--issuer-cert` is a PEM file without an embedded key. |
+| `--issuer-password` | (none) | Password for a PFX `--issuer-cert`. |
+| `--trust` | `false` | Install to the trust store immediately after creation. |
+| `--trust-location` | `CurrentUser` | Trust store scope: `CurrentUser` or `LocalMachine`. `LocalMachine` requires admin. See [Windows Trust Store](../concepts/windows-trust-store.md). |
+| `--file` | `<domain>.pfx` | Output PFX filename. |
+| `--cert` | `<domain>.cer` | Output certificate filename. |
+| `--key` | `<domain>.key` | Output private key filename. |
+| `--password` | (auto-generated) | PFX password. Printed to console when auto-generated. |
+| `--password-file` | (none) | Write the generated password to this file instead of the console. |
+| `--ephemeral, -e` | `false` | Generate in memory only. No files written. See [Ephemeral Mode](#ephemeral-mode) below. |
+| `--pipe` | `false` | Stream certificate to stdout. No files written. See [Pipe Mode](#pipe-mode) below. |
+| `--pipe-format` | `pem` | Output format for `--pipe`: `pem`, `pfx`, `cert`, `key`. |
+| `--pipe-password` | (auto-generated) | Password for `--pipe --pipe-format pfx`. Written to stderr. |
+| `--guided` | `false` | Launch the interactive wizard. |
+| `--format` | `text` | Output display format: `text` or `json`. |
+
+### Ephemeral Mode
+
+`--ephemeral` generates the certificate entirely in memory. Nothing is written to disk.
 
 ```bash
-# Create a Root CA
-certz create ca --name "Development Root CA"
+# View cert details without saving any files
+certz create dev app.local --ephemeral
 
-# Create and trust the CA
-certz create ca --name "Dev CA" --trust
+# Machine-readable output for CI checks
+certz create dev app.local --ephemeral --format json
 
-# With specific validity and path length
-certz create ca --name "My CA" --days 3650 --path-length 1
-
-# With CRL and OCSP URLs
-certz create ca --name "My CA" --crl-url http://crl.example.com/ca.crl --ocsp-url http://ocsp.example.com
-
-# Interactive wizard mode
-certz create ca --guided
+# Inspect a specific key type before committing
+certz create dev app.local --ephemeral --key-type RSA --key-size 4096
 ```
 
-**Options:**
+Use cases:
+- CI/CD: verify certz settings are correct without leaving files to clean up
+- Security-sensitive environments where private keys must never touch disk
+- Demonstrations and training
 
-| Option | Description |
-|--------|-------------|
-| `--name` | CA Common Name (required) |
-| `--trust` | Install to Root trust store |
-| `--days <n>` | Validity period (default: 3650 / ~10 years) |
-| `--path-length <n>` | Maximum chain depth (-1 = unlimited) |
-| `--crl-url` | CRL Distribution Point URL |
-| `--ocsp-url` | OCSP responder URL |
-| `--password` | PFX password (auto-generated if not provided) |
-| `--password-file` | File to write the generated password to |
-| `--guided` | Launch interactive wizard |
-| `--ephemeral, -e` | Generate certificate in memory only (no files written) |
-| `--pipe` | Stream certificate to stdout (no files written) |
-| `--pipe-format` | Pipe output format: pem (default), pfx, cert, key |
-| `--pipe-password` | Password for PFX pipe output |
-
----
-
-## Ephemeral Mode
-
-Generate certificates in memory without writing files to disk:
-
-```bash
-# Create ephemeral certificate (displays details, no files)
-certz create dev example.com --ephemeral
-
-# Ephemeral with custom options
-certz create dev app.local --ephemeral --san "*.app.local" --key-type RSA
-
-# Ephemeral CA certificate
-certz create ca --name "Test CA" --ephemeral
-
-# JSON output for scripting
-certz create dev test.local --ephemeral --format json
-```
-
-**Use cases:**
-
-- Testing certificate settings before committing to files
-- CI/CD pipelines without cleanup requirements
-- Security-sensitive environments (keys never touch disk)
-- Training and demonstrations
-
----
-
-## Pipe Mode
-
-Stream certificate content to stdout for piping to other tools:
-
-```bash
-# Pipe full PEM (cert + key) to stdout
-certz create dev example.com --pipe
-
-# Pipe to kubectl to create Kubernetes secret
-certz create dev app.local --pipe | kubectl create secret tls my-cert --cert=/dev/stdin --key=/dev/stdin
-
-# Pipe certificate only (no private key)
-certz create dev example.com --pipe --pipe-format cert
-
-# Pipe private key only
-certz create dev example.com --pipe --pipe-format key
-
-# Pipe as base64 PFX with specified password
-certz create dev example.com --pipe --pipe-format pfx --pipe-password "MySecret"
-
-# Pipe PFX with auto-generated password (password written to stderr)
-certz create dev example.com --pipe --pipe-format pfx 2>password.txt > cert.b64
-```
-
-**Pipe Formats:**
-
-| Format | Output |
-|--------|--------|
-| `pem` (default) | Certificate + private key in PEM format |
-| `pfx` | Base64-encoded PFX (password required or auto-generated to stderr) |
-| `cert` | Certificate only (PEM format) |
-| `key` | Private key only (PEM format) |
-
----
-
-## Restrictions
-
-Both `--ephemeral` and `--pipe` are mutually exclusive with:
-
-- `--file`, `--cert`, `--key` (file output options)
-- `--trust` (cannot install in-memory certificate)
+Restrictions -- `--ephemeral` cannot be combined with:
+- `--file`, `--cert`, `--key` (file output)
+- `--trust` (cannot install an in-memory certificate)
 - `--password-file` (no file to protect)
+- `--pipe` (mutually exclusive; pick one)
 
-You cannot use both `--ephemeral` and `--pipe` together.
+### Pipe Mode
+
+`--pipe` streams certificate content to stdout, making it composable with other tools.
+No files are written to disk.
+
+```bash
+# Default: PEM cert + key to stdout
+certz create dev app.local --pipe
+
+# Create Kubernetes TLS secret without intermediate files
+certz create dev app.local --pipe | kubectl create secret tls app-tls --cert=/dev/stdin --key=/dev/stdin
+
+# Certificate only
+certz create dev app.local --pipe --pipe-format cert
+
+# Private key only
+certz create dev app.local --pipe --pipe-format key
+
+# Base64-encoded PFX, explicit password
+certz create dev app.local --pipe --pipe-format pfx --pipe-password "MySecret"
+
+# Base64-encoded PFX, auto-generated password written to stderr
+certz create dev app.local --pipe --pipe-format pfx 2>password.txt > cert.b64
+```
+
+Pipe formats:
+
+| `--pipe-format` | Output written to stdout |
+|-----------------|--------------------------|
+| `pem` (default) | PEM certificate followed by PEM private key |
+| `cert` | PEM certificate only |
+| `key` | PEM private key only |
+| `pfx` | Base64-encoded PKCS#12. Password printed to stderr (or via `--pipe-password`). |
+
+Restrictions -- `--pipe` cannot be combined with:
+- `--file`, `--cert`, `--key` (file output)
+- `--trust` (cannot install a piped certificate)
+- `--password-file`
+- `--ephemeral` (mutually exclusive; pick one)
+
+### JSON Output Schema
+
+```bash
+certz create dev app.local --format json
+```
+
+Example output:
+
+```json
+{
+  "subject": "CN=app.local",
+  "thumbprint": "A1B2C3D4E5F6...",
+  "notBefore": "2026-02-21T00:00:00Z",
+  "notAfter": "2026-05-22T00:00:00Z",
+  "keyType": "ECDSA-P256",
+  "sans": ["app.local", "localhost", "127.0.0.1"],
+  "outputFiles": ["app.local.pfx", "app.local.cer", "app.local.key"],
+  "password": "Xk9!mP2rLq",
+  "passwordWasGenerated": true,
+  "wasTrusted": false,
+  "isCA": false,
+  "pathLength": -1,
+  "isEphemeral": false,
+  "wasPiped": false
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `subject` | string | Full subject DN (`CN=...`) |
+| `thumbprint` | string | SHA-1 thumbprint (hex, no colons) |
+| `notBefore` | ISO 8601 | Validity start (UTC) |
+| `notAfter` | ISO 8601 | Validity end (UTC) |
+| `keyType` | string | `ECDSA-P256`, `ECDSA-P384`, `ECDSA-P521`, or `RSA` |
+| `sans` | string[] | All Subject Alternative Names on the certificate |
+| `outputFiles` | string[] | Files written (empty when ephemeral or piped) |
+| `password` | string or null | PFX password (only present when auto-generated) |
+| `passwordWasGenerated` | bool | `true` when certz chose the password |
+| `wasTrusted` | bool | `true` when `--trust` was used and succeeded |
+| `isCA` | bool | `false` for dev certs |
+| `pathLength` | int | `-1` for leaf certs |
+| `isEphemeral` | bool | `true` when `--ephemeral` was used |
+| `wasPiped` | bool | `true` when `--pipe` was used |
+
+### Troubleshooting
+
+| Problem | Likely cause | Fix |
+|---------|--------------|-----|
+| Auto-generated password missing from output | `--pipe` sends the cert to stdout; the password goes to stderr | Capture stderr: `certz ... --pipe 2>pass.txt` |
+| "File already exists" error | Previous run left an output file with the same name | Delete the file or use `--file` to specify a different name |
+| Browser still shows untrusted after `--trust` | `CurrentUser` store is not used by all browsers | Try `--trust-location LocalMachine` (requires admin). See [Windows Trust Store](../concepts/windows-trust-store.md). |
+| IP SAN not accepted by browser | IP address formatted as DNS SAN | Use `--san "192.168.1.1"` -- certz auto-detects IP vs DNS type |
+| "Validity exceeds 398 days" | `--days` set over the CA/B Forum limit | Use 398 or fewer. For long-lived certs, use a CA and sign leaf certs. |
+
+---
+
+## CA Certificates (`create ca`)
+
+### Quick Examples
+
+| Goal | Command |
+|------|---------|
+| Basic dev CA | `certz create ca --name "Dev CA"` |
+| Trust it immediately | `certz create ca --name "Dev CA" --trust` |
+| 10-year validity | `certz create ca --name "My CA" --days 3650` |
+| Restrict to signing leaf certs only | `certz create ca --name "Issuing CA" --path-length 0` |
+| With CRL and OCSP URLs | `certz create ca --name "My CA" --crl-url http://crl.example.com/ca.crl --ocsp-url http://ocsp.example.com` |
+
+### Path Length
+
+`--path-length` controls how many intermediate CA layers are allowed beneath this CA.
+
+```mermaid
+graph TB
+    Root["Root CA\n(path-length = 1)"] --> Int["Intermediate CA\n(path-length = 0)"]
+    Int --> Leaf1["leaf: api.local"]
+    Int --> Leaf2["leaf: app.local"]
+    Root -. "cannot sign\nleaf directly\nwithout intermediate" .-> Leaf1
+```
+
+| `--path-length` | Meaning |
+|-----------------|---------|
+| `-1` (default) | Unlimited: can sign any depth of intermediates |
+| `0` | Can only sign leaf certificates (cannot sign other CAs) |
+| `1` | Can sign one level of intermediate CAs, which then sign leaf certs |
+
+For a simple local dev setup, `-1` (unlimited) is fine. Use `0` when creating an issuing CA under a root CA to prevent the issuing CA from being used to create further sub-CAs.
+
+### Full Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--name` | (required) | Common Name for the CA. Becomes the certificate subject. |
+| `--days <n>` | `3650` | Validity in days (~10 years). CA certs are not subject to the 398-day leaf limit. |
+| `--path-length <n>` | `-1` | Chain depth limit. See above. |
+| `--key-type` | `ECDSA-P256` | Key algorithm: `ECDSA-P256`, `ECDSA-P384`, `ECDSA-P521`, `RSA`. |
+| `--key-size` | `3072` | RSA key size. Only applies when `--key-type RSA`. |
+| `--crl-url` | (none) | CRL Distribution Point URL embedded in the certificate. |
+| `--ocsp-url` | (none) | OCSP responder URL embedded in the Authority Information Access extension. |
+| `--trust` | `false` | Install to trust store after creation. |
+| `--trust-location` | `CurrentUser` | `CurrentUser` or `LocalMachine`. See [Windows Trust Store](../concepts/windows-trust-store.md). |
+| `--file` | `<name>.pfx` | Output PFX filename. |
+| `--cert` | `<name>.cer` | Output certificate filename. |
+| `--key` | `<name>.key` | Output private key filename. |
+| `--password` | (auto-generated) | PFX password. |
+| `--password-file` | (none) | Write the generated password to this file. |
+| `--ephemeral, -e` | `false` | Generate in memory only. |
+| `--pipe` | `false` | Stream to stdout. |
+| `--pipe-format` | `pem` | `pem`, `pfx`, `cert`, `key`. |
+| `--pipe-password` | (auto-generated) | Password for `--pipe --pipe-format pfx`. Written to stderr. |
+| `--guided` | `false` | Launch interactive wizard. |
+| `--format` | `text` | `text` or `json`. |
+
+### JSON Output Schema
+
+```bash
+certz create ca --name "Dev CA" --format json
+```
+
+Example output:
+
+```json
+{
+  "subject": "CN=Dev CA",
+  "thumbprint": "B3C4D5E6F7A8...",
+  "notBefore": "2026-02-21T00:00:00Z",
+  "notAfter": "2036-02-21T00:00:00Z",
+  "keyType": "ECDSA-P256",
+  "sans": [],
+  "outputFiles": ["Dev CA.pfx", "Dev CA.cer", "Dev CA.key"],
+  "password": "Lp3!qN8wXz",
+  "passwordWasGenerated": true,
+  "wasTrusted": false,
+  "isCA": true,
+  "pathLength": -1,
+  "isEphemeral": false,
+  "wasPiped": false
+}
+```
+
+The schema is identical to `create dev`. Key differences for CA output:
+
+| Field | CA value |
+|-------|----------|
+| `isCA` | `true` |
+| `sans` | Empty array (CAs do not require SANs) |
+| `pathLength` | The value passed to `--path-length` (default `-1`) |
+
+### Troubleshooting
+
+| Problem | Likely cause | Fix |
+|---------|--------------|-----|
+| Certs signed by this CA not trusted by browser | CA is not in the system trust store | Run `certz trust add <ca.pfx>` or recreate with `--trust` |
+| "Path length exceeded" error when signing | CA has `--path-length 0` and you tried to sign an intermediate | Use `--path-length -1` or sign leaf certs directly from this CA |
+| `--trust` prompts for elevation | `LocalMachine` store requires admin privileges | Run as admin, or use `CurrentUser` and share the CA cert manually |
