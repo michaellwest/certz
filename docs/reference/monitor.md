@@ -25,6 +25,7 @@ CI/CD and cron jobs to catch expirations before they become incidents.
 | `--quiet, -q` | `false` | Suppress valid certificates; show only expiring and expired. |
 | `--fail-on-warning` | `false` | Exit with code 1 when any certificate is within the warning threshold. |
 | `--format` | `text` | Output format: `text` or `json`. |
+| `--guided` | `false` | Launch the interactive wizard for monitor. Prompts for sources, warn threshold, and output format. |
 
 ---
 

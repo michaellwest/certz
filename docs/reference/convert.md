@@ -165,20 +165,6 @@ certz convert cert.pem --to pfx --key cert.key --pfx-encryption legacy
 
 ---
 
-## Legacy Syntax
-
-The original flag-based syntax is still supported for backwards compatibility:
-
-```bash
-# PEM + KEY -> PFX
-certz convert --cert certificate.crt --key private.key --file output.pfx --password MyPass
-
-# PFX -> PEM files
-certz convert --file devcert.pfx --password YourPass --out-cert certificate.cer --out-key private.key
-```
-
----
-
 ## Platform Deployment Matrix
 
 For each platform, the table shows the required certificate format, the certz command that
