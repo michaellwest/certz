@@ -15,6 +15,7 @@ internal interface IOutputFormatter
     void WriteMonitorResult(MonitorResult result, bool quietMode);
     void WriteRenewResult(RenewResult result);
     void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts);
+    void WriteFingerprintResult(FingerprintResult result);
     void WriteExamples(string commandPath, CommandExample[] examples);
     void WriteAllExamples(IReadOnlyDictionary<string, CommandExample[]> allExamples);
     void WriteError(string message);

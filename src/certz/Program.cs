@@ -1,5 +1,6 @@
 using certz.Commands;
 using certz.Commands.Examples;
+using certz.Commands.Fingerprint;
 using certz.Commands.Inspect;
 using certz.Commands.Lint;
 using certz.Commands.Monitor;
@@ -53,6 +54,7 @@ rootCommand.SetAction(async (parseResult) =>
 // Register all commands
 rootCommand.AddCreateCommand();
 rootCommand.AddConvertCommand();
+rootCommand.AddFingerprintCommand();
 rootCommand.AddInspectCommand();
 rootCommand.AddLintCommand();
 rootCommand.AddMonitorCommand();

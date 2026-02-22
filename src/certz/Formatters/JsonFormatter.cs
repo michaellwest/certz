@@ -220,6 +220,15 @@ internal record RenewOutput(
     bool WasResigned
 );
 
+// Fingerprint result DTO
+internal record FingerprintOutput(
+    bool Success,
+    string Algorithm,
+    string Fingerprint,
+    string Source,
+    string Subject
+);
+
 // Examples DTOs
 internal record ExampleDto(
     string Description,
@@ -255,6 +264,7 @@ internal record AllExamplesOutput(
 [JsonSerializable(typeof(ErrorOutput))]
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
+[JsonSerializable(typeof(FingerprintOutput))]
 [JsonSerializable(typeof(ExamplesOutput))]
 [JsonSerializable(typeof(AllExamplesOutput))]
 internal partial class JsonFormatterContext : JsonSerializerContext
@@ -541,6 +551,18 @@ internal class JsonFormatter : IOutputFormatter
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.RenewOutput));
+    }
+
+    public void WriteFingerprintResult(Models.FingerprintResult result)
+    {
+        var output = new FingerprintOutput(
+            Success: true,
+            Algorithm: result.Algorithm,
+            Fingerprint: result.Fingerprint,
+            Source: result.Source,
+            Subject: result.Subject
+        );
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.FingerprintOutput));
     }
 
     public void WriteError(string message)

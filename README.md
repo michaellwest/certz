@@ -131,6 +131,7 @@ Options:
 Commands:
   create dev <domain>    Create a development/server certificate
   create ca              Create a Certificate Authority (CA) certificate
+  fingerprint <source>   Output the SHA-256 (or SHA-384/SHA-512) fingerprint of a certificate
   inspect <source>       Inspect certificate from file, URL, or store
   lint <source>          Validate certificate against industry standards
   monitor <sources...>   Monitor certificates for expiration
@@ -157,6 +158,7 @@ Commands:
 | Command | Reference |
 |---------|-----------|
 | `create dev` / `create ca` | [docs/reference/create.md](docs/reference/create.md) |
+| `fingerprint` | [docs/reference/fingerprint.md](docs/reference/fingerprint.md) |
 | `inspect` | [docs/reference/inspect.md](docs/reference/inspect.md) |
 | `trust add` / `trust remove` | [docs/reference/trust.md](docs/reference/trust.md) |
 | `store list` | [docs/reference/store.md](docs/reference/store.md) |
