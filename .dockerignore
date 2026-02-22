@@ -2,7 +2,7 @@
 bin/
 obj/
 
-# Windows release output (not needed in Docker images; use debug/ or linux-release/)
+# Release outputs (not needed in Docker images; use debug/win-x64/ or debug/linux-x64/)
 release/
 
 # Visual Studio

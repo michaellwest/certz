@@ -13,8 +13,9 @@ USER ContainerAdministrator
 ENV DOTNET_ENVIRONMENT=Test
 
 # Copy the built executable and test scripts
-COPY debug/certz.exe ./
-COPY debug/certz.pdb ./
+# Prerequisite: pwsh -File build-debug.ps1
+COPY debug/win-x64/certz.exe ./
+COPY debug/win-x64/certz.pdb ./
 COPY test/ ./test/
 RUN New-Item -Path ./test-results -ItemType Directory -Force
 

@@ -9,7 +9,8 @@ WORKDIR /app
 USER ContainerAdministrator
 
 # Copy the built executable and smoke test script
-COPY debug/certz.exe ./
+# Prerequisite: pwsh -File build-debug.ps1
+COPY debug/win-x64/certz.exe ./
 COPY test/test-nanoserver.cmd ./test/
 
 # Run the smoke tests

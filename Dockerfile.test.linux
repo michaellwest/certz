@@ -14,8 +14,8 @@ RUN apt-get update && \
 ENV DOTNET_ENVIRONMENT=Test
 
 # Copy the Linux binary and test scripts
-# Build linux-release/certz first: pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64 -OutputDir linux-release
-COPY linux-release/certz ./
+# Prerequisite: pwsh -File build-debug.ps1
+COPY debug/linux-x64/certz ./
 COPY test/ ./test/
 
 RUN chmod +x /app/certz && \
