@@ -1,10 +1,40 @@
 # certz 🔐
 
-A standards-compliant certificate utility for creating, inspecting, linting, converting, and monitoring X.509 certificates on Windows.
+A standards-compliant certificate utility for creating, inspecting, linting, converting, and monitoring X.509 certificates.
+
+## Platform Support
+
+| Platform | Architecture | File operations | Trust store (CurrentUser) | Trust store (LocalMachine/system) |
+|----------|---|---|---|---|
+| Windows | x64 | Full | Full | Full (requires admin) |
+| Linux | x64 | Full | Full (.NET X509Store) | Distro shell commands (requires root) |
+| macOS | arm64/x64 | Full | Not yet supported | Not yet supported |
+
+**Linux trust store notes:**
+
+`trust add --location CurrentUser` uses .NET's built-in X509Store (`~/.dotnet/corefx/cryptography/x509stores/`) -- this affects .NET SSL validation.
+
+`trust add --location LocalMachine` (requires `sudo`) installs system-wide via distro tools:
+- Debian/Ubuntu: copies cert to `/usr/local/share/ca-certificates/`, runs `update-ca-certificates`
+- RHEL/Fedora/CentOS: copies cert to `/etc/pki/ca-trust/source/anchors/`, runs `update-ca-trust`
+- Arch Linux: copies cert to `/etc/ca-certificates/trust-source/anchors/`, runs `trust extract-compat`
 
 ## Install
 
-Download the latest single-file executable from the [Releases](https://github.com/michaellwest/certz/releases) page. No .NET runtime required -- copy `certz.exe` anywhere and run it.
+**Windows:** Download `certz.exe` from the [Releases](https://github.com/michaellwest/certz/releases) page. No .NET runtime required -- copy it anywhere and run it.
+
+**Linux:** Download `certz` (linux-x64) from the [Releases](https://github.com/michaellwest/certz/releases) page, then:
+
+```bash
+chmod +x certz
+./certz --version
+```
+
+Or build from source:
+
+```bash
+bash build-linux.sh          # outputs to linux-release/certz
+```
 
 ## Shell Completion
 

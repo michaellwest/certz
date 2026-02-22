@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -18,18 +19,32 @@ internal static class TrustHandler
         var location = StoreListHandler.ParseStoreLocation(storeLocation);
         var name = StoreListHandler.ParseStoreName(storeName);
 
+        if (OperatingSystem.IsMacOS())
+        {
+            throw new PlatformNotSupportedException(
+                "System-wide trust store management on macOS is not yet supported. " +
+                "Use 'sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain <file>' manually.");
+        }
+
         // Check admin requirement for LocalMachine
         if (location == StoreLocation.LocalMachine && !IsRunningAsAdmin())
         {
             throw new InvalidOperationException(
                 "Administrator privileges required to modify LocalMachine certificate store. " +
-                "Run the command as Administrator, or use '--location CurrentUser' for user-level trust.");
+                "Run the command as Administrator (Windows) or as root (Linux), " +
+                "or use '--location CurrentUser' for user-level trust.");
         }
 
         var cert = LoadCertificateFromFile(filePath, password);
 
         try
         {
+            // On Linux, LocalMachine trust requires distro-specific shell commands
+            if (OperatingSystem.IsLinux() && location == StoreLocation.LocalMachine)
+            {
+                return AddToLinuxSystemStore(cert);
+            }
+
             using var store = new X509Store(name, location);
             store.Open(OpenFlags.ReadWrite);
             store.Add(cert);
@@ -124,12 +139,26 @@ internal static class TrustHandler
         var location = StoreListHandler.ParseStoreLocation(storeLocation);
         var name = StoreListHandler.ParseStoreName(storeName);
 
+        if (OperatingSystem.IsMacOS())
+        {
+            throw new PlatformNotSupportedException(
+                "System-wide trust store management on macOS is not yet supported. " +
+                "Use 'sudo security remove-trusted-cert <file>' manually.");
+        }
+
         // Check admin requirement for LocalMachine
         if (location == StoreLocation.LocalMachine && !IsRunningAsAdmin())
         {
             throw new InvalidOperationException(
                 "Administrator privileges required to modify LocalMachine certificate store. " +
-                "Run the command as Administrator, or use '--location CurrentUser' for user-level trust.");
+                "Run the command as Administrator (Windows) or as root (Linux), " +
+                "or use '--location CurrentUser' for user-level trust.");
+        }
+
+        // On Linux, LocalMachine trust requires distro-specific shell commands
+        if (OperatingSystem.IsLinux() && location == StoreLocation.LocalMachine)
+        {
+            return RemoveFromLinuxSystemStore(certificates);
         }
 
         using var store = new X509Store(name, location);
@@ -172,12 +201,154 @@ internal static class TrustHandler
 
     /// <summary>
     /// Checks if the current process is running with administrator privileges.
+    /// On Windows this checks for the Administrator role; on Linux/macOS it checks for root (uid 0).
     /// </summary>
     internal static bool IsRunningAsAdmin()
     {
-        using var identity = WindowsIdentity.GetCurrent();
-        var principal = new WindowsPrincipal(identity);
-        return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        if (OperatingSystem.IsWindows())
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+
+        // Environment.IsPrivilegedProcess returns true when uid==0 (root) on Linux/macOS
+        return Environment.IsPrivilegedProcess;
+    }
+
+    /// <summary>
+    /// Detects the Linux distro CA anchor directory and the command to refresh the system trust store.
+    /// Returns (anchorDir, updateCommand) or throws if unsupported.
+    /// </summary>
+    private static (string AnchorDir, string UpdateCommand) DetectLinuxCaStore()
+    {
+        if (Directory.Exists("/usr/local/share/ca-certificates"))
+            return ("/usr/local/share/ca-certificates", "update-ca-certificates");
+
+        if (Directory.Exists("/etc/pki/ca-trust/source/anchors"))
+            return ("/etc/pki/ca-trust/source/anchors", "update-ca-trust");
+
+        if (Directory.Exists("/etc/ca-certificates/trust-source/anchors"))
+            return ("/etc/ca-certificates/trust-source/anchors", "trust extract-compat");
+
+        throw new PlatformNotSupportedException(
+            "Unable to detect Linux CA anchor directory. " +
+            "Supported distros: Debian/Ubuntu (update-ca-certificates), " +
+            "RHEL/Fedora (update-ca-trust), Arch (trust extract-compat).");
+    }
+
+    /// <summary>
+    /// Runs a shell command and waits for it to exit, throwing if it fails.
+    /// </summary>
+    private static void RunShellCommand(string command, string arguments)
+    {
+        using var proc = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = command,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = false,
+                RedirectStandardError = false
+            }
+        };
+        proc.Start();
+        proc.WaitForExit();
+        if (proc.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Command '{command} {arguments}' exited with code {proc.ExitCode}.");
+        }
+    }
+
+    /// <summary>
+    /// Adds a certificate to the Linux system CA store by copying it to the distro anchor
+    /// directory and running the distro's CA refresh command.
+    /// </summary>
+    internal static TrustOperationResult AddToLinuxSystemStore(X509Certificate2 cert)
+    {
+        var (anchorDir, updateCommand) = DetectLinuxCaStore();
+        var certFileName = $"certz-{cert.Thumbprint}.crt";
+        var destPath = Path.Combine(anchorDir, certFileName);
+
+        // Export certificate as PEM
+        var pem = cert.ExportCertificatePem();
+        File.WriteAllText(destPath, pem);
+
+        // Refresh system trust store
+        var parts = updateCommand.Split(' ', 2);
+        var cmd = parts[0];
+        var args = parts.Length > 1 ? parts[1] : string.Empty;
+        RunShellCommand(cmd, args);
+
+        return new TrustOperationResult
+        {
+            Success = true,
+            Operation = TrustOperationType.Add,
+            StoreName = "LocalMachine",
+            StoreLocation = "LocalMachine",
+            Certificates =
+            [
+                new TrustCertificateInfo
+                {
+                    Subject = cert.Subject,
+                    Thumbprint = cert.Thumbprint,
+                    NotAfter = cert.NotAfter
+                }
+            ]
+        };
+    }
+
+    /// <summary>
+    /// Removes certificates from the Linux system CA store by deleting the anchor files
+    /// and running the distro's CA refresh command.
+    /// </summary>
+    private static TrustOperationResult RemoveFromLinuxSystemStore(List<X509Certificate2> certificates)
+    {
+        var (anchorDir, updateCommand) = DetectLinuxCaStore();
+        var removedCerts = new List<TrustCertificateInfo>();
+
+        foreach (var cert in certificates)
+        {
+            try
+            {
+                var certFileName = $"certz-{cert.Thumbprint}.crt";
+                var destPath = Path.Combine(anchorDir, certFileName);
+
+                if (File.Exists(destPath))
+                {
+                    File.Delete(destPath);
+                    removedCerts.Add(new TrustCertificateInfo
+                    {
+                        Subject = cert.Subject,
+                        Thumbprint = cert.Thumbprint,
+                        NotAfter = cert.NotAfter
+                    });
+                }
+            }
+            finally
+            {
+                cert.Dispose();
+            }
+        }
+
+        if (removedCerts.Count > 0)
+        {
+            var parts = updateCommand.Split(' ', 2);
+            var cmd = parts[0];
+            var args = parts.Length > 1 ? parts[1] : string.Empty;
+            RunShellCommand(cmd, args);
+        }
+
+        return new TrustOperationResult
+        {
+            Success = true,
+            Operation = TrustOperationType.Remove,
+            StoreName = "LocalMachine",
+            StoreLocation = "LocalMachine",
+            Certificates = removedCerts
+        };
     }
 
     /// <summary>

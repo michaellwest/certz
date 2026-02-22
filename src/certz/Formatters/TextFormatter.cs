@@ -91,7 +91,7 @@ internal class TextFormatter : IOutputFormatter
         if (result.WasTrusted)
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[green]Certificate installed to CurrentUser\\Root trust store.[/]");
+            AnsiConsole.MarkupLine("[green]Certificate installed to CurrentUser/Root trust store.[/]");
         }
     }
 

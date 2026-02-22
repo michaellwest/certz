@@ -114,14 +114,28 @@ internal static class CertificateUtilities
             throw new FileNotFoundException($"Certificate file not found: {file.FullName}");
         }
 
-        var flags = GetKeyStorageFlags(storeLocation, persist: true, exportable: exportable);
+        // On Linux, LocalMachine trust requires distro-specific shell commands
+        if (OperatingSystem.IsLinux() && storeLocation == StoreLocation.LocalMachine)
+        {
+            var flags = GetKeyStorageFlags(storeLocation, persist: false, exportable: true);
+            using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, flags);
+            TrustHandler.AddToLinuxSystemStore(certificate);
+            if (!quiet)
+            {
+                Console.WriteLine("Installed certificate '{0}' to Linux system trust store.", file.Name);
+            }
+            await Task.Delay(10);
+            return;
+        }
+
+        var storeFlags = GetKeyStorageFlags(storeLocation, persist: true, exportable: exportable);
         using var store = new X509Store(storeName, storeLocation, OpenFlags.ReadWrite);
-        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, flags);
+        using var cert = X509CertificateLoader.LoadPkcs12FromFile(file.FullName, password, storeFlags);
         if (!quiet)
         {
-            Console.WriteLine("Installed certificate '{0}' in 'Cert:\\{1}\\{2}'.", file.Name, storeLocation, storeName);
+            Console.WriteLine("Installed certificate '{0}' in '{1}/{2}'.", file.Name, storeLocation, storeName);
         }
-        store.Add(certificate);
+        store.Add(cert);
         store.Close();
 
         await Task.Delay(10);

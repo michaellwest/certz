@@ -803,6 +803,142 @@ Invoke-Test -TestId "sto-1.3" -TestName "List with JSON output" -FilePrefix "sto
 }
 
 # ============================================================================
+# LINUX PLATFORM TESTS
+# ============================================================================
+if ($IsLinux) {
+    Write-TestHeader "Linux Platform -- Trust Store Tests"
+
+    # lin-1.1: trust add CurrentUser works on Linux (via X509Store)
+    Invoke-Test -TestId "lin-1.1" -TestName "Linux: trust add CurrentUser via X509Store" -FilePrefix "lin-trust-cu" -TestScript {
+        # SETUP: Create a self-signed cert with PowerShell
+        $cert = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+            "CN=certz-linux-test", [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve]::NamedCurves.nistP256),
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+        $built = $cert.CreateSelfSigned([System.DateTimeOffset]::UtcNow.AddDays(-1), [System.DateTimeOffset]::UtcNow.AddDays(30))
+        $pemPath = "lin-test.pem"
+        [System.IO.File]::WriteAllText($pemPath, $built.ExportCertificatePem())
+        $thumbprint = $built.Thumbprint
+
+        # ACTION: Trust add to CurrentUser
+        $output = & $certz trust add $pemPath --location CurrentUser 2>&1
+        $exitCode = $LASTEXITCODE
+
+        # ASSERTION: Verify cert is in the CurrentUser X509Store
+        $inStore = $false
+        $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+            [System.Security.Cryptography.X509Certificates.StoreName]::Root,
+            [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+        try {
+            $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+            $found = $store.Certificates.Find(
+                [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+                $thumbprint, $false)
+            $inStore = $found.Count -gt 0
+        } finally {
+            $store.Close()
+        }
+
+        # CLEANUP: Remove from store
+        if ($inStore) {
+            $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+            $found = $store.Certificates.Find(
+                [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+                $thumbprint, $false)
+            foreach ($c in $found) { $store.Remove($c) }
+            $store.Close()
+        }
+        Remove-Item $pemPath -Force -ErrorAction SilentlyContinue
+
+        if ($exitCode -eq 0 -and $inStore) {
+            return @{ Success = $true; Details = "Cert $thumbprint added to CurrentUser/Root on Linux" }
+        }
+        return @{ Success = $false; Details = "exitCode=$exitCode inStore=$inStore output=$output" }
+    }
+
+    # lin-1.2: trust add --location CurrentUser is default on Linux (non-root)
+    Invoke-Test -TestId "lin-1.2" -TestName "Linux: --location defaults to CurrentUser when not root" -FilePrefix "lin-default-loc" -TestScript {
+        # SETUP: minimal PEM
+        $cert = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+            "CN=certz-linux-default", [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve]::NamedCurves.nistP256),
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+        $built = $cert.CreateSelfSigned([System.DateTimeOffset]::UtcNow.AddDays(-1), [System.DateTimeOffset]::UtcNow.AddDays(30))
+        $pemPath = "lin-default.pem"
+        [System.IO.File]::WriteAllText($pemPath, $built.ExportCertificatePem())
+
+        # ACTION: Run with --format json and check result includes CurrentUser
+        $output = & $certz trust add $pemPath --format json 2>&1
+        $exitCode = $LASTEXITCODE
+
+        # CLEANUP store
+        $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+            [System.Security.Cryptography.X509Certificates.StoreName]::Root,
+            [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+        $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+        $found = $store.Certificates.Find(
+            [System.Security.Cryptography.X509Certificates.X509FindType]::FindByThumbprint,
+            $built.Thumbprint, $false)
+        foreach ($c in $found) { $store.Remove($c) }
+        $store.Close()
+        Remove-Item $pemPath -Force -ErrorAction SilentlyContinue
+
+        if ($exitCode -eq 0 -and ($output -match "CurrentUser" -or $output -match "currentUser")) {
+            return @{ Success = $true; Details = "Default location is CurrentUser on Linux" }
+        }
+        return @{ Success = $false; Details = "exitCode=$exitCode output=$output" }
+    }
+
+    # lin-1.3: trust add --location LocalMachine requires root on Linux
+    Invoke-Test -TestId "lin-1.3" -TestName "Linux: trust add LocalMachine requires root" -FilePrefix "lin-localmachine" -TestScript {
+        # SETUP: minimal PEM
+        $cert = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+            "CN=certz-linux-lm", [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve]::NamedCurves.nistP256),
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+        $built = $cert.CreateSelfSigned([System.DateTimeOffset]::UtcNow.AddDays(-1), [System.DateTimeOffset]::UtcNow.AddDays(30))
+        $pemPath = "lin-lm.pem"
+        [System.IO.File]::WriteAllText($pemPath, $built.ExportCertificatePem())
+
+        $isRoot = [System.Environment]::IsPrivilegedProcess
+
+        # ACTION
+        $output = & $certz trust add $pemPath --location LocalMachine 2>&1
+        $exitCode = $LASTEXITCODE
+
+        Remove-Item $pemPath -Force -ErrorAction SilentlyContinue
+
+        if ($isRoot) {
+            # When running as root, expect success
+            if ($exitCode -eq 0) {
+                return @{ Success = $true; Details = "Root: LocalMachine add succeeded" }
+            }
+            return @{ Success = $false; Details = "Root: expected success, got exitCode=$exitCode output=$output" }
+        } else {
+            # When not root, expect failure with privilege error
+            if ($exitCode -ne 0 -and ($output -match "Administrator|root|privilege")) {
+                return @{ Success = $true; Details = "Non-root: correctly denied LocalMachine access" }
+            }
+            return @{ Success = $false; Details = "Non-root: expected privilege error, got exitCode=$exitCode output=$output" }
+        }
+    }
+
+    # lin-1.4: macOS stub throws PlatformNotSupportedException (only testable on macOS, skip here)
+    # lin-1.5: store list CurrentUser works on Linux
+    Invoke-Test -TestId "lin-1.5" -TestName "Linux: store list CurrentUser works" -FilePrefix "lin-store-list" -TestScript {
+        $output = & $certz store list --location CurrentUser --format json 2>&1
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -eq 0) {
+            try {
+                $json = $output | ConvertFrom-Json
+                return @{ Success = $true; Details = "store list returned $($json.filteredCount) certificates" }
+            } catch {
+                return @{ Success = $false; Details = "JSON parse error: output=$output" }
+            }
+        }
+        return @{ Success = $false; Details = "exitCode=$exitCode output=$output" }
+    }
+}
+
+# ============================================================================
 # CLEANUP AND SUMMARY
 # ============================================================================
 if (-not $SkipCleanup) {
