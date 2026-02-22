@@ -40,3 +40,33 @@ services:
       # Mount test results output (optional)
       - .\test\test-results:C:\app\test\test-results
     isolation: process
+
+  # Linux full test suite - validates certz linux-x64 build on Ubuntu 22.04
+  # Prerequisite: pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64 -OutputDir linux-release
+  certz-linux-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test.linux
+    image: certz-linux-test:latest
+    container_name: certz-linux-test
+    environment:
+      - DOTNET_ENVIRONMENT=Test
+    volumes:
+      - ./test/test-results:/app/test/test-results
+
+  # Linux development test runner with volume mounts (no rebuild needed for binary/test changes)
+  # Prerequisite: pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64 -OutputDir linux-release
+  certz-linux-test-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.test.linux
+    image: certz-linux-test:latest
+    container_name: certz-linux-test-dev
+    environment:
+      - DOTNET_ENVIRONMENT=Test
+    volumes:
+      # Mount linux-release/certz and test scripts from host (changes reflected immediately)
+      - ./linux-release/certz:/app/certz:ro
+      - ./test:/app/test:ro
+      # Mount test results output (optional)
+      - ./test/test-results:/app/test/test-results

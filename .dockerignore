@@ -2,6 +2,9 @@
 bin/
 obj/
 
+# Windows release output (not needed in Docker images; use debug/ or linux-release/)
+release/
+
 # Visual Studio
 .vs/
 *.user
