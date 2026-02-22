@@ -1,5 +1,21 @@
 version: "3.8"
 
+# All services depend on a debug build. Run once before starting any service:
+#   pwsh -File build-debug.ps1
+#
+# Windows services use: debug/win-x64/
+# Linux services use:   debug/linux-x64/
+#
+# Run a service:
+#   docker-compose -f docker-compose.test.yml up --build <service>
+#
+# Available services:
+#   certz-test-smoke     - Nanoserver smoke tests (Windows)
+#   certz-test           - Full test suite, Server Core (Windows)
+#   certz-test-dev       - Dev mode with volume mounts, Server Core (Windows)
+#   certz-linux-test     - Full test suite, Ubuntu 22.04 (Linux)
+#   certz-linux-test-dev - Dev mode with volume mounts, Ubuntu 22.04 (Linux)
+
 services:
   # Nanoserver smoke tests - validates certz.exe runs on minimal Windows
   certz-test-smoke:
@@ -33,16 +49,13 @@ services:
     environment:
       - DOTNET_ENVIRONMENT=Test
     volumes:
-      # Mount certz.exe and test scripts from host (changes reflected immediately)
-      - ./debug/certz.exe:C:\app\certz.exe:ro
-      - ./debug/certz.pdb:C:\app\certz.pdb:ro
+      - ./debug/win-x64/certz.exe:C:\app\certz.exe:ro
+      - ./debug/win-x64/certz.pdb:C:\app\certz.pdb:ro
       - ./test:C:\app\test:ro
-      # Mount test results output (optional)
       - .\test\test-results:C:\app\test\test-results
     isolation: process
 
   # Linux full test suite - validates certz linux-x64 build on Ubuntu 22.04
-  # Prerequisite: pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64 -OutputDir linux-release
   certz-linux-test:
     build:
       context: .
@@ -55,7 +68,6 @@ services:
       - ./test/test-results:/app/test/test-results
 
   # Linux development test runner with volume mounts (no rebuild needed for binary/test changes)
-  # Prerequisite: pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64 -OutputDir linux-release
   certz-linux-test-dev:
     build:
       context: .
@@ -65,8 +77,6 @@ services:
     environment:
       - DOTNET_ENVIRONMENT=Test
     volumes:
-      # Mount linux-release/certz and test scripts from host (changes reflected immediately)
-      - ./linux-release/certz:/app/certz:ro
+      - ./debug/linux-x64/certz:/app/certz:ro
       - ./test:/app/test:ro
-      # Mount test results output (optional)
       - ./test/test-results:/app/test/test-results

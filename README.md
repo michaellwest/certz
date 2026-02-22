@@ -21,19 +21,55 @@ A standards-compliant certificate utility for creating, inspecting, linting, con
 
 ## Install
 
-**Windows:** Download `certz.exe` from the [Releases](https://github.com/michaellwest/certz/releases) page. No .NET runtime required -- copy it anywhere and run it.
+Release assets follow the naming pattern `certz-<version>-<runtime>[.exe]`, for example:
+`certz-0.3.0-win-x64.exe`, `certz-0.3.0-linux-x64`.
 
-**Linux:** Download `certz` (linux-x64) from the [Releases](https://github.com/michaellwest/certz/releases) page, then:
+Find all releases at the [Releases page](https://github.com/michaellwest/certz/releases).
+
+### Windows (PowerShell)
+
+```powershell
+$version = "0.3.0"
+Invoke-WebRequest `
+    -Uri "https://github.com/michaellwest/certz/releases/download/v$version/certz-$version-win-x64.exe" `
+    -OutFile "certz.exe"
+.\certz.exe --version
+```
+
+No .NET runtime required -- copy it anywhere on your PATH and run it.
+
+### Linux (curl)
 
 ```bash
+VERSION=0.3.0
+curl -L "https://github.com/michaellwest/certz/releases/download/v${VERSION}/certz-${VERSION}-linux-x64" \
+    -o certz
 chmod +x certz
 ./certz --version
 ```
 
-Or build from source:
+### Linux (PowerShell)
 
-```bash
-bash build-linux.sh          # outputs to linux-release/certz
+```powershell
+$version = "0.3.0"
+Invoke-WebRequest `
+    -Uri "https://github.com/michaellwest/certz/releases/download/v$version/certz-$version-linux-x64" `
+    -OutFile "certz"
+chmod +x ./certz
+./certz --version
+```
+
+### Build from source
+
+```powershell
+# Windows
+pwsh -File build-release.ps1                                    # outputs to release/win-x64/
+
+# Linux (cross-compile from Windows)
+pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64      # outputs to release/linux-x64/
+
+# Linux (native, on a Linux machine)
+bash build-linux.sh                                             # outputs to linux-release/certz
 ```
 
 ## Shell Completion

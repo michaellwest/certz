@@ -2,13 +2,19 @@
 # This script builds a release version of certz.exe and generates release notes
 
 param(
-    [string]$OutputDir = "release",
+    [string]$OutputDir = "",
     [string]$Configuration = "Release",
     [string]$RuntimeIdentifier = "win-x64"
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
+
+# Default output directory is release/<RuntimeIdentifier> (e.g. release/win-x64, release/linux-x64)
+if (-not $OutputDir) {
+    $OutputDir = "release/$RuntimeIdentifier"
+}
+
 $OutputPath = Join-Path $ProjectRoot $OutputDir
 
 Write-Host "Building certz release..." -ForegroundColor Cyan
@@ -35,22 +41,28 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$ExeName = $RuntimeIdentifier.StartsWith("win") ? "certz.exe" : "certz"
-$ExePath = Join-Path $OutputPath $ExeName
-if (-not (Test-Path $ExePath)) {
-    Write-Error "$ExeName was not found in output directory"
+if ($RuntimeIdentifier.StartsWith("win")) { $BuiltName = "certz.exe" } else { $BuiltName = "certz" }
+$BuiltPath = Join-Path $OutputPath $BuiltName
+if (-not (Test-Path $BuiltPath)) {
+    Write-Error "$BuiltName was not found in output directory"
     exit 1
 }
 
-Write-Host "Build successful!" -ForegroundColor Green
-
-# Get version from csproj
+# Get version from csproj (needed for the output filename)
 $CsprojPath = Join-Path $ProjectRoot "src\certz\certz.csproj"
 [xml]$Csproj = Get-Content $CsprojPath
-$Version = $Csproj.Project.PropertyGroup.AssemblyVersion
+$Version = $Csproj.Project.PropertyGroup.Version
 if (-not $Version) {
     $Version = "Unknown"
 }
+
+# Rename to certz-<version>-<rid>[.exe] so uploads are unambiguous
+# e.g. certz-0.3.0-win-x64.exe, certz-0.3.0-linux-x64
+if ($RuntimeIdentifier.StartsWith("win")) { $ExeName = "certz-$Version-$RuntimeIdentifier.exe" } else { $ExeName = "certz-$Version-$RuntimeIdentifier" }
+$ExePath = Join-Path $OutputPath $ExeName
+Rename-Item -Path $BuiltPath -NewName $ExeName
+
+Write-Host "Build successful!" -ForegroundColor Green
 
 # Get the last tagged version
 $LastTag = git describe --tags --abbrev=0 2>$null
