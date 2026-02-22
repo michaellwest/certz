@@ -105,7 +105,12 @@ internal static class MonitorCommand
             "Exit codes:\n" +
             "  0  All certificates are healthy\n" +
             "  1  Error (file not found, network failure) or --fail-on-warning triggered\n" +
-            "  2  One or more certificates have expired")
+            "  2  One or more certificates have expired\n\n" +
+            "Examples:\n" +
+            "  certz monitor cert.pem\n" +
+            "  certz monitor /path/to/certs --recursive --warn 60\n" +
+            "  certz monitor https://example.com --warn 14 --fail-on-warning\n" +
+            "  certz monitor --store My")
         {
             sourcesArgument,
             guidedOption,
