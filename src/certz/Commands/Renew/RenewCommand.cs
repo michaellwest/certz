@@ -75,7 +75,12 @@ internal static class RenewCommand
             "Exit codes:\n" +
             "  0  Certificate renewed successfully\n" +
             "  1  Renewal failed (read error, write error, invalid input)\n" +
-            "  2  Issuer certificate required but not found (CA-signed cert)")
+            "  2  Issuer certificate required but not found (CA-signed cert)\n\n" +
+            "Examples:\n" +
+            "  certz renew cert.pfx\n" +
+            "  certz renew cert.pfx --days 365\n" +
+            "  certz renew cert.pfx --keep-key --out renewed.pfx\n" +
+            "  certz renew cert.pfx --issuer-cert ca.crt --issuer-key ca.key")
         {
             sourceArgument,
             guidedOption,

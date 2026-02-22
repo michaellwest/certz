@@ -45,7 +45,14 @@ internal static class CreateCaCommand
         var pipeFormatOption = OptionBuilders.CreatePipeFormatOption();
         var pipePasswordOption = OptionBuilders.CreatePipePasswordOption();
 
-        var command = new Command("ca", "Create a Certificate Authority (CA) certificate")
+        var command = new Command("ca",
+            "Create a Certificate Authority (CA) certificate\n\n" +
+            "Usage:\n" +
+            "  certz create ca [--name <name>]\n\n" +
+            "Examples:\n" +
+            "  certz create ca --name \"My Dev CA\"\n" +
+            "  certz create ca --name \"My Dev CA\" --trust\n" +
+            "  certz create ca --name MyCA --days 3650 --cert ca.crt --key ca.key")
         {
             nameOption,
             guidedOption,

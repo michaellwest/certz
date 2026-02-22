@@ -62,7 +62,14 @@ internal static class TrustCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("add", "Add certificate to trust store")
+        var command = new Command("add",
+            "Add certificate to trust store\n\n" +
+            "Usage:\n" +
+            "  certz trust add <file>\n\n" +
+            "Examples:\n" +
+            "  certz trust add ca.crt\n" +
+            "  certz trust add ca.crt --store Root --location CurrentUser\n" +
+            "  certz trust add ca.pfx --password mypass")
         {
             fileArgument,
             passwordOption,
@@ -141,7 +148,14 @@ internal static class TrustCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("remove", "Remove certificate from trust store")
+        var command = new Command("remove",
+            "Remove certificate from trust store\n\n" +
+            "Usage:\n" +
+            "  certz trust remove [thumbprint]\n\n" +
+            "Examples:\n" +
+            "  certz trust remove A1B2C3D4\n" +
+            "  certz trust remove --subject \"My Dev CA\" --force\n" +
+            "  certz trust remove A1B2C3D4 --store Root --location CurrentUser")
         {
             thumbprintArgument,
             subjectOption,

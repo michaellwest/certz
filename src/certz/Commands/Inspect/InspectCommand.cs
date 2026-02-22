@@ -102,7 +102,15 @@ internal static class InspectCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("inspect", "Inspect certificate from file, URL, or certificate store")
+        var command = new Command("inspect",
+            "Inspect certificate from file, URL, or certificate store\n\n" +
+            "Usage:\n" +
+            "  certz inspect <file|url|thumbprint>\n\n" +
+            "Examples:\n" +
+            "  certz inspect cert.pem\n" +
+            "  certz inspect https://example.com\n" +
+            "  certz inspect cert.pfx --password mypass\n" +
+            "  certz inspect cert.pem --chain --tree")
         {
             sourceArgument,
             passwordOption,
