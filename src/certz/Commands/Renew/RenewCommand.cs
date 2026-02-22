@@ -22,12 +22,15 @@ internal static class RenewCommand
     private static Command BuildRenewCommand()
     {
         // Source argument
-        var sourceArgument = new Argument<string>("source")
+        var sourceArgument = new Argument<string?>("source")
         {
-            Description = "Existing certificate (file path or thumbprint)"
+            Description = "Existing certificate (file path or thumbprint)",
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         // Options
+        var guidedOption = OptionBuilders.CreateGuidedOption();
+
         var daysOption = new Option<int?>("--days", "-d")
         {
             Description = "New validity period in days (default: same as original, max 398)"
@@ -67,9 +70,15 @@ internal static class RenewCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("renew", "Renew an existing certificate with extended validity")
+        var command = new Command("renew",
+            "Renew an existing certificate with extended validity\n\n" +
+            "Exit codes:\n" +
+            "  0  Certificate renewed successfully\n" +
+            "  1  Renewal failed (read error, write error, invalid input)\n" +
+            "  2  Issuer certificate required but not found (CA-signed cert)")
         {
             sourceArgument,
+            guidedOption,
             daysOption,
             passwordOption,
             outOption,
@@ -85,25 +94,44 @@ internal static class RenewCommand
 
         command.SetAction(async (parseResult) =>
         {
-            var source = parseResult.GetValue(sourceArgument)
-                ?? throw new ArgumentException("Source argument is required.");
+            var guided = parseResult.GetValue(guidedOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
             var formatter = FormatterFactory.Create(format);
 
-            var options = new RenewOptions
+            RenewOptions options;
+
+            if (guided)
             {
-                Source = source,
-                Days = parseResult.GetValue(daysOption),
-                Password = parseResult.GetValue(passwordOption),
-                OutputFile = parseResult.GetValue(outOption),
-                OutputPassword = parseResult.GetValue(outPasswordOption),
-                KeepKey = parseResult.GetValue(keepKeyOption),
-                IssuerCert = parseResult.GetValue(issuerCertOption),
-                IssuerKey = parseResult.GetValue(issuerKeyOption),
-                IssuerPassword = parseResult.GetValue(issuerPasswordOption),
-                StoreName = parseResult.GetValue(storeOption),
-                StoreLocation = parseResult.GetValue(locationOption)
-            };
+                try
+                {
+                    options = CertificateWizard.RunRenewWizard();
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine("Operation cancelled.");
+                    return 0;
+                }
+            }
+            else
+            {
+                var source = parseResult.GetValue(sourceArgument)
+                    ?? throw new ArgumentException("Source argument is required. Use 'certz renew <source>' or 'certz renew --guided'.");
+
+                options = new RenewOptions
+                {
+                    Source = source,
+                    Days = parseResult.GetValue(daysOption),
+                    Password = parseResult.GetValue(passwordOption),
+                    OutputFile = parseResult.GetValue(outOption),
+                    OutputPassword = parseResult.GetValue(outPasswordOption),
+                    KeepKey = parseResult.GetValue(keepKeyOption),
+                    IssuerCert = parseResult.GetValue(issuerCertOption),
+                    IssuerKey = parseResult.GetValue(issuerKeyOption),
+                    IssuerPassword = parseResult.GetValue(issuerPasswordOption),
+                    StoreName = parseResult.GetValue(storeOption),
+                    StoreLocation = parseResult.GetValue(locationOption)
+                };
+            }
 
             var result = await RenewService.RenewCertificate(options);
             formatter.WriteRenewResult(result);

@@ -22,12 +22,14 @@ internal static class LintCommand
     private static Command BuildLintCommand()
     {
         // Source argument - file path, URL, or thumbprint
-        var sourceArgument = new Argument<string>("source")
+        var sourceArgument = new Argument<string?>("source")
         {
-            Description = "File path, URL (https://...), or certificate thumbprint"
+            Description = "File path, URL (https://...), or certificate thumbprint",
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         // Options
+        var guidedOption = OptionBuilders.CreateGuidedOption();
         var passwordOption = OptionBuilders.CreatePasswordOption();
 
         var policyOption = new Option<string>("--policy", "-p")
@@ -84,9 +86,14 @@ internal static class LintCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("lint", "Validate certificate against CA/B Forum and Mozilla NSS requirements")
+        var command = new Command("lint",
+            "Validate certificate against CA/B Forum and Mozilla NSS requirements\n\n" +
+            "Exit codes:\n" +
+            "  0  All checks passed\n" +
+            "  1  One or more lint violations found")
         {
             sourceArgument,
+            guidedOption,
             passwordOption,
             policyOption,
             severityOption,
@@ -97,50 +104,72 @@ internal static class LintCommand
 
         command.SetAction(async (parseResult) =>
         {
-            var source = parseResult.GetValue(sourceArgument)
-                ?? throw new ArgumentException("Source argument is required.");
-            var password = parseResult.GetValue(passwordOption);
-            var policy = parseResult.GetValue(policyOption) ?? "cabf";
-            var severityStr = parseResult.GetValue(severityOption) ?? "info";
-            var storeName = parseResult.GetValue(storeOption);
-            var storeLocation = parseResult.GetValue(locationOption);
+            var guided = parseResult.GetValue(guidedOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
-
-            var severity = severityStr.ToLowerInvariant() switch
-            {
-                "warning" => LintSeverity.Warning,
-                "error" => LintSeverity.Error,
-                _ => LintSeverity.Info
-            };
-
             var formatter = FormatterFactory.Create(format);
 
-            var options = new LintOptions
-            {
-                Source = source,
-                Password = password,
-                PolicySet = policy,
-                MinSeverity = severity,
-                StoreName = storeName,
-                StoreLocation = storeLocation
-            };
+            LintOptions options;
+            InspectSource sourceType;
 
-            // Detect source type and dispatch to appropriate handler
-            var sourceType = DetectSourceType(source, storeName);
+            if (guided)
+            {
+                try
+                {
+                    var (wizardOptions, wizardSourceType) = CertificateWizard.RunLintWizard();
+                    options = wizardOptions;
+                    sourceType = wizardSourceType switch
+                    {
+                        CertificateWizard.InspectSourceType.Url => InspectSource.Url,
+                        CertificateWizard.InspectSourceType.Store => InspectSource.Store,
+                        _ => InspectSource.File
+                    };
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine("Operation cancelled.");
+                    return;
+                }
+            }
+            else
+            {
+                var source = parseResult.GetValue(sourceArgument)
+                    ?? throw new ArgumentException("Source argument is required. Use 'certz lint <source>' or 'certz lint --guided'.");
+                var password = parseResult.GetValue(passwordOption);
+                var policy = parseResult.GetValue(policyOption) ?? "cabf";
+                var severityStr = parseResult.GetValue(severityOption) ?? "info";
+                var storeName = parseResult.GetValue(storeOption);
+                var storeLocation = parseResult.GetValue(locationOption);
+
+                var severity = severityStr.ToLowerInvariant() switch
+                {
+                    "warning" => LintSeverity.Warning,
+                    "error" => LintSeverity.Error,
+                    _ => LintSeverity.Info
+                };
+
+                options = new LintOptions
+                {
+                    Source = source,
+                    Password = password,
+                    PolicySet = policy,
+                    MinSeverity = severity,
+                    StoreName = storeName,
+                    StoreLocation = storeLocation
+                };
+
+                sourceType = DetectSourceType(source, storeName);
+            }
 
             var result = sourceType switch
             {
                 InspectSource.Url => await LintService.LintUrlAsync(options),
                 InspectSource.Store => LintService.LintFromStore(options),
                 InspectSource.File => LintService.LintFile(options),
-                _ => throw new InvalidOperationException($"Unknown source type for: {source}")
+                _ => throw new InvalidOperationException($"Unknown source type for: {options.Source}")
             };
 
-            // Output result using formatter
             formatter.WriteLintResult(result);
 
-            // Return non-zero exit code if there are errors
-            // Throw an exception that will be caught by Program.cs
             if (!result.Passed)
             {
                 throw new LintFailedException($"Lint failed with {result.ErrorCount} error(s)");
