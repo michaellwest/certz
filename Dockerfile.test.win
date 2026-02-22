@@ -1,4 +1,4 @@
-# Dockerfile for running the full certz test suite on Windows Server Core
+# Dockerfile for running the full certz test suite on Windows Server Core (certz-win-test)
 # Server Core provides the PKI module, certutil, and Cert:\ drive needed by tests
 # Requires Windows containers to be enabled in Docker Desktop
 

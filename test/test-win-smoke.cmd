@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo  certz Nanoserver Smoke Tests
+echo  certz Windows Smoke Tests
 echo ========================================
 echo.
 
