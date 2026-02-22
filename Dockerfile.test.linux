@@ -1,0 +1,26 @@
+# Dockerfile for running the certz test suite on Linux (Ubuntu 22.04)
+# Verifies the linux-x64 self-contained executable runs correctly on Linux
+# Includes ca-certificates so trust store tests (update-ca-certificates) work
+
+FROM mcr.microsoft.com/powershell:lts-ubuntu-22.04
+
+WORKDIR /app
+
+# Install ca-certificates for LocalMachine trust store tests
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV DOTNET_ENVIRONMENT=Test
+
+# Copy the Linux binary and test scripts
+# Build linux-release/certz first: pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64 -OutputDir linux-release
+COPY linux-release/certz ./
+COPY test/ ./test/
+
+RUN chmod +x /app/certz && \
+    mkdir -p /app/test-results
+
+# Default command runs the full test suite
+ENTRYPOINT ["pwsh", "-File", "./test/test-all.ps1"]
+CMD ["-Verbose"]
