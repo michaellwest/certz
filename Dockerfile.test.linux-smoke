@@ -1,0 +1,15 @@
+# Dockerfile for smoke testing certz on minimal Linux (Debian 12 slim)
+# Verifies the self-contained linux-x64 binary runs without PowerShell or
+# distro tooling -- just sh and glibc. Mirrors Dockerfile.test.nanoserver.
+# Prerequisite: pwsh -File build-debug.ps1
+
+FROM debian:12-slim
+WORKDIR /app
+
+# Copy the Linux binary and smoke test script
+COPY debug/linux-x64/certz ./
+COPY test/test-linux-smoke.sh ./test/
+
+RUN chmod +x /app/certz /app/test/test-linux-smoke.sh
+
+ENTRYPOINT ["/bin/sh", "/app/test/test-linux-smoke.sh"]

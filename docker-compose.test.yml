@@ -10,29 +10,30 @@ version: "3.8"
 #   docker-compose -f docker-compose.test.yml up --build <service>
 #
 # Available services:
-#   certz-test-smoke     - Nanoserver smoke tests (Windows)
-#   certz-test           - Full test suite, Server Core (Windows)
-#   certz-test-dev       - Dev mode with volume mounts, Server Core (Windows)
-#   certz-linux-test     - Full test suite, Ubuntu 22.04 (Linux)
-#   certz-linux-test-dev - Dev mode with volume mounts, Ubuntu 22.04 (Linux)
+#   certz-win-test-smoke   - Nanoserver smoke tests (Windows)
+#   certz-win-test         - Full test suite, Server Core (Windows)
+#   certz-win-test-dev     - Dev mode with volume mounts, Server Core (Windows)
+#   certz-linux-test-smoke - Debian slim smoke tests (Linux)
+#   certz-linux-test       - Full test suite, Ubuntu 22.04 (Linux)
+#   certz-linux-test-dev   - Dev mode with volume mounts, Ubuntu 22.04 (Linux)
 
 services:
   # Nanoserver smoke tests - validates certz.exe runs on minimal Windows
-  certz-test-smoke:
+  certz-win-test-smoke:
     build:
       context: .
-      dockerfile: Dockerfile.test.nanoserver
-    image: certz-test-smoke:latest
-    container_name: certz-test-smoke
+      dockerfile: Dockerfile.test.win-smoke
+    image: certz-win-test-smoke:latest
+    container_name: certz-win-test-smoke
     isolation: process
 
   # Full test suite on Server Core (PKI module, certutil, Cert:\ drive available)
-  certz-test:
+  certz-win-test:
     build:
       context: .
-      dockerfile: Dockerfile.test.servercore
-    image: certz-test:latest
-    container_name: certz-test
+      dockerfile: Dockerfile.test.win
+    image: certz-win-test:latest
+    container_name: certz-win-test
     environment:
       - DOTNET_ENVIRONMENT=Test
     volumes:
@@ -40,12 +41,12 @@ services:
     isolation: process
 
   # Development test runner with volume mounts (no rebuild needed for changes)
-  certz-test-dev:
+  certz-win-test-dev:
     build:
       context: .
-      dockerfile: Dockerfile.test.servercore
-    image: certz-test:latest
-    container_name: certz-test-dev
+      dockerfile: Dockerfile.test.win
+    image: certz-win-test:latest
+    container_name: certz-win-test-dev
     environment:
       - DOTNET_ENVIRONMENT=Test
     volumes:
@@ -54,6 +55,14 @@ services:
       - ./test:C:\app\test:ro
       - .\test\test-results:C:\app\test\test-results
     isolation: process
+
+  # Linux smoke tests - validates certz runs on minimal Linux (Debian 12 slim, no PowerShell)
+  certz-linux-test-smoke:
+    build:
+      context: .
+      dockerfile: Dockerfile.test.linux-smoke
+    image: certz-linux-test-smoke:latest
+    container_name: certz-linux-test-smoke
 
   # Linux full test suite - validates certz linux-x64 build on Ubuntu 22.04
   certz-linux-test:

@@ -16,25 +16,24 @@ This produces:
 
 ---
 
-## Two Docker Images
-
-The project uses two Docker images for testing:
+## Docker Images
 
 | Image | Base | Purpose | Test Runner |
 |---|---|---|---|
-| `Dockerfile.test.nanoserver` | `nanoserver:ltsc2022` | Smoke tests on bare Nanoserver | `test-nanoserver.cmd` (CMD batch) |
-| `Dockerfile.test.servercore` | `powershell:lts-windowsservercore-ltsc2022` | Full test suite | `test-all.ps1` (PowerShell) |
-| `Dockerfile.test.linux` | `powershell:lts-ubuntu-22.04` | Full test suite on Linux | `test-all.ps1` (PowerShell) |
+| `Dockerfile.test.win-smoke` | `nanoserver:ltsc2022` | Smoke tests on bare Nanoserver | `test-win-smoke.cmd` (CMD batch) |
+| `Dockerfile.test.win` | `powershell:lts-windowsservercore-ltsc2022` | Full test suite (Windows) | `test-all.ps1` (PowerShell) |
+| `Dockerfile.test.linux-smoke` | `debian:12-slim` | Smoke tests on minimal Linux | `test-linux-smoke.sh` (sh) |
+| `Dockerfile.test.linux` | `powershell:lts-ubuntu-22.04` | Full test suite (Linux) | `test-all.ps1` (PowerShell) |
 
 ### Why Two Windows Images?
 
-**Nanoserver** is a minimal Windows installation without PowerShell, PKI modules, or `certutil`. Since certz.exe is a self-contained single-file executable, it should run on Nanoserver without dependencies. The smoke test validates this.
+**`Dockerfile.test.win-smoke` (Nanoserver)** is a minimal Windows installation without PowerShell, PKI modules, or `certutil`. Since certz.exe is a self-contained single-file executable, it should run on Nanoserver without dependencies. The smoke test validates this.
 
-**Server Core** provides the full Windows API surface including the PKI PowerShell module, `certutil.exe`, and the `Cert:\` drive. The comprehensive test suite requires these for test setup and teardown (creating certificates via `New-SelfSignedCertificate`, managing stores via `Cert:\`, etc.).
+**`Dockerfile.test.win` (Server Core)** provides the full Windows API surface including the PKI PowerShell module, `certutil.exe`, and the `Cert:\` drive. The comprehensive test suite requires these for test setup and teardown (creating certificates via `New-SelfSignedCertificate`, managing stores via `Cert:\`, etc.).
 
 ---
 
-## Nanoserver Smoke Tests (`Dockerfile.test.nanoserver`)
+## Windows Smoke Tests (`Dockerfile.test.win-smoke`)
 
 ### How It Works
 
@@ -43,8 +42,8 @@ FROM mcr.microsoft.com/windows/nanoserver:ltsc2022
 WORKDIR /app
 USER ContainerAdministrator
 COPY debug/win-x64/certz.exe ./
-COPY test/test-nanoserver.cmd ./test/
-ENTRYPOINT ["cmd", "/c", "test\\test-nanoserver.cmd"]
+COPY test/test-win-smoke.cmd ./test/
+ENTRYPOINT ["cmd", "/c", "test\\test-win-smoke.cmd"]
 ```
 
 The batch file runs every certz command sequentially and fails on the first non-zero exit code. No PowerShell, no test framework -- just certz.exe and CMD.
@@ -52,10 +51,10 @@ The batch file runs every certz command sequentially and fails on the first non-
 **File Flow:**
 
 ```
-Host Machine                       Docker Image (Nanoserver)
--------------                      ------------------------
-debug/win-x64/certz.exe  --COPY--> /app/certz.exe
-test/test-nanoserver.cmd           /app/test/test-nanoserver.cmd
+Host Machine                      Docker Image (Nanoserver)
+-------------                     ------------------------
+debug/win-x64/certz.exe --COPY--> /app/certz.exe
+test/test-win-smoke.cmd           /app/test/test-win-smoke.cmd
 ```
 
 **Commands tested:** `--version`, `--help`, `examples`, `create dev`, `create ca`, `create dev --ephemeral`, `inspect`, `lint`, `convert`, `renew`, `monitor`, `verify`, `list`, `install`
@@ -64,12 +63,12 @@ test/test-nanoserver.cmd           /app/test/test-nanoserver.cmd
 
 ```powershell
 pwsh -File build-debug.ps1
-docker-compose -f docker-compose.test.yml up --build certz-test-smoke
+docker-compose -f docker-compose.test.yml up --build certz-win-test-smoke
 ```
 
 ---
 
-## Server Core Full Suite (`Dockerfile.test.servercore`)
+## Windows Full Suite (`Dockerfile.test.win`)
 
 ### How It Works
 
@@ -115,7 +114,40 @@ The test helper functions automatically detect container environments via `DOTNE
 
 ```powershell
 pwsh -File build-debug.ps1
-docker-compose -f docker-compose.test.yml up --build certz-test
+docker-compose -f docker-compose.test.yml up --build certz-win-test
+```
+
+---
+
+## Linux Smoke Tests (`Dockerfile.test.linux-smoke`)
+
+### How It Works
+
+```dockerfile
+FROM debian:12-slim
+WORKDIR /app
+COPY debug/linux-x64/certz ./
+COPY test/test-linux-smoke.sh ./test/
+RUN chmod +x /app/certz /app/test/test-linux-smoke.sh
+ENTRYPOINT ["/bin/sh", "/app/test/test-linux-smoke.sh"]
+```
+
+Uses `debian:12-slim` — glibc-based, no PowerShell, no package extras. Mirrors the Nanoserver smoke test: just the binary and a shell script. Tests 19 commands across create, inspect, lint, convert, renew, and monitor. Trust store operations (install/list/verify) are excluded since they require distro tools; those are covered by `certz-linux-test`.
+
+**File Flow:**
+
+```
+Host Machine                           Docker Image (Debian 12 slim)
+-------------                          -----------------------------
+debug/linux-x64/certz      --COPY-->   /app/certz
+test/test-linux-smoke.sh   --COPY-->   /app/test/test-linux-smoke.sh
+```
+
+**Run:**
+
+```powershell
+pwsh -File build-debug.ps1
+docker-compose -f docker-compose.test.yml up --build certz-linux-test-smoke
 ```
 
 ---
@@ -156,13 +188,14 @@ docker-compose -f docker-compose.test.yml up --build certz-linux-test
 
 ## Docker Compose
 
-The `docker-compose.test.yml` provides five services:
+The `docker-compose.test.yml` provides six services:
 
 | Service | Dockerfile | Platform | Description |
 |---|---|---|---|
-| `certz-test-smoke` | `Dockerfile.test.nanoserver` | Windows | Nanoserver smoke tests |
-| `certz-test` | `Dockerfile.test.servercore` | Windows | Full test suite (baked-in files) |
-| `certz-test-dev` | `Dockerfile.test.servercore` | Windows | Development mode (volume mounts) |
+| `certz-win-test-smoke` | `Dockerfile.test.win-smoke` | Windows | Nanoserver smoke tests |
+| `certz-win-test` | `Dockerfile.test.win` | Windows | Full test suite (baked-in files) |
+| `certz-win-test-dev` | `Dockerfile.test.win` | Windows | Development mode (volume mounts) |
+| `certz-linux-test-smoke` | `Dockerfile.test.linux-smoke` | Linux | Debian slim smoke tests |
 | `certz-linux-test` | `Dockerfile.test.linux` | Linux | Full test suite (baked-in files) |
 | `certz-linux-test-dev` | `Dockerfile.test.linux` | Linux | Development mode (volume mounts) |
 
@@ -171,9 +204,10 @@ The `docker-compose.test.yml` provides five services:
 pwsh -File build-debug.ps1
 
 # Run individual services
-docker-compose -f docker-compose.test.yml up --build certz-test-smoke
-docker-compose -f docker-compose.test.yml up --build certz-test
-docker-compose -f docker-compose.test.yml up --build certz-test-dev
+docker-compose -f docker-compose.test.yml up --build certz-win-test-smoke
+docker-compose -f docker-compose.test.yml up --build certz-win-test
+docker-compose -f docker-compose.test.yml up --build certz-win-test-dev
+docker-compose -f docker-compose.test.yml up --build certz-linux-test-smoke
 docker-compose -f docker-compose.test.yml up --build certz-linux-test
 docker-compose -f docker-compose.test.yml up --build certz-linux-test-dev
 ```
@@ -204,12 +238,15 @@ Rebuild the image:
 
 ```powershell
 # Nanoserver
-docker-compose -f docker-compose.test.yml build --no-cache certz-test-smoke
+docker-compose -f docker-compose.test.yml build --no-cache certz-win-test-smoke
 
 # Server Core
-docker-compose -f docker-compose.test.yml build --no-cache certz-test
+docker-compose -f docker-compose.test.yml build --no-cache certz-win-test
 
-# Linux
+# Linux smoke
+docker-compose -f docker-compose.test.yml build --no-cache certz-linux-test-smoke
+
+# Linux full suite
 docker-compose -f docker-compose.test.yml build --no-cache certz-linux-test
 ```
 
@@ -219,9 +256,10 @@ docker-compose -f docker-compose.test.yml build --no-cache certz-linux-test
 
 | Scenario | Use This |
 |---|---|
-| Quick binary compatibility check | `certz-test-smoke` (Nanoserver) |
-| Full Windows test coverage in isolation | `certz-test` (Server Core) |
+| Quick Windows binary compatibility check | `certz-win-test-smoke` (Nanoserver) |
+| Quick Linux binary compatibility check | `certz-linux-test-smoke` (Debian slim) |
+| Full Windows test coverage in isolation | `certz-win-test` (Server Core) |
 | Full Linux test coverage in isolation | `certz-linux-test` (Ubuntu 22.04) |
-| Active Windows development (live changes) | `certz-test-dev` (volume mounts) |
+| Active Windows development (live changes) | `certz-win-test-dev` (volume mounts) |
 | Active Linux development (live changes) | `certz-linux-test-dev` (volume mounts) |
-| CI/CD pipeline | Nanoserver first (fast), then Server Core + Linux (thorough) |
+| CI/CD pipeline | Smoke tests first (fast), then full suites (thorough) |

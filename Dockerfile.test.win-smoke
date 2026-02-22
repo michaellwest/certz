@@ -1,4 +1,4 @@
-# Dockerfile for smoke testing certz.exe on Windows Nanoserver
+# Dockerfile for smoke testing certz.exe on Windows Nanoserver (certz-win-test-smoke)
 # Verifies the self-contained executable runs on a minimal Windows image
 # Requires Windows containers to be enabled in Docker Desktop
 
@@ -11,7 +11,7 @@ USER ContainerAdministrator
 # Copy the built executable and smoke test script
 # Prerequisite: pwsh -File build-debug.ps1
 COPY debug/win-x64/certz.exe ./
-COPY test/test-nanoserver.cmd ./test/
+COPY test/test-win-smoke.cmd ./test/
 
 # Run the smoke tests
-ENTRYPOINT ["cmd", "/c", "test\\test-nanoserver.cmd"]
+ENTRYPOINT ["cmd", "/c", "test\\test-win-smoke.cmd"]
