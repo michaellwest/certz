@@ -126,8 +126,8 @@ Invoke-Test -TestId "cnv-1.1" -TestName "Convert PEM cert+key to PFX" -FilePrefi
     Remove-Item $cert.PSPath -Force
 
     try {
-        # ACTION: Single certz.exe call (password will be auto-generated)
-        $output = & .\certz.exe convert --cert cnv-basic.cer --key cnv-basic.key --pfx cnv-basic.pfx --password TestPass123 2>&1
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe convert cnv-basic.cer --to pfx --key cnv-basic.key --output cnv-basic.pfx --password TestPass123 2>&1
         $outputStr = $output -join "`n"
 
         # ASSERTION 1: Exit code
@@ -189,7 +189,7 @@ Invoke-Test -TestId "cnv-1.2" -TestName "Convert PEM to PFX with explicit passwo
 
     try {
         # ACTION: Single certz.exe call with explicit password
-        $output = & .\certz.exe convert --cert cnv-passwd.cer --key cnv-passwd.key --pfx cnv-passwd.pfx --password $explicitPassword 2>&1
+        $output = & .\certz.exe convert cnv-passwd.cer --to pfx --key cnv-passwd.key --output cnv-passwd.pfx --password $explicitPassword 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -249,7 +249,7 @@ Invoke-Test -TestId "cnv-1.3" -TestName "Convert PEM to PFX with password file" 
 
     try {
         # ACTION: Single certz.exe call with password file
-        $output = & .\certz.exe convert --cert cnv-pwdfile.cer --key cnv-pwdfile.key --pfx cnv-pwdfile.pfx --password-file cnv-pwdfile.password.txt 2>&1
+        $output = & .\certz.exe convert cnv-pwdfile.cer --to pfx --key cnv-pwdfile.key --output cnv-pwdfile.pfx --password-file cnv-pwdfile.password.txt 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -300,16 +300,16 @@ Invoke-Test -TestId "cnv-2.1" -TestName "Convert PFX to PEM (cert only)" -FilePr
 
     try {
         # ACTION: Single certz.exe call
-        $output = & .\certz.exe convert --pfx cnv-topem-cert.pfx --password PfxPass123 --out-cert cnv-topem-cert.cer 2>&1
+        $output = & .\certz.exe convert cnv-topem-cert.pfx --to pem --password PfxPass123 --output cnv-topem-cert.pem 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: Certificate PEM file exists
-        Assert-FileExists "cnv-topem-cert.cer"
+        Assert-FileExists "cnv-topem-cert.pem"
 
         # ASSERTION 3: PEM file contains valid certificate
-        $content = Get-Content "cnv-topem-cert.cer" -Raw
+        $content = Get-Content "cnv-topem-cert.pem" -Raw
         if ($content -notmatch "-----BEGIN CERTIFICATE-----") {
             throw "Output should contain PEM-encoded certificate"
         }
@@ -319,7 +319,7 @@ Invoke-Test -TestId "cnv-2.1" -TestName "Convert PFX to PEM (cert only)" -FilePr
     finally {
         # CLEANUP: PowerShell only
         Remove-Item "cnv-topem-cert.pfx" -Force -ErrorAction SilentlyContinue
-        Remove-Item "cnv-topem-cert.cer" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-topem-cert.pem" -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -341,33 +341,30 @@ Invoke-Test -TestId "cnv-2.2" -TestName "Convert PFX to PEM (cert+key)" -FilePre
     Remove-Item $cert.PSPath -Force
 
     try {
-        # ACTION: Single certz.exe call
-        $output = & .\certz.exe convert --pfx cnv-topem-both.pfx --password PfxBothPass123 --out-cert cnv-topem-both.cer --out-key cnv-topem-both.key 2>&1
+        # ACTION: Single certz.exe call (cert and key combined in one PEM output)
+        $output = & .\certz.exe convert cnv-topem-both.pfx --to pem --password PfxBothPass123 --output cnv-topem-both.pem 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
 
-        # ASSERTION 2: Both files exist
-        Assert-FileExists "cnv-topem-both.cer"
-        Assert-FileExists "cnv-topem-both.key"
+        # ASSERTION 2: Combined PEM file exists
+        Assert-FileExists "cnv-topem-both.pem"
 
-        # ASSERTION 3: Files contain correct PEM content
-        $certContent = Get-Content "cnv-topem-both.cer" -Raw
-        $keyContent = Get-Content "cnv-topem-both.key" -Raw
-        if ($certContent -notmatch "-----BEGIN CERTIFICATE-----") {
-            throw "Certificate file should contain PEM-encoded certificate"
+        # ASSERTION 3: PEM file contains cert and key
+        $content = Get-Content "cnv-topem-both.pem" -Raw
+        if ($content -notmatch "-----BEGIN CERTIFICATE-----") {
+            throw "PEM file should contain PEM-encoded certificate"
         }
-        if ($keyContent -notmatch "-----BEGIN.*PRIVATE KEY-----") {
-            throw "Key file should contain PEM-encoded private key"
+        if ($content -notmatch "-----BEGIN.*PRIVATE KEY-----") {
+            throw "PEM file should contain PEM-encoded private key (--include-key is true by default)"
         }
 
-        [PSCustomObject]@{ Success = $true; Details = "PFX to PEM (cert+key) successful" }
+        [PSCustomObject]@{ Success = $true; Details = "PFX to PEM (cert+key combined) successful" }
     }
     finally {
         # CLEANUP: PowerShell only
         Remove-Item "cnv-topem-both.pfx" -Force -ErrorAction SilentlyContinue
-        Remove-Item "cnv-topem-both.cer" -Force -ErrorAction SilentlyContinue
-        Remove-Item "cnv-topem-both.key" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-topem-both.pem" -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -390,7 +387,7 @@ Invoke-Test -TestId "cnv-2.3" -TestName "PFX to PEM without password fails" -Fil
 
     try {
         # ACTION: Single certz.exe call WITHOUT password (should fail)
-        $output = & .\certz.exe convert --pfx cnv-nopwd.pfx --out-cert cnv-nopwd.cer 2>&1
+        $output = & .\certz.exe convert cnv-nopwd.pfx --to pem --output cnv-nopwd.pem 2>&1
         $exitCode = $LASTEXITCODE
         $outputStr = $output -join "`n"
 
@@ -405,14 +402,14 @@ Invoke-Test -TestId "cnv-2.3" -TestName "PFX to PEM without password fails" -Fil
         }
 
         # ASSERTION 3: Output file should NOT exist
-        Assert-FileNotExists "cnv-nopwd.cer"
+        Assert-FileNotExists "cnv-nopwd.pem"
 
         [PSCustomObject]@{ Success = $true; Details = "Password requirement enforced correctly" }
     }
     finally {
         # CLEANUP: PowerShell only
         Remove-Item "cnv-nopwd.pfx" -Force -ErrorAction SilentlyContinue
-        Remove-Item "cnv-nopwd.cer" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-nopwd.pem" -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -451,7 +448,7 @@ Invoke-Test -TestId "cnv-3.1" -TestName "PFX with modern encryption (AES-256)" -
 
     try {
         # ACTION: Single certz.exe call with modern encryption
-        $output = & .\certz.exe convert --cert cnv-modern.cer --key cnv-modern.key --pfx cnv-modern.pfx --password ModernPass123 --pfx-encryption modern 2>&1
+        $output = & .\certz.exe convert cnv-modern.cer --to pfx --key cnv-modern.key --output cnv-modern.pfx --password ModernPass123 --pfx-encryption modern 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -507,7 +504,7 @@ Invoke-Test -TestId "cnv-3.2" -TestName "PFX with legacy encryption (3DES)" -Fil
 
     try {
         # ACTION: Single certz.exe call with legacy encryption
-        $output = & .\certz.exe convert --cert cnv-legacy.cer --key cnv-legacy.key --pfx cnv-legacy.pfx --password LegacyPass123 --pfx-encryption legacy 2>&1
+        $output = & .\certz.exe convert cnv-legacy.cer --to pfx --key cnv-legacy.key --output cnv-legacy.pfx --password LegacyPass123 --pfx-encryption legacy 2>&1
 
         # ASSERTION 1: Exit code
         Assert-ExitCode -Expected 0
@@ -568,7 +565,7 @@ Invoke-Test -TestId "fmt-1.1" -TestName "Convert with JSON output" -FilePrefix "
 
     try {
         # ACTION: Single certz.exe call with JSON output
-        $output = & .\certz.exe convert --cert fmt-json.cer --key fmt-json.key --pfx fmt-json.pfx --password JsonPass123 --format json 2>&1
+        $output = & .\certz.exe convert fmt-json.cer --to pfx --key fmt-json.key --output fmt-json.pfx --password JsonPass123 --format json 2>&1
         $outputStr = $output -join "`n"
 
         # ASSERTION 1: Exit code

@@ -91,14 +91,6 @@ internal static class OptionBuilders
                 result.AddError("Certificate validity exceeds CA/Browser Forum limit effective March 15, 2026 (200 days). " +
                                      "See: https://cabforum.org/2025/04/11/ballot-sc081v3/");
             }
-            else if (days > 200)
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"WARNING: Validity of {days} days exceeds the upcoming CA/Browser Forum limit.");
-                Console.WriteLine("         After March 15, 2026, certificates must not exceed 200 days validity.");
-                Console.WriteLine("         Your certificate will be non-compliant after this date.");
-                Console.ResetColor();
-            }
         });
 
         daysOption.CompletionSources.Add(new[] { "30", "90", "180", "365", "398" });
@@ -175,16 +167,6 @@ internal static class OptionBuilders
             if (keySize != 2048 && keySize != 3072 && keySize != 4096)
             {
                 result.AddError("Key size must be 2048, 3072, or 4096 bits.");
-                return;
-            }
-
-            if (keySize == 2048)
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("INFO: Using 2048-bit RSA key.");
-                Console.WriteLine("      NIST recommends 3072+ bits for protection beyond 2030.");
-                Console.WriteLine("      This key size is acceptable but consider --key-size 3072 or 4096.");
-                Console.ResetColor();
             }
         });
 
@@ -210,7 +192,8 @@ internal static class OptionBuilders
     {
         var hashAlgorithmOption = new Option<string>("--hash-algorithm", "--hash")
         {
-            Description = "Hash algorithm (SHA256, SHA384, or SHA512). Default auto-selects based on key size.",
+            Description = "Hash algorithm for certificate signing. Default 'auto' selects based on key type and size: " +
+                          "SHA-256 for ECDSA P-256 and RSA 2048; SHA-384 for ECDSA P-384 and RSA 3072; SHA-512 for ECDSA P-521 and RSA 4096.",
             DefaultValueFactory = _ => "auto"
         };
 
@@ -442,14 +425,6 @@ internal static class OptionBuilders
                 result.AddError("PFX encryption must be 'modern' or 'legacy'.");
             }
 
-            if (normalizedEncryption == "LEGACY")
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("INFO: Using legacy 3DES encryption for PFX.");
-                Console.WriteLine("      This is for compatibility with older systems (Windows XP/Server 2003).");
-                Console.WriteLine("      Consider using 'modern' (AES-256) for better security.");
-                Console.ResetColor();
-            }
         });
 
         pfxEncryptionOption.CompletionSources.Add(new[] { "modern", "legacy" });
@@ -566,7 +541,8 @@ internal static class OptionBuilders
     {
         return new Option<bool>("--ephemeral", "-e")
         {
-            Description = "Generate certificate in memory only (no files written to disk)",
+            Description = "Create and validate the certificate in memory only; no output is produced. " +
+                          "Use this to verify that a set of flags produces a valid certificate without any side effects.",
             DefaultValueFactory = _ => false
         };
     }
@@ -578,7 +554,8 @@ internal static class OptionBuilders
     {
         return new Option<bool>("--pipe")
         {
-            Description = "Stream certificate to stdout (no files written)"
+            Description = "Stream the certificate to stdout so another process can consume it via pipe. " +
+                          "Use --pipe-format to select the output format (default: pem) and --pipe-password for PFX output."
         };
     }
 

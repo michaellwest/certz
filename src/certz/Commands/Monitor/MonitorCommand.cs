@@ -94,12 +94,21 @@ internal static class MonitorCommand
             DefaultValueFactory = _ => false
         };
 
+        // Guided option
+        var guidedOption = OptionBuilders.CreateGuidedOption();
+
         // Format option
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("monitor", "Monitor certificates for expiration")
+        var command = new Command("monitor",
+            "Monitor certificates for expiration\n\n" +
+            "Exit codes:\n" +
+            "  0  All certificates are healthy\n" +
+            "  1  Error (file not found, network failure) or --fail-on-warning triggered\n" +
+            "  2  One or more certificates have expired")
         {
             sourcesArgument,
+            guidedOption,
             warnOption,
             recursiveOption,
             passwordOption,
@@ -113,57 +122,82 @@ internal static class MonitorCommand
 
         command.SetAction(async (parseResult) =>
         {
-            var sources = parseResult.GetValue(sourcesArgument) ?? [];
-            var warnDays = parseResult.GetValue(warnOption);
-            var recursive = parseResult.GetValue(recursiveOption);
-            var password = parseResult.GetValue(passwordOption);
-            var passwordMapFile = parseResult.GetValue(passwordMapOption);
-            var storeName = parseResult.GetValue(storeOption);
-            var storeLocation = parseResult.GetValue(locationOption);
-            var quiet = parseResult.GetValue(quietOption);
-            var failOnWarning = parseResult.GetValue(failOnWarningOption);
+            var guided = parseResult.GetValue(guidedOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
 
-            // Use environment variable for password if not specified
-            password ??= Environment.GetEnvironmentVariable("CERTZ_PASSWORD");
+            MonitorOptions options;
 
-            // Parse password map file if provided
-            List<PasswordMapping>? passwordMappings = null;
-            if (passwordMapFile != null)
+            if (guided)
             {
-                passwordMappings = ParsePasswordMapFile(passwordMapFile);
+                try
+                {
+                    options = CertificateWizard.RunMonitorWizard();
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine("Operation cancelled.");
+                    return 0;
+                }
             }
-
-            // Validate that at least one source is provided or store is specified
-            if (sources.Length == 0 && string.IsNullOrEmpty(storeName))
+            else
             {
-                throw new ArgumentException("At least one source (file, directory, or URL) or --store must be specified.");
+                var sources = parseResult.GetValue(sourcesArgument) ?? [];
+                var warnDays = parseResult.GetValue(warnOption);
+                var recursive = parseResult.GetValue(recursiveOption);
+                var password = parseResult.GetValue(passwordOption);
+                var passwordMapFile = parseResult.GetValue(passwordMapOption);
+                var storeName = parseResult.GetValue(storeOption);
+                var storeLocation = parseResult.GetValue(locationOption);
+                var quiet = parseResult.GetValue(quietOption);
+                var failOnWarning = parseResult.GetValue(failOnWarningOption);
+
+                // Use environment variable for password if not specified
+                password ??= Environment.GetEnvironmentVariable("CERTZ_PASSWORD");
+
+                // Parse password map file if provided
+                List<PasswordMapping>? passwordMappings = null;
+                if (passwordMapFile != null)
+                {
+                    passwordMappings = ParsePasswordMapFile(passwordMapFile);
+                }
+
+                // Validate that at least one source is provided or store is specified
+                if (sources.Length == 0 && string.IsNullOrEmpty(storeName))
+                {
+                    throw new ArgumentException(
+                        "At least one source (file, directory, or URL) or --store must be specified.\n" +
+                        "Examples:\n" +
+                        "  certz monitor *.pfx\n" +
+                        "  certz monitor https://example.com\n" +
+                        "  certz monitor --store My\n" +
+                        "  certz monitor --guided");
+                }
+
+                options = new MonitorOptions
+                {
+                    Sources = sources,
+                    WarnDays = warnDays,
+                    Recursive = recursive,
+                    Password = password,
+                    PasswordMappings = passwordMappings,
+                    StoreName = storeName,
+                    StoreLocation = storeLocation,
+                    QuietMode = quiet,
+                    FailOnWarning = failOnWarning
+                };
             }
-
-            var options = new MonitorOptions
-            {
-                Sources = sources,
-                WarnDays = warnDays,
-                Recursive = recursive,
-                Password = password,
-                PasswordMappings = passwordMappings,
-                StoreName = storeName,
-                StoreLocation = storeLocation,
-                QuietMode = quiet,
-                FailOnWarning = failOnWarning
-            };
 
             var result = await MonitorService.MonitorAsync(options);
 
             var formatter = FormatterFactory.Create(format);
-            formatter.WriteMonitorResult(result, quiet);
+            formatter.WriteMonitorResult(result, options.QuietMode);
 
             // Determine exit code
             if (result.ExpiredCount > 0)
             {
                 return 2;
             }
-            if (failOnWarning && result.ExpiringCount > 0)
+            if (options.FailOnWarning && result.ExpiringCount > 0)
             {
                 return 1;
             }

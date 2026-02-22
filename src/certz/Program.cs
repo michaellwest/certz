@@ -31,11 +31,8 @@ rootCommand.SetAction(async (parseResult) =>
 
     if (!guided)
     {
-        // No subcommand and no --guided: print brief guidance
-        Console.WriteLine("certz - A standards-compliant certificate utility");
-        Console.WriteLine();
-        Console.WriteLine("  certz --help     Show command reference");
-        Console.WriteLine("  certz --guided   Launch interactive wizard");
+        // No subcommand and no --guided: show standard --help output
+        await rootCommand.Parse(["--help"]).InvokeAsync();
         return;
     }
 
@@ -48,7 +45,8 @@ rootCommand.SetAction(async (parseResult) =>
     }
     catch (OperationCanceledException)
     {
-        // User pressed Ctrl+C or cancelled — exit cleanly
+        // User pressed Ctrl+C or cancelled
+        Console.Error.WriteLine("Operation cancelled.");
     }
 });
 
