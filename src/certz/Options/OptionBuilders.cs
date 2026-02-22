@@ -505,7 +505,7 @@ internal static class OptionBuilders
         var trustLocationOption = new Option<StoreLocation>("--trust-location", "--tl")
         {
             Description = "Trust store location: LocalMachine (default when admin, system-wide) or CurrentUser (no admin required, but triggers UI dialog for Root store).",
-            DefaultValueFactory = _ => TrustHandler.IsRunningAsAdmin()
+            DefaultValueFactory = _ => (OperatingSystem.IsWindows() && TrustHandler.IsRunningAsAdmin())
                 ? StoreLocation.LocalMachine
                 : StoreLocation.CurrentUser
         };

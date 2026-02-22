@@ -3,7 +3,8 @@
 
 param(
     [string]$OutputDir = "release",
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [string]$RuntimeIdentifier = "win-x64"
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +23,7 @@ New-Item -ItemType Directory -Path $OutputPath | Out-Null
 Write-Host "Publishing project..." -ForegroundColor Yellow
 dotnet publish "$ProjectRoot\src\certz\certz.csproj" `
     -c $Configuration `
+    -r $RuntimeIdentifier `
     -o $OutputPath `
     --self-contained true `
     -p:PublishSingleFile=true `
@@ -33,9 +35,10 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$ExePath = Join-Path $OutputPath "certz.exe"
+$ExeName = $RuntimeIdentifier.StartsWith("win") ? "certz.exe" : "certz"
+$ExePath = Join-Path $OutputPath $ExeName
 if (-not (Test-Path $ExePath)) {
-    Write-Error "certz.exe was not found in output directory"
+    Write-Error "$ExeName was not found in output directory"
     exit 1
 }
 
@@ -143,7 +146,8 @@ $ReleaseNotesContentEnding += @"
 
 ## File Verification
 
-**File:** certz.exe
+**File:** $ExeName
+**Runtime:** $RuntimeIdentifier
 **SHA256 Hash:** ``$FileHash``
 "@
 

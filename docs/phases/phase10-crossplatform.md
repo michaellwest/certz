@@ -1,11 +1,27 @@
 # Phase 10: Cross-Platform Support (Linux)
 
-**Status:** Planned
+**Status:** Implemented (refs #3)
 **Created:** 2026-02-09
 
 ## Objective
 
-Enable certz to build and run on Linux with full support for file-based operations. Trust store operations will display a "not supported on Linux" message until a future phase implements Linux trust store integration.
+Enable certz to build and run on Linux with full support for all operations including trust store management. Implementation chose Option B (full Linux trust store support via distro shell commands) rather than Option A (error stubs).
+
+### Linux Trust Store -- Implementation Summary
+
+**CurrentUser:** `X509Store` (works cross-platform in .NET; maps to `~/.dotnet/corefx/cryptography/x509stores/`)
+
+**LocalMachine (system-wide):** Distro-aware shell commands:
+
+| Distro family | Anchor directory | Update command |
+|---|---|---|
+| Debian/Ubuntu | `/usr/local/share/ca-certificates/` | `update-ca-certificates` |
+| RHEL/Fedora/CentOS | `/etc/pki/ca-trust/source/anchors/` | `update-ca-trust` |
+| Arch Linux | `/etc/ca-certificates/trust-source/anchors/` | `trust extract-compat` |
+
+Certificates are stored as `certz-<THUMBPRINT>.crt` in the anchor directory.
+
+**macOS:** `PlatformNotSupportedException` with manual instructions (deferred to a separate issue).
 
 ## Project Context
 
