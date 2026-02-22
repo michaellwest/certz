@@ -36,6 +36,17 @@ internal static class FingerprintCommand
             }
         });
 
+        var separatorOption = new Option<string?>("--separator")
+        {
+            Description = "Delimiter between hex byte groups (default: \":\")"
+        };
+
+        var noSeparatorOption = new Option<bool>("--no-separator")
+        {
+            Description = "Output raw hex with no delimiter between byte groups",
+            DefaultValueFactory = _ => false
+        };
+
         var passwordOption = OptionBuilders.CreatePasswordOption();
         var formatOption = OptionBuilders.CreateFormatOption();
 
@@ -45,6 +56,8 @@ internal static class FingerprintCommand
             "  certz fingerprint <file|url>\n\n" +
             "Examples:\n" +
             "  certz fingerprint cert.pem\n" +
+            "  certz fingerprint cert.pem --no-separator\n" +
+            "  certz fingerprint cert.pem --separator \" \"\n" +
             "  certz fingerprint https://example.com\n" +
             "  certz fingerprint cert.pfx --password mypass\n" +
             "  certz fingerprint cert.pem --algorithm sha512\n" +
@@ -52,6 +65,8 @@ internal static class FingerprintCommand
         {
             sourceArgument,
             algorithmOption,
+            separatorOption,
+            noSeparatorOption,
             passwordOption,
             formatOption
         };
@@ -61,8 +76,17 @@ internal static class FingerprintCommand
             var source = parseResult.GetValue(sourceArgument)
                 ?? throw new ArgumentException("Source argument is required.");
             var algorithm = parseResult.GetValue(algorithmOption) ?? "sha256";
+            var separatorValue = parseResult.GetValue(separatorOption);
+            var noSeparator = parseResult.GetValue(noSeparatorOption);
             var password = parseResult.GetValue(passwordOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
+
+            if (separatorValue is not null && noSeparator)
+            {
+                throw new ArgumentException("--separator and --no-separator are mutually exclusive.");
+            }
+
+            var separator = noSeparator ? "" : (separatorValue ?? ":");
 
             var formatter = FormatterFactory.Create(format);
 
@@ -70,11 +94,11 @@ internal static class FingerprintCommand
 
             if (source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                result = await FingerprintService.FingerprintUrlAsync(source, algorithm);
+                result = await FingerprintService.FingerprintUrlAsync(source, algorithm, separator);
             }
             else if (File.Exists(source))
             {
-                result = FingerprintService.FingerprintFile(source, algorithm, password);
+                result = FingerprintService.FingerprintFile(source, algorithm, password, separator);
             }
             else
             {

@@ -46,6 +46,7 @@ $TestCategories = @{
     "file"      = @("fp-1.1", "fp-1.2", "fp-1.3")
     "algorithm" = @("fp-2.1", "fp-2.2", "fp-2.3")
     "format"    = @("fp-3.1")
+    "separator" = @("fp-5.1", "fp-5.2", "fp-5.3", "fp-5.4")
     "error"     = @("fp-4.1", "fp-4.2")
 }
 
@@ -403,6 +404,136 @@ Invoke-Test -TestId "fp-4.2" -TestName "Invalid algorithm is rejected" -FilePref
     }
     finally {
         Remove-Item "fp-err-alg.cer" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# SEPARATOR TESTS
+# ============================================================================
+Write-TestHeader "Testing FINGERPRINT Separator Options"
+
+# Shared setup helper: create a PEM cert and return its raw data + path
+function New-FpTestCert {
+    param([string]$Prefix, [string]$Cn)
+    $certParams = @{
+        Subject            = "CN=$Cn"
+        KeyAlgorithm       = "ECDSA_nistP256"
+        KeyExportPolicy    = "Exportable"
+        CertStoreLocation  = "Cert:\CurrentUser\My"
+        NotAfter           = (Get-Date).AddDays(90)
+    }
+    $cert = New-SelfSignedCertificate @certParams
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "$Prefix.cer" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    $raw = $cert.RawData
+    Remove-Item $cert.PSPath -Force
+    return $raw
+}
+
+# fp-5.1: --no-separator outputs raw hex (no colons)
+Invoke-Test -TestId "fp-5.1" -TestName "--no-separator outputs raw hex without delimiters" -FilePrefix "fp-sep-none" -TestScript {
+    $raw = New-FpTestCert -Prefix "fp-sep-none" -Cn "certz-fp-sep-none.local"
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $hashBytes = $sha256.ComputeHash($raw)
+    $expectedRaw = ($hashBytes | ForEach-Object { $_.ToString("X2") }) -join ""
+
+    try {
+        $output = & .\certz.exe fingerprint fp-sep-none.cer --no-separator 2>&1
+        $outputStripped = ($output -join "") -replace '\e\[[0-9;]*[mK]', '' -replace '\s', ''
+
+        Assert-ExitCode -Expected 0
+
+        # Must contain the raw hex string (no colons)
+        if ($outputStripped -notmatch [regex]::Escape($expectedRaw)) {
+            throw "Expected raw hex '$expectedRaw' not found in output"
+        }
+
+        # Must NOT contain colons in the fingerprint portion
+        # Strip the label (e.g. "SHA256:") then check remaining has no colons
+        $withoutLabel = $outputStripped -replace '^SHA\d+:', ''
+        if ($withoutLabel -match ':') {
+            throw "Output contains colons but --no-separator was specified"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "--no-separator produces raw hex without delimiters" }
+    }
+    finally {
+        Remove-Item "fp-sep-none.cer" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# fp-5.2: --separator with custom string
+Invoke-Test -TestId "fp-5.2" -TestName "--separator produces custom-delimited output" -FilePrefix "fp-sep-custom" -TestScript {
+    $raw = New-FpTestCert -Prefix "fp-sep-custom" -Cn "certz-fp-sep-custom.local"
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $hashBytes = $sha256.ComputeHash($raw)
+    $expectedDash = ($hashBytes | ForEach-Object { $_.ToString("X2") }) -join "-"
+
+    try {
+        $output = & .\certz.exe fingerprint fp-sep-custom.cer --separator "-" 2>&1
+        # Join but keep dashes; only strip ANSI and newlines
+        $outputClean = ($output -join "") -replace '\e\[[0-9;]*[mK]', '' -replace '\r?\n', ''
+
+        Assert-ExitCode -Expected 0
+
+        $expectedCompact = $expectedDash -replace '\s', ''
+        $outputCompact = $outputClean -replace '\s', ''
+        if ($outputCompact -notmatch [regex]::Escape($expectedCompact)) {
+            throw "Expected dash-separated fingerprint '$expectedDash' not found in output"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "--separator '-' produces dash-delimited fingerprint" }
+    }
+    finally {
+        Remove-Item "fp-sep-custom.cer" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# fp-5.3: --no-separator reflected in JSON output
+Invoke-Test -TestId "fp-5.3" -TestName "--no-separator reflected in JSON fingerprint field" -FilePrefix "fp-sep-json" -TestScript {
+    $raw = New-FpTestCert -Prefix "fp-sep-json" -Cn "certz-fp-sep-json.local"
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $hashBytes = $sha256.ComputeHash($raw)
+    $expectedRaw = ($hashBytes | ForEach-Object { $_.ToString("X2") }) -join ""
+
+    try {
+        $output = & .\certz.exe fingerprint fp-sep-json.cer --no-separator --format json 2>&1
+        $outputStr = ($output -join "`n").Trim()
+
+        Assert-ExitCode -Expected 0
+
+        $parsed = $outputStr | ConvertFrom-Json
+        if ($parsed.fingerprint -ne $expectedRaw) {
+            throw "JSON fingerprint '$($parsed.fingerprint)' does not match expected raw hex '$expectedRaw'"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "JSON fingerprint field reflects --no-separator format" }
+    }
+    finally {
+        Remove-Item "fp-sep-json.cer" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# fp-5.4: --separator and --no-separator together is an error
+Invoke-Test -TestId "fp-5.4" -TestName "--separator and --no-separator together returns exit code 1" -FilePrefix "fp-sep-mutex" -TestScript {
+    $raw = New-FpTestCert -Prefix "fp-sep-mutex" -Cn "certz-fp-sep-mutex.local"
+
+    try {
+        $output = & .\certz.exe fingerprint fp-sep-mutex.cer --separator "-" --no-separator 2>&1
+
+        if ($LASTEXITCODE -eq 0) {
+            throw "Expected non-zero exit code when both --separator and --no-separator are provided"
+        }
+
+        $outputStr = ($output -join " ")
+        if ($outputStr -notmatch "mutually exclusive") {
+            throw "Error message should mention 'mutually exclusive', got: $outputStr"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Combining --separator and --no-separator produces a clear error" }
+    }
+    finally {
+        Remove-Item "fp-sep-mutex.cer" -Force -ErrorAction SilentlyContinue
     }
 }
 

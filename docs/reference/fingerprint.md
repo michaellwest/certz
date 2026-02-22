@@ -1,6 +1,7 @@
 # certz fingerprint -- Reference
 
-Output the SHA-256 (or SHA-384 / SHA-512) fingerprint of a certificate in colon-separated hex format.
+Output the SHA-256 (or SHA-384 / SHA-512) fingerprint of a certificate.
+By default the bytes are colon-separated (`AA:BB:CC`); use `--no-separator` for raw hex or `--separator` for any custom delimiter.
 This is the single-line equivalent of `openssl x509 -fingerprint -sha256 -noout -in cert.pem`.
 
 **See also:**
@@ -29,8 +30,12 @@ certz fingerprint <source> [options]
 | Option | Short | Default | Description |
 |--------|-------|---------|-------------|
 | `--algorithm` | `-a` | `sha256` | Hash algorithm: `sha256`, `sha384`, or `sha512` |
+| `--separator` | | `:` | Delimiter between hex byte groups (e.g. `""`, `" "`, `"-"`) |
+| `--no-separator` | | `false` | Output raw hex with no delimiter (equivalent to `--separator ""`) |
 | `--password` | `--pass`, `-p` | _(none)_ | Password for PFX files |
 | `--format` | `--fmt` | `text` | Output format: `text` or `json` |
+
+`--separator` and `--no-separator` are mutually exclusive.
 
 ---
 
@@ -41,6 +46,13 @@ certz fingerprint <source> [options]
 ```bash
 # SHA-256 fingerprint of a PEM certificate (default algorithm)
 certz fingerprint cert.pem
+
+# Raw hex (no colons) -- matches Windows cert store thumbprint style
+certz fingerprint cert.pem --no-separator
+
+# Custom delimiter
+certz fingerprint cert.pem --separator " "
+certz fingerprint cert.pem --separator "-"
 
 # SHA-256 fingerprint of a PFX file
 certz fingerprint server.pfx --password MyPassword
@@ -108,4 +120,4 @@ The label (`SHA256`, `SHA384`, or `SHA512`) always matches the algorithm used.
 | Code | Meaning |
 |------|---------|
 | `0` | Fingerprint computed successfully |
-| `1` | Source not found, unreadable, or invalid algorithm specified |
+| `1` | Source not found, unreadable, invalid algorithm, or conflicting separator flags |

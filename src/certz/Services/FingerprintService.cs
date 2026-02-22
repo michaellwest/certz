@@ -14,12 +14,12 @@ internal static class FingerprintService
     /// <summary>
     /// Computes the fingerprint of a certificate loaded from a file.
     /// </summary>
-    public static FingerprintResult FingerprintFile(string path, string algorithm, string? password)
+    public static FingerprintResult FingerprintFile(string path, string algorithm, string? password, string separator)
     {
         var cert = LoadCertificateFromFile(path, password);
         try
         {
-            var fingerprint = ComputeFingerprint(cert, algorithm);
+            var fingerprint = ComputeFingerprint(cert, algorithm, separator);
             return new FingerprintResult
             {
                 Algorithm = algorithm.ToUpperInvariant(),
@@ -37,7 +37,7 @@ internal static class FingerprintService
     /// <summary>
     /// Computes the fingerprint of the server certificate at the given HTTPS URL.
     /// </summary>
-    public static async Task<FingerprintResult> FingerprintUrlAsync(string url, string algorithm)
+    public static async Task<FingerprintResult> FingerprintUrlAsync(string url, string algorithm, string separator)
     {
         X509Certificate2? certificate = null;
 
@@ -69,7 +69,7 @@ internal static class FingerprintService
 
         try
         {
-            var fingerprint = ComputeFingerprint(certificate, algorithm);
+            var fingerprint = ComputeFingerprint(certificate, algorithm, separator);
             return new FingerprintResult
             {
                 Algorithm = algorithm.ToUpperInvariant(),
@@ -85,14 +85,14 @@ internal static class FingerprintService
     }
 
     /// <summary>
-    /// Formats a raw hash byte array as a colon-separated hex string (e.g. AA:BB:CC:...).
+    /// Formats a raw hash byte array as a hex string joined by the given separator.
     /// </summary>
-    private static string FormatFingerprint(byte[] hash)
+    private static string FormatFingerprint(byte[] hash, string separator)
     {
-        return string.Join(":", hash.Select(b => b.ToString("X2")));
+        return string.Join(separator, hash.Select(b => b.ToString("X2")));
     }
 
-    private static string ComputeFingerprint(X509Certificate2 cert, string algorithm)
+    private static string ComputeFingerprint(X509Certificate2 cert, string algorithm, string separator)
     {
         var hashAlgorithm = algorithm.ToUpperInvariant() switch
         {
@@ -103,7 +103,7 @@ internal static class FingerprintService
         };
 
         var hash = cert.GetCertHash(hashAlgorithm);
-        return FormatFingerprint(hash);
+        return FormatFingerprint(hash, separator);
     }
 
     private static X509Certificate2 LoadCertificateFromFile(string path, string? password)
