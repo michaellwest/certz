@@ -71,6 +71,7 @@ When you run `certz create dev app.local` without extra flags:
 | `--days <n>` | `90` | Validity in days. Maximum 398 (CA/B Forum limit for leaf certs). |
 | `--key-type` | `ECDSA-P256` | Key algorithm: `ECDSA-P256`, `ECDSA-P384`, `ECDSA-P521`, `RSA`. See [RSA vs ECDSA](../concepts/rsa-vs-ecdsa.md). |
 | `--key-size` | `3072` | RSA key size in bits: `2048`, `3072`, `4096`. Only applies when `--key-type RSA`. |
+| `--hash-algorithm, --hash` | `auto` | Hash algorithm for signing: `sha256`, `sha384`, `sha512`, or `auto`. `auto` selects based on key type -- see [Hash Algorithm Auto-Selection](#hash-algorithm-auto-selection) below. |
 | `--issuer-cert` | (none) | Sign with this CA file (PFX or PEM+key). Without this, cert is self-signed. |
 | `--issuer-key` | (none) | CA private key file. Required when `--issuer-cert` is a PEM file without an embedded key. |
 | `--issuer-password` | (none) | Password for a PFX `--issuer-cert`. |
@@ -198,6 +199,32 @@ Example output:
 | `isEphemeral` | bool | `true` when `--ephemeral` was used |
 | `wasPiped` | bool | `true` when `--pipe` was used |
 
+### Hash Algorithm Auto-Selection
+
+When `--hash-algorithm auto` (the default) is used, certz selects the signing hash based on
+key type and size to match the security level of the key:
+
+| Key type | Key size / curve | Hash selected |
+|----------|-----------------|---------------|
+| ECDSA | P-256 | SHA-256 |
+| ECDSA | P-384 | SHA-384 |
+| ECDSA | P-521 | SHA-512 |
+| RSA | 2048 | SHA-256 |
+| RSA | 3072 | SHA-384 |
+| RSA | 4096+ | SHA-512 |
+
+Use an explicit value only when a compliance requirement mandates a specific algorithm:
+
+```bash
+# Force SHA-384 regardless of key type
+certz create dev app.local --hash sha384
+
+# Force SHA-512 for a FIPS-140 environment
+certz create ca --name "Internal CA" --key-type RSA --key-size 4096 --hash sha512
+```
+
+---
+
 ### Troubleshooting
 
 | Problem | Likely cause | Fix |
@@ -251,6 +278,7 @@ For a simple local dev setup, `-1` (unlimited) is fine. Use `0` when creating an
 | `--path-length <n>` | `-1` | Chain depth limit. See above. |
 | `--key-type` | `ECDSA-P256` | Key algorithm: `ECDSA-P256`, `ECDSA-P384`, `ECDSA-P521`, `RSA`. |
 | `--key-size` | `3072` | RSA key size. Only applies when `--key-type RSA`. |
+| `--hash-algorithm, --hash` | `auto` | Hash algorithm for signing: `sha256`, `sha384`, `sha512`, or `auto`. See [Hash Algorithm Auto-Selection](#hash-algorithm-auto-selection) below. |
 | `--crl-url` | (none) | CRL Distribution Point URL embedded in the certificate. |
 | `--ocsp-url` | (none) | OCSP responder URL embedded in the Authority Information Access extension. |
 | `--trust` | `false` | Install to trust store after creation. |

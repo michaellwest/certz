@@ -56,6 +56,7 @@ certz lint cert.pfx --password Pass --format json
 | `--store` | `My` | Certificate store name for thumbprint lookups: `My`, `Root`, `CA`. |
 | `--location, -l` | `CurrentUser` | Store location: `CurrentUser` or `LocalMachine`. |
 | `--format` | `text` | Output format: `text` or `json`. |
+| `--guided` | `false` | Launch the interactive wizard for lint. Prompts for source, policy, and severity. |
 
 ---
 

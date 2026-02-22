@@ -163,6 +163,7 @@ certz renew server.pfx --password MyPassword --days 90 --keep-key
 | `--store` | (none) | Certificate store name for thumbprint-based lookup: `My`, `Root`, `CA`. |
 | `--location, -l` | `CurrentUser` | Store location: `CurrentUser` or `LocalMachine`. |
 | `--format` | `text` | Output format: `text` or `json`. |
+| `--guided` | `false` | Launch the interactive wizard for renew. Prompts for source, days, key reuse, and issuer. |
 
 ---
 
