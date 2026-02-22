@@ -719,6 +719,11 @@ internal class TextFormatter : IOutputFormatter
         return subject;
     }
 
+    public void WriteFingerprintResult(Models.FingerprintResult result)
+    {
+        AnsiConsole.MarkupLine($"[bold]{result.Algorithm}:[/] {result.Fingerprint}");
+    }
+
     public void WriteError(string message)
     {
         AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(message)}");
