@@ -57,7 +57,7 @@ debug/win-x64/certz.exe --COPY--> /app/certz.exe
 test/test-win-smoke.cmd           /app/test/test-win-smoke.cmd
 ```
 
-**Commands tested:** `--version`, `--help`, `examples`, `create dev`, `create ca`, `create dev --ephemeral`, `inspect`, `lint`, `convert`, `renew`, `monitor`, `verify`, `list`, `install`
+**Commands tested:** `--version`, `--help`, `examples`, `create dev`, `create ca`, `create dev --ephemeral`, `inspect`, `lint`, `convert`, `renew`, `monitor`, `diff`, `fingerprint`, `store list`, `trust add`, `trust remove`
 
 **Run:**
 

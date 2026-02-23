@@ -26,7 +26,7 @@ Windows organizes certificates into named logical stores. Each store holds certi
 For certz operations, the relevant stores are:
 
 - **Root** — where `certz trust add` places CA certificates and where the `--trust` flag writes during `create dev`
-- **My** — where installed certificates with private keys are stored (used by `certz install`)
+- **My** — where installed certificates with private keys are stored (used by `certz trust add`)
 - **CA** — where intermediate CAs are placed when building multi-level PKI
 
 ## CurrentUser vs LocalMachine
@@ -42,24 +42,22 @@ Each store exists in two scopes:
 
 **LocalMachine** is appropriate for team development environments, CI/CD build agents, and server deployments where you need the certificate to be trusted by all users and services running on the machine. Writing to LocalMachine requires an elevated (Administrator) process.
 
-Certz defaults to **CurrentUser** for `trust add` and the `--trust` flag on `create dev`. Pass `--machine` to write to LocalMachine instead (requires elevation):
+Certz defaults to **CurrentUser** for `trust add` and the `--trust` flag on `create dev`. Pass `--location LocalMachine` to write to LocalMachine instead (requires elevation):
 
 ```
-certz trust add --file ca.crt              # CurrentUser Root store
-certz trust add --file ca.crt --machine    # LocalMachine Root store (requires admin)
-certz create dev --cn dev.local --trust    # CurrentUser Root store
+certz trust add ca.crt                                    # CurrentUser Root store
+certz trust add ca.crt --location LocalMachine            # LocalMachine Root store (requires admin)
+certz create dev --cn dev.local --trust                   # CurrentUser Root store
 ```
 
 ## How certz interacts with the store
 
 | Command | What it does | Store | Scope |
 |---------|-------------|-------|-------|
-| `certz trust add --file ca.crt` | Adds CA certificate to Root | Root | CurrentUser |
-| `certz trust add --file ca.crt --machine` | Adds CA certificate to Root | Root | LocalMachine |
-| `certz trust remove --thumbprint <hash>` | Removes certificate by thumbprint | Root | CurrentUser |
-| `certz trust list` | Lists certificates in Root store | Root | CurrentUser |
-| `certz install --file cert.pfx` | Installs cert+key | My | CurrentUser |
-| `certz store list` | Lists all personal certificates | My | CurrentUser |
+| `certz trust add ca.crt` | Adds CA certificate to Root | Root | CurrentUser |
+| `certz trust add ca.crt --location LocalMachine` | Adds CA certificate to Root | Root | LocalMachine |
+| `certz trust remove <thumbprint>` | Removes certificate by thumbprint | Root | CurrentUser |
+| `certz store list` | Lists certificates in the store | My | CurrentUser |
 | `certz create dev --trust` | Creates cert and adds issuing CA | Root + My | CurrentUser |
 
 ## Security risk of adding a Root CA

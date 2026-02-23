@@ -645,6 +645,11 @@ internal class JsonFormatter : IOutputFormatter
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.SuccessOutput));
     }
 
+    public void WriteExamplesIndex(IReadOnlyDictionary<string, CommandExample[]> allExamples)
+    {
+        WriteAllExamples(allExamples);
+    }
+
     public void WriteExamples(string commandPath, CommandExample[] examples)
     {
         var exampleDtos = examples.Select(e => new ExampleDto(e.Description, e.Command, e.Notes)).ToArray();

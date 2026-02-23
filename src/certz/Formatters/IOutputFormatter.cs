@@ -18,6 +18,7 @@ internal interface IOutputFormatter
     void WriteRenewResult(RenewResult result);
     void WriteMultipleMatchesWarning(List<X509Certificate2> matchingCerts);
     void WriteFingerprintResult(FingerprintResult result);
+    void WriteExamplesIndex(IReadOnlyDictionary<string, CommandExample[]> allExamples);
     void WriteExamples(string commandPath, CommandExample[] examples);
     void WriteAllExamples(IReadOnlyDictionary<string, CommandExample[]> allExamples);
     void WriteError(string message);

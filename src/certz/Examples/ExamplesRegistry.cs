@@ -1,7 +1,3 @@
-using System;
-using System.Collections.ObjectModel;
-using System.Reflection.Metadata.Ecma335;
-
 namespace certz.Examples;
 
 /// <summary>
@@ -141,64 +137,6 @@ internal static class ExamplesRegistry
             new("Show only expired certificates", "certz store list --expired"),
             new("Show expiring within 30 days", "certz store list --expiring 30"),
             new("Expiring certs as JSON for automation", "certz store list --store My --expiring 60 --format json"),
-        ],
-
-        // verify examples
-        ["verify"] =
-        [
-            new("Verify a certificate file", "certz verify --file cert.pfx --password MyPassword"),
-            new("Verify with revocation check", "certz verify --file cert.pem --check-revocation"),
-            new("Verify from certificate store by thumbprint", "certz verify --thumbprint ABC123DEF456"),
-            new("Verify from store with revocation check", "certz verify --thumbprint ABC123DEF456 --crl"),
-            new("Custom expiration warning threshold", "certz verify --file cert.pfx --password Pass --warn 60"),
-            new("JSON output for automation", "certz verify --file cert.pfx --password Pass --format json"),
-        ],
-
-        // export examples
-        ["export"] =
-        [
-            new("Export certificate from store to PFX", "certz export --thumbprint ABC123DEF456 --file output.pfx --password MyPassword"),
-            new("Export cert and key separately from store", "certz export --thumbprint ABC123DEF456 --cert server.cer --key server.key"),
-            new("Export from store (LocalMachine)", "certz export --thumbprint ABC123DEF456 --file output.pfx --store Root --location LocalMachine"),
-            new("Export certificate from URL", "certz export --url https://example.com --file server.pfx"),
-            new("Export cert only from URL", "certz export --url https://example.com --cert server.cer"),
-        ],
-
-        // info examples
-        ["info"] =
-        [
-            new("Show info for a certificate file", "certz info --file cert.pfx --password MyPassword"),
-            new("Show info from a URL", "certz info --url https://example.com"),
-            new("Show info from certificate store", "certz info --thumbprint ABC123DEF456"),
-            new("Show info from store (LocalMachine)", "certz info --thumbprint ABC123DEF456 --store Root --location LocalMachine"),
-            new("JSON output for automation", "certz info --file cert.pem --format json"),
-        ],
-
-        // install examples
-        ["install"] =
-        [
-            new("Install a certificate to My store", "certz install --file cert.pfx --password MyPassword"),
-            new("Install to Root store (CurrentUser)", "certz install --file ca.cer --store Root"),
-            new("Install to LocalMachine (requires admin)", "certz install --file ca.cer --store Root --location LocalMachine"),
-            new("Install as exportable", "certz install --file cert.pfx --password MyPassword --exportable"),
-        ],
-
-        // list examples
-        ["list"] =
-        [
-            new("List certificates in My store (CurrentUser)", "certz list"),
-            new("List certificates in Root store", "certz list --store Root"),
-            new("List from LocalMachine", "certz list --store Root --location LocalMachine"),
-            new("JSON output for automation", "certz list --format json"),
-        ],
-
-        // remove examples
-        ["remove"] =
-        [
-            new("Remove by thumbprint", "certz remove --thumbprint ABC123DEF456"),
-            new("Remove by subject pattern", "certz remove --subject \"CN=localhost\""),
-            new("Remove from specific store", "certz remove --thumbprint ABC123DEF456 --store Root"),
-            new("Remove from LocalMachine (requires admin)", "certz remove --thumbprint ABC123DEF456 --store Root --location LocalMachine"),
         ],
 
         // diff examples

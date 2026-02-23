@@ -806,32 +806,62 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.MarkupLine($"[green]{Markup.Escape(message)}[/]");
     }
 
+    public void WriteExamplesIndex(IReadOnlyDictionary<string, CommandExample[]> allExamples)
+    {
+        AnsiConsole.Write(new Rule("[bold]certz Examples[/]").LeftJustified());
+        AnsiConsole.WriteLine();
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Command[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Count[/]").Centered().NoWrap())
+            .AddColumn(new TableColumn("[bold]Quick start[/]"));
+
+        foreach (var (commandPath, examples) in allExamples.OrderBy(kvp => kvp.Key))
+        {
+            if (string.IsNullOrEmpty(commandPath))
+                continue;
+
+            var quickStart = examples.Length > 0 ? ColorizeCommand(examples[0].Command) : "";
+            table.AddRow(
+                $"[cyan]{Markup.Escape(commandPath)}[/]",
+                examples.Length.ToString(),
+                quickStart);
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[dim]Run [/][white]certz examples <command>[/][dim] to see full examples.[/]");
+    }
+
     public void WriteExamples(string commandPath, CommandExample[] examples)
     {
         var header = string.IsNullOrEmpty(commandPath)
             ? "[bold]certz Examples[/]"
-            : $"[bold]Examples for: certz {Markup.Escape(commandPath)}[/]";
+            : $"[bold]Examples: certz {Markup.Escape(commandPath)}[/]";
 
         AnsiConsole.Write(new Rule(header).LeftJustified());
         AnsiConsole.WriteLine();
 
-        foreach (var example in examples)
+        for (int i = 0; i < examples.Length; i++)
         {
-            AnsiConsole.MarkupLine($"[green]#[/] {Markup.Escape(example.Description)}");
-            AnsiConsole.MarkupLine(ColorizeCommand(example.Command));
+            var example = examples[i];
+            AnsiConsole.MarkupLine($"[bold]{Markup.Escape(example.Description)}[/]");
+            AnsiConsole.MarkupLine($"  {ColorizeCommand(example.Command)}");
             if (!string.IsNullOrEmpty(example.Notes))
             {
-                AnsiConsole.MarkupLine($"[dim]  {Markup.Escape(example.Notes)}[/]");
+                AnsiConsole.MarkupLine($"  [dim]{Markup.Escape(example.Notes)}[/]");
             }
-            AnsiConsole.WriteLine();
+            if (i < examples.Length - 1)
+            {
+                AnsiConsole.WriteLine();
+            }
         }
     }
 
     public void WriteAllExamples(IReadOnlyDictionary<string, CommandExample[]> allExamples)
     {
         AnsiConsole.Write(new Rule("[bold]certz Examples[/]").LeftJustified());
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]Use 'certz examples <command>' to see examples for a specific command.[/]");
         AnsiConsole.WriteLine();
 
         foreach (var (commandPath, examples) in allExamples.OrderBy(kvp => kvp.Key))
@@ -841,11 +871,21 @@ internal class TextFormatter : IOutputFormatter
                 : $"[bold yellow]certz {Markup.Escape(commandPath)}[/]";
 
             AnsiConsole.MarkupLine(header);
+            AnsiConsole.WriteLine();
 
-            foreach (var example in examples)
+            for (int i = 0; i < examples.Length; i++)
             {
-                AnsiConsole.MarkupLine($"  [green]#[/] {Markup.Escape(example.Description)}");
+                var example = examples[i];
+                AnsiConsole.MarkupLine($"  [bold]{Markup.Escape(example.Description)}[/]");
                 AnsiConsole.MarkupLine($"  {ColorizeCommand(example.Command)}");
+                if (!string.IsNullOrEmpty(example.Notes))
+                {
+                    AnsiConsole.MarkupLine($"  [dim]{Markup.Escape(example.Notes)}[/]");
+                }
+                if (i < examples.Length - 1)
+                {
+                    AnsiConsole.WriteLine();
+                }
             }
             AnsiConsole.WriteLine();
         }

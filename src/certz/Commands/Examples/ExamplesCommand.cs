@@ -40,13 +40,12 @@ internal static class ExamplesCommand
 
             if (string.IsNullOrEmpty(commandPath))
             {
-                // Show all examples
+                // No args → show command index (summary table)
                 var allExamples = ExamplesRegistry.GetAllExamples();
-                formatter.WriteAllExamples(allExamples);
+                formatter.WriteExamplesIndex(allExamples);
             }
             else
             {
-                // Show examples for specific command
                 var examples = ExamplesRegistry.GetExamples(commandPath);
 
                 if (!examples.Any())
@@ -61,7 +60,17 @@ internal static class ExamplesCommand
                     return;
                 }
 
-                formatter.WriteAllExamples(examples);
+                if (examples.Count == 1)
+                {
+                    // Exact match → clean single-group view
+                    var (path, exampleList) = examples.First();
+                    formatter.WriteExamples(path, exampleList);
+                }
+                else
+                {
+                    // Prefix match (e.g. "create" -> "create dev" + "create ca") → multi-group view
+                    formatter.WriteAllExamples(examples);
+                }
             }
         });
 
