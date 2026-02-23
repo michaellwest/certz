@@ -58,6 +58,7 @@ $TestCategories = @{
     "trust" = @("tru-1.1", "tru-1.2")
     "guided" = @("gui-1.1")  # Interactive tests (manual only)
     "eku" = @("eku-1.1", "eku-1.2", "eku-1.3", "eku-1.4")
+    "verbose" = @("vrb-1.1", "vrb-1.2", "vrb-1.3")
 }
 
 # Initialize test environment
@@ -794,6 +795,107 @@ Invoke-Test -TestId "tru-1.2" -TestName "Create CA cert with --trust flag" -File
             Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item "ca-trust.pfx" -Force -ErrorAction SilentlyContinue
     }
+}
+
+# ============================================================================
+# VERBOSE FLAG TESTS
+# ============================================================================
+Write-TestHeader "Testing --verbose Flag"
+
+# Test vrb-1.1: --verbose emits [verbose] lines to stderr, not stdout
+Invoke-Test -TestId "vrb-1.1" -TestName "--verbose writes diagnostic lines to stderr" -FilePrefix "vrb-basic" -TestScript {
+    # ACTION: Single certz.exe call — redirect stdout and stderr separately
+    $stderrFile = [System.IO.Path]::GetTempFileName()
+    $proc = Start-Process -FilePath ".\certz.exe" `
+        -ArgumentList "create dev verbose-test.local --verbose --f vrb-basic.pfx --p VerbPass123" `
+        -RedirectStandardError $stderrFile `
+        -RedirectStandardOutput "NUL" `
+        -Wait -PassThru -NoNewWindow
+    $stderr = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
+    Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue
+
+    # ASSERTION 1: Exit code
+    if ($proc.ExitCode -ne 0) {
+        throw "--verbose create dev should exit 0, got $($proc.ExitCode)"
+    }
+
+    # ASSERTION 2: stderr contains [verbose] prefix
+    if ($stderr -notmatch '\[verbose\]') {
+        throw "--verbose should emit lines prefixed with [verbose] to stderr. Got: $stderr"
+    }
+
+    # ASSERTION 3: File still created
+    Assert-FileExists "vrb-basic.pfx"
+
+    [PSCustomObject]@{ Success = $true; Details = "[verbose] lines present on stderr" }
+}
+
+# Test vrb-1.2: --verbose --format json keeps JSON on stdout, diagnostic on stderr
+Invoke-Test -TestId "vrb-1.2" -TestName "--verbose --format json: JSON on stdout, diagnostics on stderr" -FilePrefix "vrb-json" -TestScript {
+    # ACTION: Single certz.exe call
+    $stderrFile = [System.IO.Path]::GetTempFileName()
+    $stdoutFile = [System.IO.Path]::GetTempFileName()
+    $proc = Start-Process -FilePath ".\certz.exe" `
+        -ArgumentList "create dev verbose-json.local --verbose --format json --f vrb-json.pfx --p VerbPass123" `
+        -RedirectStandardError $stderrFile `
+        -RedirectStandardOutput $stdoutFile `
+        -Wait -PassThru -NoNewWindow
+    $stderr = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
+    $stdout = Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
+    Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $stdoutFile -Force -ErrorAction SilentlyContinue
+
+    # ASSERTION 1: Exit code
+    if ($proc.ExitCode -ne 0) {
+        throw "--verbose --format json should exit 0, got $($proc.ExitCode)"
+    }
+
+    # ASSERTION 2: stdout is valid JSON (not contaminated by verbose lines)
+    try {
+        $json = $stdout | ConvertFrom-Json
+        if (-not $json.success) { throw "JSON 'success' should be true" }
+    }
+    catch {
+        if ($_.Exception.Message -match "JSON") {
+            throw "stdout should be clean JSON but got: $stdout"
+        }
+        throw $_
+    }
+
+    # ASSERTION 3: [verbose] lines went to stderr, not stdout
+    if ($stdout -match '\[verbose\]') {
+        throw "[verbose] lines should not appear in stdout when using --format json"
+    }
+    if ($stderr -notmatch '\[verbose\]') {
+        throw "--verbose should still emit [verbose] lines to stderr"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "JSON stdout clean; [verbose] isolated to stderr" }
+}
+
+# Test vrb-1.3: Without --verbose, no [verbose] lines appear
+Invoke-Test -TestId "vrb-1.3" -TestName "Without --verbose, no diagnostic lines emitted" -FilePrefix "vrb-off" -TestScript {
+    # ACTION: Single certz.exe call (no --verbose)
+    $stderrFile = [System.IO.Path]::GetTempFileName()
+    $proc = Start-Process -FilePath ".\certz.exe" `
+        -ArgumentList "create dev vrb-off.local --f vrb-off.pfx --p VerbPass123" `
+        -RedirectStandardError $stderrFile `
+        -RedirectStandardOutput "NUL" `
+        -Wait -PassThru -NoNewWindow
+    $stderr = Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
+    Remove-Item $stderrFile -Force -ErrorAction SilentlyContinue
+
+    # ASSERTION 1: Exit code
+    if ($proc.ExitCode -ne 0) {
+        throw "create dev without --verbose should exit 0, got $($proc.ExitCode)"
+    }
+
+    # ASSERTION 2: No [verbose] lines on stderr
+    if ($stderr -match '\[verbose\]') {
+        throw "[verbose] lines should not appear when --verbose is not set"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "No [verbose] lines emitted without --verbose flag" }
 }
 
 # ============================================================================

@@ -14,9 +14,13 @@ internal static class CreateService
     /// <returns>The creation result.</returns>
     internal static async Task<CertificateCreationResult> CreateDevCertificate(DevCertificateOptions options)
     {
+        VerboseLogger.Log($"Creating dev certificate for domain: {options.Domain}");
+        VerboseLogger.Log($"Key type: {options.KeyType}, Hash algorithm: {options.HashAlgorithm}, Days: {options.Days}");
+
         // Build SANs list: domain first, then additional SANs
         var sans = new List<string> { options.Domain };
         sans.AddRange(options.AdditionalSANs);
+        VerboseLogger.Log($"SANs: {string.Join(", ", sans)}");
 
         // Handle password
         bool passwordWasGenerated = false;
@@ -25,17 +29,24 @@ internal static class CreateService
         {
             password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
+            VerboseLogger.Log("Password: auto-generated");
+        }
+        else
+        {
+            VerboseLogger.Log("Password: provided by caller");
         }
 
         var utcToday = new DateTimeOffset(DateTimeOffset.UtcNow.Date, TimeSpan.Zero);
         var validFrom = utcToday;
         var validTo = utcToday.AddDays(options.Days).AddSeconds(-1);
+        VerboseLogger.Log($"Validity: {validFrom:yyyy-MM-dd} to {validTo:yyyy-MM-dd}");
 
         X509Certificate2 certificate;
 
         // Check if we have an issuer to sign with
         if (options.IssuerCert != null)
         {
+            VerboseLogger.Log($"Signing with issuer: {options.IssuerCert.FullName}");
             certificate = await GenerateSignedCertificate(
                 sans.ToArray(),
                 validFrom,
@@ -61,6 +72,7 @@ internal static class CreateService
         }
         else
         {
+            VerboseLogger.Log("Generating self-signed certificate");
             certificate = CertificateGeneration.GenerateCertificate(
                 sans.ToArray(),
                 validFrom,
@@ -81,6 +93,8 @@ internal static class CreateService
                 options.SubjectL,
                 eku: options.Eku);
         }
+
+        VerboseLogger.Log($"Certificate generated: thumbprint={certificate.Thumbprint}, subject={certificate.Subject}");
 
         // Handle pipe mode - stream to stdout and return
         if (options.Pipe)
@@ -136,6 +150,7 @@ internal static class CreateService
         // Save certificate files
         if (options.PfxFile != null)
         {
+            VerboseLogger.Log($"Writing PFX: {options.PfxFile.FullName}");
             await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.PfxFile.FullName,
@@ -150,6 +165,7 @@ internal static class CreateService
 
         if (options.CertFile != null)
         {
+            VerboseLogger.Log($"Writing PEM cert: {options.CertFile.FullName}");
             await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.CertFile.FullName,
@@ -161,6 +177,7 @@ internal static class CreateService
 
         if (options.KeyFile != null)
         {
+            VerboseLogger.Log($"Writing PEM key: {options.KeyFile.FullName}");
             await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.KeyFile.FullName,
@@ -175,12 +192,14 @@ internal static class CreateService
         {
             options.PasswordFile.Directory?.Create();
             await File.WriteAllTextAsync(options.PasswordFile.FullName, password);
+            VerboseLogger.Log($"Password written to: {options.PasswordFile.FullName}");
         }
 
         // Install to trust store if requested
         bool wasTrusted = false;
         if (options.Trust && options.PfxFile != null)
         {
+            VerboseLogger.Log($"Installing to trust store: {options.TrustLocation}");
             await CertificateUtilities.InstallCertificate(
                 options.PfxFile,
                 password,
@@ -189,6 +208,7 @@ internal static class CreateService
                 exportable: true,
                 quiet: true);
             wasTrusted = true;
+            VerboseLogger.Log("Trust store installation complete");
         }
 
         return new CertificateCreationResult
@@ -217,6 +237,9 @@ internal static class CreateService
     /// <returns>The creation result.</returns>
     internal static async Task<CertificateCreationResult> CreateCACertificate(CACertificateOptions options)
     {
+        VerboseLogger.Log($"Creating CA certificate: {options.Name}");
+        VerboseLogger.Log($"Key type: {options.KeyType}, Hash algorithm: {options.HashAlgorithm}, Days: {options.Days}, PathLength: {options.PathLength}");
+
         // CA uses name as the subject
         var sans = new[] { options.Name };
 
@@ -227,12 +250,19 @@ internal static class CreateService
         {
             password = CertificateUtilities.GenerateSecurePassword();
             passwordWasGenerated = true;
+            VerboseLogger.Log("Password: auto-generated");
+        }
+        else
+        {
+            VerboseLogger.Log("Password: provided by caller");
         }
 
         var utcToday = new DateTimeOffset(DateTimeOffset.UtcNow.Date, TimeSpan.Zero);
         var validFrom = utcToday;
         var validTo = utcToday.AddDays(options.Days).AddSeconds(-1);
+        VerboseLogger.Log($"Validity: {validFrom:yyyy-MM-dd} to {validTo:yyyy-MM-dd}");
 
+        VerboseLogger.Log("Generating CA certificate");
         var certificate = CertificateGeneration.GenerateCertificate(
             sans,
             validFrom,
@@ -252,9 +282,12 @@ internal static class CreateService
             options.SubjectST,
             options.SubjectL);
 
+        VerboseLogger.Log($"CA certificate generated: thumbprint={certificate.Thumbprint}, subject={certificate.Subject}");
+
         // Handle pipe mode - stream to stdout and return
         if (options.Pipe)
         {
+            VerboseLogger.Log("Pipe mode: streaming certificate to stdout");
             await PipeOutputService.WritePipeOutput(
                 certificate,
                 options.PipeFormat ?? "pem",
@@ -282,6 +315,7 @@ internal static class CreateService
         // Handle ephemeral mode - skip all file writing
         if (options.Ephemeral)
         {
+            VerboseLogger.Log("Ephemeral mode: certificate not written to disk");
             return new CertificateCreationResult
             {
                 Subject = certificate.Subject,
@@ -306,6 +340,7 @@ internal static class CreateService
         // Save certificate files
         if (options.PfxFile != null)
         {
+            VerboseLogger.Log($"Writing PFX: {options.PfxFile.FullName}");
             await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.PfxFile.FullName,
@@ -320,6 +355,7 @@ internal static class CreateService
 
         if (options.CertFile != null)
         {
+            VerboseLogger.Log($"Writing PEM cert: {options.CertFile.FullName}");
             await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.CertFile.FullName,
@@ -331,6 +367,7 @@ internal static class CreateService
 
         if (options.KeyFile != null)
         {
+            VerboseLogger.Log($"Writing PEM key: {options.KeyFile.FullName}");
             await CertificateUtilities.WriteCertificateToFile(
                 certificate,
                 options.KeyFile.FullName,
@@ -345,12 +382,14 @@ internal static class CreateService
         {
             options.PasswordFile.Directory?.Create();
             await File.WriteAllTextAsync(options.PasswordFile.FullName, password);
+            VerboseLogger.Log($"Password written to: {options.PasswordFile.FullName}");
         }
 
         // Install to trust store if requested
         bool wasTrusted = false;
         if (options.Trust && options.PfxFile != null)
         {
+            VerboseLogger.Log($"Installing CA to trust store: {options.TrustLocation}");
             await CertificateUtilities.InstallCertificate(
                 options.PfxFile,
                 password,
@@ -359,6 +398,7 @@ internal static class CreateService
                 exportable: true,
                 quiet: true);
             wasTrusted = true;
+            VerboseLogger.Log("Trust store installation complete");
         }
 
         return new CertificateCreationResult
@@ -404,12 +444,14 @@ internal static class CreateService
         string[]? eku = null)
     {
         // Load issuer certificate
+        VerboseLogger.Log($"Loading issuer certificate: {issuerCertFile.FullName}");
         X509Certificate2 issuerCert;
 
         if (issuerCertFile.Extension.Equals(".pfx", StringComparison.OrdinalIgnoreCase) ||
             issuerCertFile.Extension.Equals(".p12", StringComparison.OrdinalIgnoreCase))
         {
             // PFX format - contains both cert and key
+            VerboseLogger.Log("Detected format: PKCS#12 (PFX)");
             if (string.IsNullOrEmpty(issuerPassword))
             {
                 throw new CertificateException("Password is required for PFX issuer certificate.");
@@ -422,6 +464,7 @@ internal static class CreateService
         else
         {
             // PEM format - need separate key file
+            VerboseLogger.Log($"Detected format: PEM, key file: {issuerKeyFile?.FullName ?? "(none)"}");
             if (issuerKeyFile == null)
             {
                 throw new CertificateException("Issuer key file is required for PEM format issuer certificate.");

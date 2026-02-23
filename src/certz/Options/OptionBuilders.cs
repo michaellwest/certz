@@ -498,6 +498,16 @@ internal static class OptionBuilders
         return guidedOption;
     }
 
+    internal static Option<bool> CreateVerboseOption()
+    {
+        var verboseOption = new Option<bool>("--verbose", "-v")
+        {
+            Description = "Enable diagnostic output to stderr (operation steps, exception details).",
+            DefaultValueFactory = _ => false
+        };
+        return verboseOption;
+    }
+
     internal static Option<FileInfo?> CreateIssuerCertOption()
     {
         var issuerCertOption = new Option<FileInfo?>("--issuer-cert")

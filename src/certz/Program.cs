@@ -25,6 +25,10 @@ rootCommand.Options.Add(formatOption);
 var rootGuidedOption = OptionBuilders.CreateGuidedOption();
 rootCommand.Options.Add(rootGuidedOption);
 
+// Add global --verbose option
+var rootVerboseOption = OptionBuilders.CreateVerboseOption();
+rootCommand.Options.Add(rootVerboseOption);
+
 // Root action: handles `certz --guided` (fires only when no subcommand is matched)
 rootCommand.SetAction(async (parseResult) =>
 {
@@ -71,6 +75,12 @@ try
         EnableDefaultExceptionHandler = false
     };
 
+    // Detect --verbose from raw args before parsing so it is active for all subcommands.
+    // Strip it from args so individual subcommands do not reject it as unrecognized.
+    VerboseLogger.Enabled = args.Any(a => a is "--verbose" or "-v");
+    if (VerboseLogger.Enabled)
+        args = args.Where(a => a is not "--verbose" and not "-v").ToArray();
+
     var parseResult = rootCommand.Parse(args);
 
     // Typo correction: suggest the nearest known option name for unrecognized options
@@ -100,6 +110,9 @@ catch (LintFailedException)
 }
 catch (Exception exception)
 {
+    // Emit full exception details to stderr when --verbose is enabled
+    VerboseLogger.LogException(exception);
+
     var originalColor = Console.ForegroundColor;
     Console.ForegroundColor = ConsoleColor.Red;
 
