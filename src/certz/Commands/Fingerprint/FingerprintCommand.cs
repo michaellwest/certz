@@ -36,12 +36,12 @@ internal static class FingerprintCommand
             }
         });
 
-        var separatorOption = new Option<string?>("--separator")
+        var separatorOption = new Option<string?>("--separator", "-s")
         {
             Description = "Delimiter between hex byte groups (default: \":\")"
         };
 
-        var noSeparatorOption = new Option<bool>("--no-separator")
+        var noSeparatorOption = new Option<bool>("--no-separator", "-n")
         {
             Description = "Output raw hex with no delimiter between byte groups",
             DefaultValueFactory = _ => false

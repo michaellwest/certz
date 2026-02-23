@@ -30,8 +30,8 @@ certz fingerprint <source> [options]
 | Option | Short | Default | Description |
 |--------|-------|---------|-------------|
 | `--algorithm` | `-a` | `sha256` | Hash algorithm: `sha256`, `sha384`, or `sha512` |
-| `--separator` | | `:` | Delimiter between hex byte groups (e.g. `""`, `" "`, `"-"`) |
-| `--no-separator` | | `false` | Output raw hex with no delimiter (equivalent to `--separator ""`) |
+| `--separator` | `-s` | `:` | Delimiter between hex byte groups (e.g. `""`, `" "`, `"-"`) |
+| `--no-separator` | `-n` | `false` | Output raw hex with no delimiter (equivalent to `--separator ""`) |
 | `--password` | `--pass`, `-p` | _(none)_ | Password for PFX files |
 | `--format` | `--fmt` | `text` | Output format: `text` or `json` |
 
@@ -49,9 +49,11 @@ certz fingerprint cert.pem
 
 # Raw hex (no colons) -- matches Windows cert store thumbprint style
 certz fingerprint cert.pem --no-separator
+certz fingerprint cert.pem -n
 
 # Custom delimiter
 certz fingerprint cert.pem --separator " "
+certz fingerprint cert.pem -s " "
 certz fingerprint cert.pem --separator "-"
 
 # SHA-256 fingerprint of a PFX file
