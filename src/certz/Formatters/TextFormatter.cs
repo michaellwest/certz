@@ -32,6 +32,48 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.MarkupLine("[dim]No files were written. Remove --dry-run to execute.[/]");
     }
 
+    public void WriteDiffResult(DiffResult result)
+    {
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Property[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Left[/]"))
+            .AddColumn(new TableColumn("[bold]Right[/]"))
+            .AddColumn(new TableColumn("[bold]Status[/]").NoWrap());
+
+        foreach (var field in result.Fields)
+        {
+            if (field.Status == DiffFieldStatus.Changed)
+            {
+                table.AddRow(
+                    $"[yellow]{Markup.Escape(field.Name)}[/]",
+                    $"[red]{Markup.Escape(field.LeftValue)}[/]",
+                    $"[green]{Markup.Escape(field.RightValue)}[/]",
+                    "[yellow]changed[/]");
+            }
+            else
+            {
+                table.AddRow(
+                    $"[dim]{Markup.Escape(field.Name)}[/]",
+                    $"[dim]{Markup.Escape(field.LeftValue)}[/]",
+                    $"[dim]{Markup.Escape(field.RightValue)}[/]",
+                    "[dim]unchanged[/]");
+            }
+        }
+
+        var header = result.AreIdentical
+            ? "[bold green]Certificates are identical[/]"
+            : $"[bold yellow]{result.DifferenceCount} field(s) differ[/]";
+
+        AnsiConsole.Write(new Panel(table)
+            .Header(header)
+            .Border(BoxBorder.Rounded));
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"  [dim]Left:[/]  {Markup.Escape(result.Source1)}");
+        AnsiConsole.MarkupLine($"  [dim]Right:[/] {Markup.Escape(result.Source2)}");
+    }
+
     public void WriteCertificateCreated(CertificateCreationResult result)
     {
         var table = new Table()

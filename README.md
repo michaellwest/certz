@@ -133,6 +133,7 @@ Options:
 Commands:
   create dev <domain>    Create a development/server certificate
   create ca              Create a Certificate Authority (CA) certificate
+  diff <src1> <src2>     Compare two certificates side-by-side and highlight differences
   fingerprint <source>   Output the SHA-256 (or SHA-384/SHA-512) fingerprint of a certificate
   inspect <source>       Inspect certificate from file, URL, or store
   lint <source>          Validate certificate against industry standards
@@ -160,6 +161,7 @@ Commands:
 | Command | Reference |
 |---------|-----------|
 | `create dev` / `create ca` | [docs/reference/create.md](docs/reference/create.md) |
+| `diff` | [docs/reference/diff.md](docs/reference/diff.md) |
 | `fingerprint` | [docs/reference/fingerprint.md](docs/reference/fingerprint.md) |
 | `inspect` | [docs/reference/inspect.md](docs/reference/inspect.md) |
 | `trust add` / `trust remove` | [docs/reference/trust.md](docs/reference/trust.md) |
