@@ -1,4 +1,5 @@
 using certz.Formatters;
+using certz.Models;
 using certz.Options;
 using certz.Services;
 using Spectre.Console;
@@ -61,6 +62,7 @@ internal static class TrustCommand
         });
 
         var formatOption = OptionBuilders.CreateFormatOption();
+        var dryRunOption = OptionBuilders.CreateDryRunOption();
 
         var command = new Command("add",
             "Add certificate to trust store\n\n" +
@@ -75,7 +77,8 @@ internal static class TrustCommand
             passwordOption,
             storeOption,
             locationOption,
-            formatOption
+            formatOption,
+            dryRunOption
         };
 
         command.SetAction((parseResult) =>
@@ -87,6 +90,7 @@ internal static class TrustCommand
             var storeLocation = parseResult.GetValue(locationOption)
                 ?? ((OperatingSystem.IsWindows() && TrustHandler.IsRunningAsAdmin()) ? "LocalMachine" : "CurrentUser");
             var format = parseResult.GetValue(formatOption) ?? "text";
+            var dryRun = parseResult.GetValue(dryRunOption);
 
             // Verify file exists
             if (!File.Exists(filePath))
@@ -94,9 +98,34 @@ internal static class TrustCommand
                 throw new FileNotFoundException($"Certificate file not found: {filePath}", filePath);
             }
 
-            var result = TrustHandler.AddToStore(filePath, password, storeName, storeLocation);
-
             var formatter = FormatterFactory.Create(format);
+
+            // Dry-run: show where the cert would be added without modifying the store
+            if (dryRun)
+            {
+                // Load cert to show details (read-only)
+                var certDetails = TryLoadCertificateDetails(filePath, password);
+                var details = new List<DryRunDetail>
+                {
+                    new("File",           Path.GetFileName(filePath)),
+                    new("Target Store",   $"{storeLocation}\\{storeName}"),
+                };
+                if (certDetails != null)
+                {
+                    details.Add(new("Subject",    certDetails.Subject));
+                    details.Add(new("Thumbprint", certDetails.Thumbprint));
+                    details.Add(new("Expires",    certDetails.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd") + " UTC"));
+                }
+                formatter.WriteDryRunResult(new DryRunResult
+                {
+                    Command = "trust add",
+                    Action = $"Add certificate to {storeLocation}\\{storeName}",
+                    Details = details.ToArray()
+                });
+                return;
+            }
+
+            var result = TrustHandler.AddToStore(filePath, password, storeName, storeLocation);
             formatter.WriteTrustAdded(result);
         });
 
@@ -147,6 +176,7 @@ internal static class TrustCommand
         };
 
         var formatOption = OptionBuilders.CreateFormatOption();
+        var dryRunOption = OptionBuilders.CreateDryRunOption();
 
         var command = new Command("remove",
             "Remove certificate from trust store\n\n" +
@@ -162,7 +192,8 @@ internal static class TrustCommand
             storeOption,
             locationOption,
             forceOption,
-            formatOption
+            formatOption,
+            dryRunOption
         };
 
         command.SetAction((parseResult) =>
@@ -174,6 +205,7 @@ internal static class TrustCommand
                 ?? ((OperatingSystem.IsWindows() && TrustHandler.IsRunningAsAdmin()) ? "LocalMachine" : "CurrentUser");
             var force = parseResult.GetValue(forceOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
+            var dryRun = parseResult.GetValue(dryRunOption);
 
             // Validate that either thumbprint or subject is provided
             if (string.IsNullOrEmpty(thumbprint) && string.IsNullOrEmpty(subject))
@@ -206,6 +238,35 @@ internal static class TrustCommand
             }
 
             var formatter = FormatterFactory.Create(format);
+
+            // Dry-run: show which certs would be removed without modifying the store
+            if (dryRun)
+            {
+                var certList = matchingCerts.Select(c =>
+                    $"{GetSimpleName(c.Subject)} ({c.Thumbprint[..Math.Min(16, c.Thumbprint.Length)]}...)").ToArray();
+
+                var details = new List<DryRunDetail>
+                {
+                    new("Store",             $"{storeLocation}\\{storeName}"),
+                    new("Match Count",       matchingCerts.Count.ToString()),
+                    new("Would Remove",      string.Join("; ", certList))
+                };
+
+                if (!string.IsNullOrEmpty(thumbprint))
+                    details.Insert(1, new("Thumbprint Filter", thumbprint));
+                if (!string.IsNullOrEmpty(subject))
+                    details.Insert(1, new("Subject Filter", subject));
+
+                foreach (var c in matchingCerts) c.Dispose();
+
+                formatter.WriteDryRunResult(new DryRunResult
+                {
+                    Command = "trust remove",
+                    Action = $"Remove {matchingCerts.Count} certificate(s) from {storeLocation}\\{storeName}",
+                    Details = details.ToArray()
+                });
+                return 0;
+            }
 
             // Handle multiple matches
             if (matchingCerts.Count > 1 && !force)
@@ -262,5 +323,27 @@ internal static class TrustCommand
             return cnEnd > 0 ? subject.Substring(cnStart, cnEnd - cnStart) : subject.Substring(cnStart);
         }
         return subject;
+    }
+
+    /// <summary>
+    /// Attempts to load basic cert details from a file for dry-run display. Returns null on failure.
+    /// </summary>
+    private static X509Certificate2? TryLoadCertificateDetails(string filePath, string? password)
+    {
+        try
+        {
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext is ".pfx" or ".p12")
+            {
+                return password != null
+                    ? X509CertificateLoader.LoadPkcs12FromFile(filePath, password)
+                    : X509CertificateLoader.LoadPkcs12FromFile(filePath, null);
+            }
+            return X509CertificateLoader.LoadCertificateFromFile(filePath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

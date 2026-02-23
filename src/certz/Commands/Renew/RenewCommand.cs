@@ -69,6 +69,7 @@ internal static class RenewCommand
         };
 
         var formatOption = OptionBuilders.CreateFormatOption();
+        var dryRunOption = OptionBuilders.CreateDryRunOption();
 
         var command = new Command("renew",
             "Renew an existing certificate with extended validity\n\n" +
@@ -94,7 +95,8 @@ internal static class RenewCommand
             issuerPasswordOption,
             storeOption,
             locationOption,
-            formatOption
+            formatOption,
+            dryRunOption
         };
 
         command.SetAction(async (parseResult) =>
@@ -102,6 +104,7 @@ internal static class RenewCommand
             var guided = parseResult.GetValue(guidedOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
             var formatter = FormatterFactory.Create(format);
+            var dryRun = parseResult.GetValue(dryRunOption);
 
             RenewOptions options;
 
@@ -138,6 +141,61 @@ internal static class RenewCommand
                 };
             }
 
+            // Dry-run: load source cert and show what would be renewed without writing output
+            if (dryRun)
+            {
+                var details = new List<DryRunDetail>
+                {
+                    new("Source", options.Source)
+                };
+
+                try
+                {
+                    var sourceCert = LoadSourceCertForDryRun(options);
+                    if (sourceCert != null)
+                    {
+                        var originalDays = (sourceCert.NotAfter - sourceCert.NotBefore).Days;
+                        var newDays = options.Days.HasValue
+                            ? Math.Min(options.Days.Value, 398)
+                            : Math.Min(originalDays, 398);
+
+                        var newNotAfter = DateTimeOffset.UtcNow.Date.AddDays(newDays);
+                        var isSelfSigned = sourceCert.Subject == sourceCert.Issuer;
+
+                        var sans = ExtractSANsForDryRun(sourceCert);
+                        var keyType = sourceCert.GetKeyAlgorithm()?.Contains("ECC") == true
+                            ? "ECDSA"
+                            : "RSA";
+
+                        details.Add(new("Current Subject",   sourceCert.Subject));
+                        details.Add(new("Current Expiry",    sourceCert.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd") + " UTC"));
+                        if (sans.Length > 0)
+                            details.Add(new("Preserved SANs",   string.Join(", ", sans)));
+                        details.Add(new("Key",               options.KeepKey ? $"{keyType} (preserved)" : $"{keyType} (new)"));
+                        details.Add(new("New Days",          newDays.ToString()));
+                        details.Add(new("New Expiry",        newNotAfter.ToString("yyyy-MM-dd") + " UTC"));
+                        details.Add(new("Signed By",         isSelfSigned ? "self-signed" : (options.IssuerCert?.Name ?? "CA (--issuer-cert required)")));
+                        sourceCert.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    details.Add(new("Warning", $"Could not read source cert: {ex.Message}"));
+                }
+
+                var outputFile = options.OutputFile?.Name
+                    ?? Path.GetFileNameWithoutExtension(options.Source) + "-renewed.pfx";
+                details.Add(new("Output", outputFile));
+
+                formatter.WriteDryRunResult(new DryRunResult
+                {
+                    Command = "renew",
+                    Action = $"Renew certificate: {options.Source}",
+                    Details = details.ToArray()
+                });
+                return 0;
+            }
+
             var result = await RenewService.RenewCertificate(options);
             formatter.WriteRenewResult(result);
 
@@ -151,5 +209,37 @@ internal static class RenewCommand
         });
 
         return command;
+    }
+
+    private static X509Certificate2? LoadSourceCertForDryRun(RenewOptions options)
+    {
+        if (!File.Exists(options.Source)) return null;
+
+        var ext = Path.GetExtension(options.Source).ToLowerInvariant();
+        if (ext is ".pfx" or ".p12")
+        {
+            return X509CertificateLoader.LoadPkcs12FromFile(options.Source, options.Password);
+        }
+        return X509CertificateLoader.LoadCertificateFromFile(options.Source);
+    }
+
+    private static string[] ExtractSANsForDryRun(X509Certificate2 cert)
+    {
+        try
+        {
+            var sanExt = cert.Extensions
+                .OfType<X509SubjectAlternativeNameExtension>()
+                .FirstOrDefault();
+            if (sanExt == null) return Array.Empty<string>();
+
+            var names = new List<string>();
+            foreach (var name in sanExt.EnumerateDnsNames()) names.Add(name);
+            foreach (var ip in sanExt.EnumerateIPAddresses()) names.Add(ip.ToString());
+            return names.ToArray();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
     }
 }

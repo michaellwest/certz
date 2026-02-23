@@ -51,6 +51,7 @@ internal static class ConvertCommand
         var passwordFileOption = OptionBuilders.CreatePasswordFileOption();
         var pfxEncryptionOption = OptionBuilders.CreatePfxEncryptionOption();
         var formatOption = OptionBuilders.CreateFormatOption();
+        var dryRunOption = OptionBuilders.CreateDryRunOption();
 
         var convertCommand = new Command("convert",
             "Convert between certificate formats (PEM, DER, PFX)\n\n" +
@@ -70,6 +71,7 @@ internal static class ConvertCommand
         convertCommand.Options.Add(passwordFileOption);
         convertCommand.Options.Add(pfxEncryptionOption);
         convertCommand.Options.Add(formatOption);
+        convertCommand.Options.Add(dryRunOption);
 
         convertCommand.SetAction(async (parseResult) =>
         {
@@ -82,6 +84,7 @@ internal static class ConvertCommand
             var pfxEncryption = parseResult.GetValue(pfxEncryptionOption) ?? "modern";
             var includeKey = parseResult.GetValue(includeKeyOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
+            var dryRun = parseResult.GetValue(dryRunOption);
             var formatter = FormatterFactory.Create(format);
 
             if (input == null || to == null)
@@ -93,6 +96,54 @@ internal static class ConvertCommand
                     "  certz convert cert.pem --to pfx\n" +
                     "  certz convert cert.pfx --to pem\n" +
                     "  certz convert cert.der --to pem --output cert.crt");
+            }
+
+            // Dry-run: detect format and show what would be converted without writing output
+            if (dryRun)
+            {
+                if (!input.Exists)
+                    throw new FileNotFoundException($"Input file not found: {input.FullName}");
+
+                var detectedFormat = await FormatDetectionService.DetectFormat(input);
+                var targetFormat = FormatDetectionService.ParseFormat(to);
+
+                if (detectedFormat == FormatType.Unknown)
+                    throw new ArgumentException($"Unable to detect format of {input.Name}. Check file content.");
+
+                if (detectedFormat == targetFormat)
+                    throw new ArgumentException($"Input and output formats are the same ({detectedFormat}). No conversion needed.");
+
+                // Compute expected output filename
+                var baseName = Path.GetFileNameWithoutExtension(input.Name);
+                var ext = targetFormat switch
+                {
+                    FormatType.Pem => ".pem",
+                    FormatType.Der => ".der",
+                    FormatType.Pfx => ".pfx",
+                    _ => ".bin"
+                };
+                var outputName = output?.Name ?? baseName + ext;
+
+                var details = new List<DryRunDetail>
+                {
+                    new("Input File",     input.Name),
+                    new("Input Format",   detectedFormat.ToString()),
+                    new("Output Format",  targetFormat.ToString()),
+                    new("Output File",    outputName),
+                    new("Include Key",    includeKey ? "yes" : "no"),
+                    new("PFX Encryption", targetFormat == FormatType.Pfx ? pfxEncryption : "n/a")
+                };
+
+                if (key != null)
+                    details.Add(new("Key File", key.Name));
+
+                formatter.WriteDryRunResult(new DryRunResult
+                {
+                    Command = "convert",
+                    Action = $"Convert {input.Name} from {detectedFormat} to {targetFormat}",
+                    Details = details.ToArray()
+                });
+                return;
             }
 
             await HandleConversion(input, to, output, key, password, passwordFile,

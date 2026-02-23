@@ -162,6 +162,7 @@ certz renew server.pfx --password MyPassword --days 90 --keep-key
 | `--out-password` | (auto-generated) | Password for the output PFX. Printed to console when auto-generated. |
 | `--store` | (none) | Certificate store name for thumbprint-based lookup: `My`, `Root`, `CA`. |
 | `--location, -l` | `CurrentUser` | Store location: `CurrentUser` or `LocalMachine`. |
+| `--dry-run, --dr` | `false` | Load source cert, show what parameters would be preserved and the new expiry, without writing any output. |
 | `--format` | `text` | Output format: `text` or `json`. |
 | `--guided` | `false` | Launch the interactive wizard for renew. Prompts for source, days, key reuse, and issuer. |
 

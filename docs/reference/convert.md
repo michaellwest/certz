@@ -24,6 +24,7 @@ certz convert <input> --to <format> [options]
 | `--password-file` | Read the PFX password from a file (avoids shell history exposure). |
 | `--pfx-encryption` | PFX encryption mode: `modern` (default, AES-256-CBC) or `legacy` (3DES). |
 | `--include-key` | Whether to extract the private key alongside the certificate (default: `true`). |
+| `--dry-run, --dr` | Detect the input format and show what output would be produced, without writing any files. |
 | `--format` | Output format: `text` (default) or `json`. |
 
 ---

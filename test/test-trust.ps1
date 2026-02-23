@@ -57,6 +57,7 @@ $TestCategories = @{
     "trust-remove" = @("trm-1.1", "trm-1.2", "trm-1.3", "trm-1.4")
     "partial-thumbprint" = @("trm-2.1", "trm-2.2", "trm-2.3", "trm-2.4")
     "store-list" = @("sto-1.1", "sto-1.2", "sto-1.3")
+    "dry-run" = @("tdr-1.1", "tdr-1.2", "tdr-1.3")
 }
 
 # Initialize test environment
@@ -935,6 +936,137 @@ if ($IsLinux) {
             }
         }
         return @{ Success = $false; Details = "exitCode=$exitCode output=$output" }
+    }
+}
+
+# ============================================================================
+# DRY-RUN TESTS
+# ============================================================================
+Write-TestHeader "Testing --dry-run Flag (trust)"
+
+# Test tdr-1.1: trust add --dry-run exits 0 and does NOT add cert to store
+Invoke-Test -TestId "tdr-1.1" -TestName "trust add --dry-run: exit 0, cert NOT added to store" -FilePrefix "tdr-add" -TestScript {
+    # SETUP: Create a self-signed cert file using PowerShell only
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=certz-dry-trust-add-$([guid]::NewGuid().ToString().Substring(0,8))" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $thumbprint = $cert.Thumbprint
+    Export-Certificate -Cert $cert -FilePath "tdr-add.cer" -Type CERT | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call with --dry-run (targets CurrentUser\My so no admin needed)
+        $null = & .\certz.exe trust add tdr-add.cer --store My --location CurrentUser --dry-run 2>&1
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Cert was NOT added to the store
+        $found = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Thumbprint -eq $thumbprint }
+        if ($found) {
+            throw "--dry-run must not add certificate to the store, but thumbprint $thumbprint was found"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "trust add --dry-run exits 0 and leaves store unchanged" }
+    }
+    finally {
+        # CLEANUP: ensure cert is removed from store and temp file deleted
+        Get-ChildItem "Cert:\CurrentUser\My" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+        Remove-Item "tdr-add.cer" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test tdr-1.2: trust add --dry-run --format json returns dryRun:true JSON
+Invoke-Test -TestId "tdr-1.2" -TestName "trust add --dry-run --format json: machine-readable output" -FilePrefix "tdr-add-json" -TestScript {
+    # SETUP: Create cert file using PowerShell only
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=certz-dry-trust-json-$([guid]::NewGuid().ToString().Substring(0,8))" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $thumbprint = $cert.Thumbprint
+    Export-Certificate -Cert $cert -FilePath "tdr-add-json.cer" -Type CERT | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe trust add tdr-add-json.cer --store My --location CurrentUser --dry-run --format json 2>&1
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Valid JSON with dryRun:true
+        $outputStr = $output -join "`n"
+        $json = $outputStr | ConvertFrom-Json
+        if (-not $json.dryRun) {
+            throw "--dry-run JSON output must have dryRun:true, got: $outputStr"
+        }
+
+        # ASSERTION 3: wouldSucceed:true for valid input
+        if (-not $json.wouldSucceed) {
+            throw "--dry-run JSON output must have wouldSucceed:true for a valid cert file"
+        }
+
+        # ASSERTION 4: command field present
+        if ($json.command -ne "trust add") {
+            throw "--dry-run JSON command must be 'trust add', got: $($json.command)"
+        }
+
+        # ASSERTION 5: Cert NOT added to store
+        $found = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Thumbprint -eq $thumbprint }
+        if ($found) {
+            throw "--dry-run must not add certificate to the store"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "trust add --dry-run JSON has dryRun:true and correct fields" }
+    }
+    finally {
+        Get-ChildItem "Cert:\CurrentUser\My" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+        Remove-Item "tdr-add-json.cer" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test tdr-1.3: trust remove --dry-run exits 0 and does NOT remove cert from store
+Invoke-Test -TestId "tdr-1.3" -TestName "trust remove --dry-run: exit 0, cert NOT removed from store" -FilePrefix "tdr-remove" -TestScript {
+    # SETUP: Create cert and import it into CurrentUser\My (no admin needed)
+    $uniqueCN = "certz-dry-trust-rm-$([guid]::NewGuid().ToString().Substring(0,8))"
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=$uniqueCN" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $thumbprint = $cert.Thumbprint
+    # cert is already in CurrentUser\My; no export needed
+
+    try {
+        # ACTION: Single certz.exe call -- dry-run remove by thumbprint
+        $null = & .\certz.exe trust remove $thumbprint --store My --location CurrentUser --dry-run --force 2>&1
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Cert is STILL in the store (not removed)
+        $found = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Thumbprint -eq $thumbprint }
+        if (-not $found) {
+            throw "--dry-run must NOT remove the certificate, but it is gone from the store"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "trust remove --dry-run exits 0 and leaves cert in store" }
+    }
+    finally {
+        # CLEANUP
+        Get-ChildItem "Cert:\CurrentUser\My" |
+            Where-Object { $_.Thumbprint -eq $thumbprint } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
     }
 }
 

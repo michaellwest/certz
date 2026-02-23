@@ -124,6 +124,7 @@ certz [command] [options]
 
 Options:
   --guided              Launch interactive wizard for any operation
+  --dry-run, --dr       Preview what a command would do without executing it (exit 0 = valid, 1 = invalid)
   --format <text|json>  Output format (default: text)
   --verbose             Enable diagnostic output to stderr (operation steps, exception details)
   --version             Show version information

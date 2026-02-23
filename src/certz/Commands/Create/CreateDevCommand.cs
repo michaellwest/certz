@@ -53,6 +53,8 @@ internal static class CreateDevCommand
         var pipeFormatOption = OptionBuilders.CreatePipeFormatOption();
         var pipePasswordOption = OptionBuilders.CreatePipePasswordOption();
 
+        var dryRunOption = OptionBuilders.CreateDryRunOption();
+
         var command = new Command("dev",
             "Create a development/server certificate\n\n" +
             "Usage:\n" +
@@ -87,7 +89,8 @@ internal static class CreateDevCommand
             pipeOption,
             pipeFormatOption,
             pipePasswordOption,
-            ekuOption
+            ekuOption,
+            dryRunOption
         };
 
         command.SetAction(async (parseResult) =>
@@ -95,6 +98,7 @@ internal static class CreateDevCommand
             var guided = parseResult.GetValue(guidedOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
             var formatter = FormatterFactory.Create(format);
+            var dryRun = parseResult.GetValue(dryRunOption);
 
             // Get ephemeral and pipe options
             var ephemeral = parseResult.GetValue(ephemeralOption);
@@ -200,10 +204,87 @@ internal static class CreateDevCommand
                 options = options with { PfxFile = new FileInfo($"{options.Domain.Replace("*", "wildcard").Replace(".", "-")}.pfx") };
             }
 
+            // Dry-run: show preview without executing
+            if (dryRun)
+            {
+                var allSANs = new List<string> { options.Domain };
+                allSANs.AddRange(options.AdditionalSANs);
+
+                var hash = ResolveHashAlgorithm(options.KeyType, options.KeySize, options.HashAlgorithm);
+                var utcToday = DateTimeOffset.UtcNow.Date;
+                var validFrom = utcToday.ToString("yyyy-MM-dd");
+                var validTo = utcToday.AddDays(options.Days).AddDays(-1).ToString("yyyy-MM-dd");
+
+                var keyDesc = options.KeyType.ToUpperInvariant().StartsWith("ECDSA")
+                    ? options.KeyType
+                    : $"RSA {options.KeySize}-bit";
+
+                string outputDesc;
+                if (options.Ephemeral) outputDesc = "(ephemeral, no file)";
+                else if (options.Pipe) outputDesc = $"(pipe, format: {options.PipeFormat ?? "pem"})";
+                else outputDesc = options.PfxFile?.Name ?? options.CertFile?.Name ?? options.KeyFile?.Name ?? "(auto)";
+
+                var ekuDisplay = options.Eku.Length > 0
+                    ? string.Join(", ", options.Eku)
+                    : "serverAuth";
+
+                var trustDesc = options.Trust
+                    ? $"yes ({options.TrustLocation}/Root)"
+                    : "no";
+
+                var details = new List<DryRunDetail>
+                {
+                    new("Subject",   $"CN={options.Domain}"),
+                    new("SANs",      string.Join(", ", allSANs)),
+                    new("Key Type",  keyDesc),
+                    new("Hash",      hash),
+                    new("Valid From", $"{validFrom} UTC"),
+                    new("Valid To",   $"{validTo} UTC"),
+                    new("Days",       options.Days.ToString()),
+                    new("EKU",        ekuDisplay),
+                    new("Trust",      trustDesc),
+                    new("Output",     outputDesc)
+                };
+
+                if (options.IssuerCert != null)
+                    details.Add(new("Signed By", options.IssuerCert.Name));
+
+                formatter.WriteDryRunResult(new DryRunResult
+                {
+                    Command = "create dev",
+                    Action = $"Create development certificate for {options.Domain}",
+                    Details = details.ToArray()
+                });
+                return;
+            }
+
             var result = await CreateService.CreateDevCertificate(options);
             formatter.WriteCertificateCreated(result);
         });
 
         return command;
+    }
+
+    private static string ResolveHashAlgorithm(string keyType, int keySize, string hashAlgorithm)
+    {
+        if (!hashAlgorithm.Equals("auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return hashAlgorithm.ToUpperInvariant() switch
+            {
+                "SHA256" => "SHA-256",
+                "SHA384" => "SHA-384",
+                "SHA512" => "SHA-512",
+                _ => hashAlgorithm
+            };
+        }
+
+        var kt = keyType.ToUpperInvariant();
+        if (kt.Contains("P521")) return "SHA-512";
+        if (kt.Contains("P384")) return "SHA-384";
+        if (kt.Contains("ECDSA")) return "SHA-256";
+        // RSA
+        if (keySize >= 4096) return "SHA-512";
+        if (keySize >= 3072) return "SHA-384";
+        return "SHA-256";
     }
 }

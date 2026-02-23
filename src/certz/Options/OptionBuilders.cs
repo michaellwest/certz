@@ -602,6 +602,18 @@ internal static class OptionBuilders
     }
 
     /// <summary>
+    /// Creates the --dry-run option for previewing what a command would do.
+    /// </summary>
+    internal static Option<bool> CreateDryRunOption()
+    {
+        return new Option<bool>("--dry-run", "--dr")
+        {
+            Description = "Preview what the command would do without executing it. Exit 0 on valid options, 1 on invalid.",
+            DefaultValueFactory = _ => false
+        };
+    }
+
+    /// <summary>
     /// Creates the --examples option to show usage examples with help output.
     /// </summary>
     internal static Option<bool> CreateExamplesOption()
