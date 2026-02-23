@@ -43,6 +43,7 @@ rootCommand.SetAction(async (parseResult) =>
         Console.WriteLine(@" / __| __| _ \_   _|_  )");
         Console.WriteLine(@"| (__| _||   / | |  / /");
         Console.WriteLine(@" \___|___|_|_\ |_| /___| ");
+        Spectre.Console.AnsiConsole.MarkupLine("  [dim][link=https://github.com/michaellwest/certz]github.com/michaellwest/certz[/][/]");
         Console.WriteLine();
         await rootCommand.Parse(["--help"]).InvokeAsync();
         return;
