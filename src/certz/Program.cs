@@ -36,7 +36,12 @@ rootCommand.SetAction(async (parseResult) =>
 
     if (!guided)
     {
-        // No subcommand and no --guided: show standard --help output
+        // No subcommand and no --guided: show banner then standard --help output
+        Console.WriteLine("  ___ ___ ___ _____ ___");
+        Console.WriteLine(@" / __| __| _ \_   _|_  )");
+        Console.WriteLine(@"| (__| _||   / | |  / /");
+        Console.WriteLine(@" \___|___|_|_\ |_| /___| ");
+        Console.WriteLine();
         await rootCommand.Parse(["--help"]).InvokeAsync();
         return;
     }
