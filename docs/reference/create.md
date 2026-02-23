@@ -88,6 +88,7 @@ When you run `certz create dev app.local` without extra flags:
 | `--pipe-password` | (auto-generated) | Password for `--pipe --pipe-format pfx`. Written to stderr. |
 | `--guided` | `false` | Launch the interactive wizard. |
 | `--format` | `text` | Output display format: `text` or `json`. |
+| `--verbose` | `false` | Emit diagnostic lines to stderr: key gen, file writes, trust store access, full exception details. |
 
 ### Ephemeral Mode
 
@@ -294,6 +295,7 @@ For a simple local dev setup, `-1` (unlimited) is fine. Use `0` when creating an
 | `--pipe-password` | (auto-generated) | Password for `--pipe --pipe-format pfx`. Written to stderr. |
 | `--guided` | `false` | Launch interactive wizard. |
 | `--format` | `text` | `text` or `json`. |
+| `--verbose` | `false` | Emit diagnostic lines to stderr: key gen, file writes, trust store access, full exception details. |
 
 ### JSON Output Schema
 

@@ -125,6 +125,7 @@ certz [command] [options]
 Options:
   --guided              Launch interactive wizard for any operation
   --format <text|json>  Output format (default: text)
+  --verbose             Enable diagnostic output to stderr (operation steps, exception details)
   --version             Show version information
   -?, -h, --help        Show help and usage information
 
