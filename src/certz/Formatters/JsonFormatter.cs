@@ -240,6 +240,21 @@ internal record FingerprintOutput(
     string Subject
 );
 
+// Diff result DTOs
+internal record CertDiffFieldDto(
+    string Name,
+    string LeftValue,
+    string RightValue,
+    string Status);
+
+internal record DiffOutput(
+    bool Success,
+    bool AreIdentical,
+    int DifferenceCount,
+    string Source1,
+    string Source2,
+    CertDiffFieldDto[] Fields);
+
 // Examples DTOs
 internal record ExampleDto(
     string Description,
@@ -279,6 +294,7 @@ internal record AllExamplesOutput(
 [JsonSerializable(typeof(ExamplesOutput))]
 [JsonSerializable(typeof(AllExamplesOutput))]
 [JsonSerializable(typeof(DryRunOutput))]
+[JsonSerializable(typeof(DiffOutput))]
 internal partial class JsonFormatterContext : JsonSerializerContext
 {
 }
@@ -296,6 +312,27 @@ internal class JsonFormatter : IOutputFormatter
             Details: details
         );
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.DryRunOutput));
+    }
+
+    public void WriteDiffResult(DiffResult result)
+    {
+        var fields = result.Fields.Select(f => new CertDiffFieldDto(
+            f.Name,
+            f.LeftValue,
+            f.RightValue,
+            f.Status.ToString().ToLowerInvariant()
+        )).ToArray();
+
+        var output = new DiffOutput(
+            Success: true,
+            AreIdentical: result.AreIdentical,
+            DifferenceCount: result.DifferenceCount,
+            Source1: result.Source1,
+            Source2: result.Source2,
+            Fields: fields
+        );
+
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.DiffOutput));
     }
 
     public void WriteCertificateCreated(CertificateCreationResult result)

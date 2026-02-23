@@ -1,4 +1,5 @@
 using certz.Commands;
+using certz.Commands.Diff;
 using certz.Commands.Examples;
 using certz.Commands.Fingerprint;
 using certz.Commands.Inspect;
@@ -63,6 +64,7 @@ rootCommand.SetAction(async (parseResult) =>
 // Register all commands
 rootCommand.AddCreateCommand();
 rootCommand.AddConvertCommand();
+rootCommand.AddDiffCommand();
 rootCommand.AddFingerprintCommand();
 rootCommand.AddInspectCommand();
 rootCommand.AddLintCommand();
@@ -111,6 +113,11 @@ try
 catch (LintFailedException)
 {
     // Lint results were already displayed, just return exit code 1
+    return 1;
+}
+catch (DiffHasDifferencesException)
+{
+    // Diff results were already displayed, return exit code 1 to signal differences found
     return 1;
 }
 catch (Exception exception)

@@ -31,6 +31,16 @@ and error states.
 > `certz inspect` returns exit code 1 when `warnings[]` is non-empty in the result.
 > The most common cause is `--warn <days>` when the certificate is within that threshold.
 
+### certz diff
+
+| Code | Condition |
+|------|-----------|
+| `0` | Certificates are identical (all compared fields match) |
+| `1` | One or more fields differ between the two certificates |
+
+> Exit code 1 signals that differences were found -- it is not an error.
+> To detect errors (source not found, bad password, etc.), check stderr.
+
 ### certz lint
 
 | Code | Condition |
@@ -68,6 +78,8 @@ and error states.
 |---------|------|---------|
 | Any | `0` | Success |
 | Any | `1` | Error (argument, file not found, operation failed) |
+| `diff` | `0` | Certificates are identical |
+| `diff` | `1` | Certificates differ (not an error -- use exit code to drive scripts) |
 | `inspect` | `1` | Warnings present (e.g., `--warn` threshold triggered) |
 | `lint` | `1` | Lint errors found |
 | `monitor` | `1` | Expiring certs within threshold (`--fail-on-warning` set) |
