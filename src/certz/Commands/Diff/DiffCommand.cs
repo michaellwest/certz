@@ -85,15 +85,7 @@ internal static class DiffCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("diff",
-            "Compare two certificates side-by-side and highlight differences\n\n" +
-            "Usage:\n" +
-            "  certz diff <source1> <source2>\n\n" +
-            "Examples:\n" +
-            "  certz diff old.pem new.pem\n" +
-            "  certz diff old.pfx new.pfx --password mypass\n" +
-            "  certz diff cert.pem https://example.com\n" +
-            "  certz diff old.pem new.pem --format json")
+        var command = new Command("diff", "Compare two certificates side-by-side and highlight differences")
         {
             source1Argument,
             source2Argument,

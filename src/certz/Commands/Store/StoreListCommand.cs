@@ -72,15 +72,7 @@ internal static class StoreCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("list",
-            "List certificates in a store\n\n" +
-            "Usage:\n" +
-            "  certz store list\n\n" +
-            "Examples:\n" +
-            "  certz store list\n" +
-            "  certz store list --store My --location CurrentUser\n" +
-            "  certz store list --expired\n" +
-            "  certz store list --expiring 30")
+        var command = new Command("list", "List certificates in a store")
         {
             storeOption,
             locationOption,

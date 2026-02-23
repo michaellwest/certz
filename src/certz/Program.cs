@@ -9,6 +9,7 @@ using certz.Commands.Renew;
 using certz.Commands.Store;
 using certz.Commands.Trust;
 using certz.Formatters;
+using certz.Help;
 using certz.Options;
 using certz.Services;
 using System.CommandLine.Completions;
@@ -74,6 +75,9 @@ rootCommand.AddStoreCommand();
 rootCommand.AddTrustCommand();
 rootCommand.AddExamplesCommand();
 rootCommand.AddCompletionCommand();
+
+// Inject quick-examples footer into every command's --help output
+HelpCustomizer.Configure(rootCommand);
 
 try
 {

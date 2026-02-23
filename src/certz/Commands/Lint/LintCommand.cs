@@ -86,16 +86,7 @@ internal static class LintCommand
 
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("lint",
-            "Validate certificate against CA/B Forum and Mozilla NSS requirements\n\n" +
-            "Exit codes:\n" +
-            "  0  All checks passed\n" +
-            "  1  One or more lint violations found\n\n" +
-            "Examples:\n" +
-            "  certz lint cert.pem\n" +
-            "  certz lint https://example.com --policy all\n" +
-            "  certz lint cert.pem --severity warning\n" +
-            "  certz lint cert.pem --format json")
+        var command = new Command("lint", "Validate certificate against CA/B Forum and Mozilla NSS requirements")
         {
             sourceArgument,
             guidedOption,

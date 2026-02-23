@@ -50,18 +50,7 @@ internal static class FingerprintCommand
         var passwordOption = OptionBuilders.CreatePasswordOption();
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("fingerprint",
-            "Output the fingerprint (hash) of a certificate\n\n" +
-            "Usage:\n" +
-            "  certz fingerprint <file|url>\n\n" +
-            "Examples:\n" +
-            "  certz fingerprint cert.pem\n" +
-            "  certz fingerprint cert.pem --no-separator\n" +
-            "  certz fingerprint cert.pem --separator \" \"\n" +
-            "  certz fingerprint https://example.com\n" +
-            "  certz fingerprint cert.pfx --password mypass\n" +
-            "  certz fingerprint cert.pem --algorithm sha512\n" +
-            "  certz fingerprint cert.pem --format json")
+        var command = new Command("fingerprint", "Output the fingerprint (hash) of a certificate")
         {
             sourceArgument,
             algorithmOption,

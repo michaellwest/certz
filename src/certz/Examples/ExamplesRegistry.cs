@@ -200,6 +200,22 @@ internal static class ExamplesRegistry
             new("Remove from specific store", "certz remove --thumbprint ABC123DEF456 --store Root"),
             new("Remove from LocalMachine (requires admin)", "certz remove --thumbprint ABC123DEF456 --store Root --location LocalMachine"),
         ],
+
+        // diff examples
+        ["diff"] =
+        [
+            new("Compare two certificate files", "certz diff old.pem new.pem"),
+            new("Compare PFX files with password", "certz diff old.pfx new.pfx --password mypass"),
+            new("Output differences as JSON", "certz diff cert1.pem cert2.pem --format json"),
+        ],
+
+        // fingerprint examples
+        ["fingerprint"] =
+        [
+            new("Print SHA-256 fingerprint", "certz fingerprint cert.pem"),
+            new("Fingerprint with no separator", "certz fingerprint cert.pem --no-separator"),
+            new("SHA-1 fingerprint for legacy systems", "certz fingerprint cert.pem --algorithm sha1"),
+        ],
     };
 
     /// <summary>
