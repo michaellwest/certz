@@ -55,15 +55,7 @@ internal static class CreateDevCommand
 
         var dryRunOption = OptionBuilders.CreateDryRunOption();
 
-        var command = new Command("dev",
-            "Create a development/server certificate\n\n" +
-            "Usage:\n" +
-            "  certz create dev [domain]\n\n" +
-            "Examples:\n" +
-            "  certz create dev localhost\n" +
-            "  certz create dev myapp.local --san api.myapp.local --trust\n" +
-            "  certz create dev --ephemeral\n" +
-            "  certz create dev myapp.local --key-type rsa --key-size 3072")
+        var command = new Command("dev", "Create a development/server certificate")
         {
             domainArgument,
             guidedOption,

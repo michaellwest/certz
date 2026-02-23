@@ -100,17 +100,7 @@ internal static class MonitorCommand
         // Format option
         var formatOption = OptionBuilders.CreateFormatOption();
 
-        var command = new Command("monitor",
-            "Monitor certificates for expiration\n\n" +
-            "Exit codes:\n" +
-            "  0  All certificates are healthy\n" +
-            "  1  Error (file not found, network failure) or --fail-on-warning triggered\n" +
-            "  2  One or more certificates have expired\n\n" +
-            "Examples:\n" +
-            "  certz monitor cert.pem\n" +
-            "  certz monitor /path/to/certs --recursive --warn 60\n" +
-            "  certz monitor https://example.com --warn 14 --fail-on-warning\n" +
-            "  certz monitor --store My")
+        var command = new Command("monitor", "Monitor certificates for expiration")
         {
             sourcesArgument,
             guidedOption,
