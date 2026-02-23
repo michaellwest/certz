@@ -59,6 +59,7 @@ $TestCategories = @{
     "guided" = @("gui-1.1")  # Interactive tests (manual only)
     "eku" = @("eku-1.1", "eku-1.2", "eku-1.3", "eku-1.4")
     "verbose" = @("vrb-1.1", "vrb-1.2", "vrb-1.3")
+    "dry-run" = @("dry-1.1", "dry-1.2", "dry-1.3", "dry-1.4")
 }
 
 # Initialize test environment
@@ -896,6 +897,121 @@ Invoke-Test -TestId "vrb-1.3" -TestName "Without --verbose, no diagnostic lines 
     }
 
     [PSCustomObject]@{ Success = $true; Details = "No [verbose] lines emitted without --verbose flag" }
+}
+
+# ============================================================================
+# DRY-RUN TESTS
+# ============================================================================
+Write-TestHeader "Testing --dry-run Flag"
+
+# Test dry-1.1: create dev --dry-run exits 0 and writes no file
+Invoke-Test -TestId "dry-1.1" -TestName "create dev --dry-run: exit 0, no file written" -FilePrefix "dry-dev" -TestScript {
+    # ACTION: Single certz.exe call
+    $null = & .\certz.exe create dev dry-dev.local --dry-run --f dry-dev.pfx 2>&1
+
+    # ASSERTION 1: Exit code 0 (valid options)
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: No file written (dry-run must not create any file)
+    if (Test-Path "dry-dev.pfx") {
+        throw "--dry-run must not write any output file, but dry-dev.pfx was created"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "create dev --dry-run exits 0 and writes no file" }
+}
+
+# Test dry-1.2: create dev --dry-run --format json returns dryRun:true JSON
+Invoke-Test -TestId "dry-1.2" -TestName "create dev --dry-run --format json: machine-readable output" -FilePrefix "dry-dev-json" -TestScript {
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe create dev dry-json.local --san extra.local --days 90 --dry-run --format json 2>&1
+    $outputStr = $output -join ""
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: Output is valid JSON
+    $json = $outputStr | ConvertFrom-Json
+
+    # ASSERTION 3: dryRun field is true
+    if (-not $json.dryRun) {
+        throw "--dry-run JSON output must have dryRun:true, got: $outputStr"
+    }
+
+    # ASSERTION 4: wouldSucceed is true (valid options)
+    if (-not $json.wouldSucceed) {
+        throw "--dry-run JSON output must have wouldSucceed:true for valid options"
+    }
+
+    # ASSERTION 5: command field matches
+    if ($json.command -ne "create dev") {
+        throw "JSON command should be 'create dev', got: $($json.command)"
+    }
+
+    # ASSERTION 6: details array is non-empty
+    if ($json.details.Count -eq 0) {
+        throw "JSON details array should not be empty"
+    }
+
+    # ASSERTION 7: Subject detail is present
+    $subjectDetail = $json.details | Where-Object { $_.key -eq "Subject" }
+    if (-not $subjectDetail -or $subjectDetail.value -notmatch "dry-json\.local") {
+        throw "Subject detail should contain 'dry-json.local', got: $($subjectDetail.value)"
+    }
+
+    # ASSERTION 8: No file written
+    if (Test-Path "dry-json.local.pfx") {
+        throw "--dry-run must not write any output file"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "create dev --dry-run JSON has dryRun:true and correct details" }
+}
+
+# Test dry-1.3: create ca --dry-run exits 0 and writes no file
+Invoke-Test -TestId "dry-1.3" -TestName "create ca --dry-run: exit 0, no file written" -FilePrefix "dry-ca" -TestScript {
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe create ca --name "Dry Run CA" --dry-run --format json 2>&1
+    $outputStr = $output -join ""
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: No file written
+    if (Test-Path "dry-run-ca.pfx") {
+        throw "--dry-run must not write any CA file"
+    }
+
+    # ASSERTION 3: JSON has CA command
+    $json = $outputStr | ConvertFrom-Json
+    if ($json.command -ne "create ca") {
+        throw "JSON command should be 'create ca', got: $($json.command)"
+    }
+
+    # ASSERTION 4: Type detail shows Certificate Authority
+    $typeDetail = $json.details | Where-Object { $_.key -eq "Type" }
+    if (-not $typeDetail -or $typeDetail.value -notmatch "Certificate Authority") {
+        throw "Type detail should say 'Certificate Authority', got: $($typeDetail.value)"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "create ca --dry-run exits 0 and produces CA details" }
+}
+
+# Test dry-1.4: create dev --dry-run with invalid --days exits 1
+Invoke-Test -TestId "dry-1.4" -TestName "create dev --dry-run with invalid options exits 1" -FilePrefix "dry-invalid" -TestScript {
+    # ACTION: Single certz.exe call with invalid --days (0 is invalid)
+    $null = & .\certz.exe create dev dry-invalid.local --dry-run --days 0 2>&1
+
+    # ASSERTION: Exit code 1 (invalid options fail even with --dry-run)
+    $actualCode = $LASTEXITCODE
+    if ($actualCode -eq 0) {
+        throw "--dry-run with invalid --days 0 should exit 1, got 0"
+    }
+
+    # ASSERTION 2: No file written
+    if (Test-Path "dry-invalid.pfx") {
+        throw "--dry-run must not write any output file even on error"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "--dry-run with invalid options exits non-zero" }
 }
 
 # ============================================================================

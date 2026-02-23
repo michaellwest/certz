@@ -86,6 +86,7 @@ When you run `certz create dev app.local` without extra flags:
 | `--pipe` | `false` | Stream certificate to stdout. No files written. See [Pipe Mode](#pipe-mode) below. |
 | `--pipe-format` | `pem` | Output format for `--pipe`: `pem`, `pfx`, `cert`, `key`. |
 | `--pipe-password` | (auto-generated) | Password for `--pipe --pipe-format pfx`. Written to stderr. |
+| `--dry-run, --dr` | `false` | Preview what would be created (subject, SANs, key type, validity, output file) without creating anything. Exit 0 on valid options, 1 on invalid. |
 | `--guided` | `false` | Launch the interactive wizard. |
 | `--format` | `text` | Output display format: `text` or `json`. |
 | `--verbose` | `false` | Emit diagnostic lines to stderr: key gen, file writes, trust store access, full exception details. |
@@ -293,6 +294,7 @@ For a simple local dev setup, `-1` (unlimited) is fine. Use `0` when creating an
 | `--pipe` | `false` | Stream to stdout. |
 | `--pipe-format` | `pem` | `pem`, `pfx`, `cert`, `key`. |
 | `--pipe-password` | (auto-generated) | Password for `--pipe --pipe-format pfx`. Written to stderr. |
+| `--dry-run, --dr` | `false` | Preview what would be created (subject, key type, validity, output file) without creating anything. Exit 0 on valid options, 1 on invalid. |
 | `--guided` | `false` | Launch interactive wizard. |
 | `--format` | `text` | `text` or `json`. |
 | `--verbose` | `false` | Emit diagnostic lines to stderr: key gen, file writes, trust store access, full exception details. |

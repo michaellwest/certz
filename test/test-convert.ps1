@@ -60,6 +60,7 @@ $TestCategories = @{
     "simplified-pfx-der" = @("cnv-8.1")
     "simplified-der-pfx" = @("cnv-9.1")
     "simplified-errors" = @("cnv-10.1", "cnv-10.2", "cnv-10.3")
+    "dry-run" = @("dry-1.1", "dry-1.2")
 }
 
 # Initialize test environment
@@ -1169,6 +1170,85 @@ Invoke-Test -TestId "cnv-10.3" -TestName "Error when key missing for PFX output"
     finally {
         Remove-Item "cnv-nokey-orphan.pem" -Force -ErrorAction SilentlyContinue
     }
+}
+
+# ============================================================================
+# DRY-RUN TESTS
+# ============================================================================
+Write-TestHeader "Testing convert --dry-run Flag"
+
+# Test dry-1.1: convert --dry-run exits 0 and writes no file
+Invoke-Test -TestId "dry-1.1" -TestName "convert --dry-run: exit 0, no file written" -FilePrefix "dry-cnv" -TestScript {
+    # SETUP: Create a PEM cert to convert (PowerShell only, matching pattern of other convert tests)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=dry-cnv-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "dry-cnv.pem" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    Remove-Item $cert.PSPath -Force
+
+    # ACTION: Single certz.exe call
+    $null = & .\certz.exe convert dry-cnv.pem --to der --dry-run 2>&1
+
+    # ASSERTION 1: Exit code 0
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: No output DER file written
+    if (Test-Path "dry-cnv.der") {
+        throw "--dry-run must not write the output DER file"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "convert --dry-run exits 0 and writes no file" }
+}
+
+# Test dry-1.2: convert --dry-run --format json shows input/output format
+Invoke-Test -TestId "dry-1.2" -TestName "convert --dry-run --format json: shows format info" -FilePrefix "dry-cnv-json" -TestScript {
+    # SETUP: Create a PEM cert to convert (PowerShell only, matching pattern of other convert tests)
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=dry-cnv-json-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "dry-cnv-json.pem" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    Remove-Item $cert.PSPath -Force
+
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe convert dry-cnv-json.pem --to pfx --dry-run --format json 2>&1
+    $outputStr = $output -join ""
+
+    # ASSERTION 1: Exit code 0
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: Valid JSON
+    $json = $outputStr | ConvertFrom-Json
+
+    # ASSERTION 3: dryRun:true
+    if (-not $json.dryRun) {
+        throw "--dry-run JSON must have dryRun:true"
+    }
+
+    # ASSERTION 4: command is "convert"
+    if ($json.command -ne "convert") {
+        throw "command should be 'convert', got: $($json.command)"
+    }
+
+    # ASSERTION 5: Input Format detail contains Pem
+    $inputDetail = $json.details | Where-Object { $_.key -eq "Input Format" }
+    if (-not $inputDetail -or $inputDetail.value -notmatch "Pem") {
+        throw "Input Format should be Pem, got: $($inputDetail.value)"
+    }
+
+    # ASSERTION 6: No output file written
+    if (Test-Path "dry-cnv-json.pfx") {
+        throw "--dry-run must not write the output PFX file"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "convert --dry-run JSON shows format info correctly" }
 }
 
 # ============================================================================

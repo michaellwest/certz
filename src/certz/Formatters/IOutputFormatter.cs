@@ -5,6 +5,7 @@ namespace certz.Formatters;
 
 internal interface IOutputFormatter
 {
+    void WriteDryRunResult(DryRunResult result);
     void WriteCertificateCreated(CertificateCreationResult result);
     void WriteCertificateInspected(CertificateInspectResult result);
     void WriteStoreList(StoreListResult result);

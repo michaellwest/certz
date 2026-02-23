@@ -5,6 +5,17 @@ using certz.Models;
 
 namespace certz.Formatters;
 
+// Dry-run result DTOs
+internal record DryRunDetailDto(string Key, string Value);
+
+internal record DryRunOutput(
+    bool DryRun,
+    bool WouldSucceed,
+    string Command,
+    string Action,
+    DryRunDetailDto[] Details
+);
+
 // DTO types for JSON serialization
 internal record CertificateDto(
     string Subject,
@@ -267,12 +278,26 @@ internal record AllExamplesOutput(
 [JsonSerializable(typeof(FingerprintOutput))]
 [JsonSerializable(typeof(ExamplesOutput))]
 [JsonSerializable(typeof(AllExamplesOutput))]
+[JsonSerializable(typeof(DryRunOutput))]
 internal partial class JsonFormatterContext : JsonSerializerContext
 {
 }
 
 internal class JsonFormatter : IOutputFormatter
 {
+    public void WriteDryRunResult(DryRunResult result)
+    {
+        var details = result.Details.Select(d => new DryRunDetailDto(d.Key, d.Value)).ToArray();
+        var output = new DryRunOutput(
+            DryRun: true,
+            WouldSucceed: result.WouldSucceed,
+            Command: result.Command,
+            Action: result.Action,
+            Details: details
+        );
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.DryRunOutput));
+    }
+
     public void WriteCertificateCreated(CertificateCreationResult result)
     {
         var certificate = new CertificateDto(

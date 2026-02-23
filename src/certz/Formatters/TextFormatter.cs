@@ -7,6 +7,31 @@ namespace certz.Formatters;
 
 internal class TextFormatter : IOutputFormatter
 {
+    public void WriteDryRunResult(DryRunResult result)
+    {
+        var statusColor = result.WouldSucceed ? "green" : "red";
+        var statusText = result.WouldSucceed ? "VALID" : "INVALID";
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Property[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Value[/]"));
+
+        foreach (var detail in result.Details)
+        {
+            table.AddRow($"[dim]{Markup.Escape(detail.Key)}[/]", Markup.Escape(detail.Value));
+        }
+
+        var header = $"[bold yellow][[DRY RUN]][/] {Markup.Escape(result.Action)} [{statusColor}]({statusText})[/]";
+        AnsiConsole.Write(new Panel(table)
+            .Header(header)
+            .Border(BoxBorder.Double)
+            .BorderColor(Color.Yellow));
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[dim]No files were written. Remove --dry-run to execute.[/]");
+    }
+
     public void WriteCertificateCreated(CertificateCreationResult result)
     {
         var table = new Table()

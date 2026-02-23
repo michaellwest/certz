@@ -59,6 +59,7 @@ certz trust add ca.cer --store Root --location LocalMachine
 | `--password, -p` | (none) | Password for PFX files. Also reads from `CERTZ_PASSWORD` env var. |
 | `--store, -s` | `Root` | Target store: `Root`, `CA`, `My`, `TrustedPeople` |
 | `--location, -l` | `LocalMachine` (admin) or `CurrentUser` | Store location: `CurrentUser` or `LocalMachine` |
+| `--dry-run, --dr` | `false` | Show where the certificate would be added without modifying the store. |
 | `--format` | `text` | Output format: `text` or `json` |
 
 ---
@@ -146,6 +147,7 @@ Type `y` to confirm, or press Enter to cancel. In JSON output mode (`--format js
 | `--store, -s` | `Root` | Target store: `Root`, `CA`, `My`, `TrustedPeople` |
 | `--location, -l` | `LocalMachine` (admin) or `CurrentUser` | Store location: `CurrentUser` or `LocalMachine` |
 | `--force, -f` | `false` | Remove without interactive confirmation. Required when multiple certificates match. |
+| `--dry-run, --dr` | `false` | Show which certificates would be removed without modifying the store. |
 | `--format` | `text` | Output format: `text` or `json` |
 
 ---

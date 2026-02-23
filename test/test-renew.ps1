@@ -53,6 +53,7 @@ $TestCategories = @{
     "validity" = @("ren-4.1", "ren-4.2")
     "errors" = @("ren-5.1", "ren-5.2")
     "format" = @("ren-6.1")
+    "dry-run" = @("rdr-1.1", "rdr-1.2")
 }
 
 # Initialize test environment
@@ -614,11 +615,96 @@ Invoke-Test -TestId "ren-6.1" -TestName "JSON output format" -FilePrefix "ren" -
 }
 
 # ============================================================================
+# DRY-RUN TESTS
+# ============================================================================
+Write-TestHeader "Testing --dry-run Flag (renew)"
+
+# Test rdr-1.1: renew --dry-run exits 0 and writes no output file
+Invoke-Test -TestId "rdr-1.1" -TestName "renew --dry-run: exit 0, no output file written" -FilePrefix "rdr" -TestScript {
+    # SETUP: Create a self-signed PFX using PowerShell only
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=renew-dry.local" `
+        -DnsName "renew-dry.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(180) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "rdr-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    # ACTION: Single certz.exe call with --dry-run
+    $null = & .\certz.exe renew rdr-original.pfx --password TestPass123 --dry-run 2>&1
+
+    # ASSERTION 1: Exit code 0
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: No output file written (default name would be rdr-original-renewed.pfx)
+    if (Test-Path "rdr-original-renewed.pfx") {
+        throw "--dry-run must not write any output file, but rdr-original-renewed.pfx was created"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "renew --dry-run exits 0 and writes no file" }
+}
+
+# Test rdr-1.2: renew --dry-run --format json returns dryRun:true with source details
+Invoke-Test -TestId "rdr-1.2" -TestName "renew --dry-run --format json: machine-readable output" -FilePrefix "rdr-json" -TestScript {
+    # SETUP: Create a self-signed PFX using PowerShell only
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=renew-dry-json.local" `
+        -DnsName "renew-dry-json.local" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(180) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString "TestPass123" -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath "rdr-json-original.pfx" -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
+
+    # ACTION: Single certz.exe call with --dry-run --format json
+    $output = & .\certz.exe renew rdr-json-original.pfx --password TestPass123 --dry-run --format json 2>&1
+
+    # ASSERTION 1: Exit code 0
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: Valid JSON with dryRun:true
+    $outputStr = $output -join "`n"
+    $json = $outputStr | ConvertFrom-Json
+    if (-not $json.dryRun) {
+        throw "--dry-run JSON output must have dryRun:true, got: $outputStr"
+    }
+
+    # ASSERTION 3: wouldSucceed:true for valid input
+    if (-not $json.wouldSucceed) {
+        throw "--dry-run JSON output must have wouldSucceed:true for a valid PFX"
+    }
+
+    # ASSERTION 4: command field is "renew"
+    if ($json.command -ne "renew") {
+        throw "--dry-run JSON command must be 'renew', got: $($json.command)"
+    }
+
+    # ASSERTION 5: details contain the source file reference
+    $sourceDetail = $json.details | Where-Object { $_.key -eq "Source" }
+    if (-not $sourceDetail) {
+        throw "--dry-run JSON details must include a 'Source' entry"
+    }
+
+    # ASSERTION 6: No output file written
+    if (Test-Path "rdr-json-original-renewed.pfx") {
+        throw "--dry-run must not write any output file"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "renew --dry-run JSON has dryRun:true with source details" }
+}
+
+# ============================================================================
 # CLEANUP AND SUMMARY
 # ============================================================================
 if (-not $SkipCleanup) {
     Write-TestHeader "Cleaning Up Test Environment"
     Remove-TestFiles "ren-"
+    Remove-TestFiles "rdr-"
     Write-Host "Test files removed" -ForegroundColor Gray
 } else {
     Write-Host "`nSkipping cleanup (test files preserved for inspection)" -ForegroundColor Yellow
