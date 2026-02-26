@@ -136,7 +136,7 @@ The step counter updates as you move forward and back.
 | 5. Trust Store | Install to trust store? CurrentUser or LocalMachine? |
 | 6. Output Files | PFX filename, separate .cer/.key export?, password or auto-generate? |
 
-Final step: summary table with all settings → "Create certificate with these settings?" (Y/n)
+Final step: summary table with all settings → "Create certificate with these settings?" (Y/n) → certificate is created → equivalent command printed.
 
 ### Create CA certificate (5 steps)
 
@@ -148,7 +148,7 @@ Final step: summary table with all settings → "Create certificate with these s
 | 4. Key Algorithm | ECDSA-P384 (recommended for CA), ECDSA-P256, RSA 4096-bit, RSA 3072-bit |
 | 5. Trust Store & Output | Trust to Root store? PFX filename? Password? |
 
-Final step: summary table → "Create CA certificate with these settings?" (Y/n)
+Final step: summary table → "Create CA certificate with these settings?" (Y/n) → certificate is created → equivalent command printed.
 
 ### Inspect certificate
 
@@ -268,15 +268,28 @@ previous step -- they are not shown on screen again.
 
 ## Equivalent Command Display
 
-After every operation, the wizard prints the equivalent direct CLI command:
+After every operation, the wizard prints the equivalent direct CLI command. This
+applies to both the global wizard (`certz --guided`) and command-scoped wizards
+(`certz create dev --guided`, `certz create ca --guided`, etc.).
+
+For `create dev` and `create ca`, the command is printed after the certificate is
+successfully created:
 
 ```
-Equivalent command:
+-- Equivalent command -------------------------------------------
+  certz create dev "myapp.local" --san "127.0.0.1" --days 90 --key-type ECDSA-P256 --file "myapp-local.pfx"
+```
+
+For other operations (inspect, lint, trust, convert, monitor, renew), it is printed
+during the wizard step before execution:
+
+```
+-- Equivalent command -------------------------------------------
   certz inspect "api-local.pfx" --password <hidden>
 ```
 
-Copy this command into a script or share it with your team. The password is shown as
-`<hidden>` for security; substitute the actual value when scripting.
+Copy this command into a script or share it with your team. Passwords are never
+included in the output; substitute the actual value when scripting.
 
 ---
 
