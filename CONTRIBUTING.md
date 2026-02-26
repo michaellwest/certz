@@ -95,6 +95,18 @@ dotnet build
 
 The release executable at `release/certz.exe` must be a single self-contained file with no runtime dependencies. Do not change `PublishSingleFile`, `SelfContained`, or `PublishTrimmed` in `certz.csproj` without team discussion.
 
+### Publishing a Release (maintainers)
+
+Use `scripts/release.ps1` to create a new GitHub release in one step:
+
+```powershell
+pwsh -File scripts/release.ps1 -Version 0.4.0
+```
+
+The script handles version bump, builds (Windows + Linux), checksums, git tag, and
+GitHub release creation. See [Release Process](docs/reference/release.md) for the
+full workflow and pre-release checklist.
+
 ---
 
 ## For Testers: Testing Workflow

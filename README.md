@@ -62,15 +62,20 @@ chmod +x ./certz
 ### Build from source
 
 ```powershell
-# Windows
-pwsh -File build-release.ps1                                    # outputs to release/win-x64/
+# Debug build (fast iteration)
+dotnet build
 
-# Linux (cross-compile from Windows)
-pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64      # outputs to release/linux-x64/
+# Release build -- single-file executable
+pwsh -File build-release.ps1                                    # win-x64  -> release/win-x64/
+pwsh -File build-release.ps1 -RuntimeIdentifier linux-x64      # linux-x64 -> release/linux-x64/
 
-# Linux (native, on a Linux machine)
-bash build-linux.sh                                             # outputs to linux-release/certz
+# Linux (native build on a Linux machine)
+bash build-linux.sh                                             # -> linux-release/certz
 ```
+
+> **Publishing a release** (maintainers): use `scripts/release.ps1` to version-bump,
+> build, tag, and upload assets to GitHub in one step.
+> See [Release Process](docs/reference/release.md).
 
 ## Shell Completion
 
