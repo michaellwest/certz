@@ -252,6 +252,9 @@ internal static class CreateDevCommand
 
             var result = await CreateService.CreateDevCertificate(options);
             formatter.WriteCertificateCreated(result);
+
+            if (guided)
+                CertificateWizard.WriteEquivalentCommand(CertificateWizard.BuildDevCommandLine(options));
         });
 
         return command;

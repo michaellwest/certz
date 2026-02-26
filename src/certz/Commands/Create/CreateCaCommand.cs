@@ -242,6 +242,9 @@ internal static class CreateCaCommand
 
             var result = await CreateService.CreateCACertificate(options);
             formatter.WriteCertificateCreated(result);
+
+            if (guided)
+                CertificateWizard.WriteEquivalentCommand(CertificateWizard.BuildCaCommandLine(options));
         });
 
         return command;
