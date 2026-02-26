@@ -77,6 +77,11 @@ if (-not $LastTag) {
 Write-Host "Calculating file hash..." -ForegroundColor Yellow
 $FileHash = (Get-FileHash -Path $ExePath -Algorithm SHA256).Hash
 
+# Write checksums.txt (sha256sum-compatible format)
+$ChecksumsPath = Join-Path $OutputPath "checksums.txt"
+"$($FileHash.ToLower())  $ExeName" | Out-File -FilePath $ChecksumsPath -Encoding utf8NoBOM -Append
+Write-Host "Checksums written to: $ChecksumsPath" -ForegroundColor Yellow
+
 # Generate release notes
 Write-Host "Generating release notes..." -ForegroundColor Yellow
 $ReleaseDate = Get-Date -Format "yyyy-MM-dd"
@@ -158,9 +163,9 @@ $ReleaseNotesContentEnding += @"
 
 ## File Verification
 
-**File:** $ExeName
-**Runtime:** $RuntimeIdentifier
-**SHA256 Hash:** ``$FileHash``
+SHA-256 hashes for all release artifacts are listed in ``checksums.txt``, attached as a release asset.
+
+See the [Verifying Downloads](https://github.com/michaellwest/certz/blob/main/docs/reference/verify-download.md) guide for PowerShell and Linux verification instructions, and for how to cross-check hashes against the GitHub Releases API digest field.
 "@
 
 Add-Content -Path $ReleaseNotesPath -Value $ReleaseNotesContentEnding
@@ -170,6 +175,7 @@ Write-Host "Release build complete!" -ForegroundColor Green
 Write-Host "Output directory: $OutputPath" -ForegroundColor Cyan
 Write-Host "Version: $Version" -ForegroundColor Cyan
 Write-Host "SHA256: $FileHash" -ForegroundColor Cyan
+Write-Host "Checksums: $ChecksumsPath" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Files created:" -ForegroundColor Yellow
 Get-ChildItem $OutputPath | ForEach-Object { Write-Host "  - $($_.Name)" }
