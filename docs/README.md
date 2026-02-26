@@ -80,10 +80,12 @@ All features have been implemented and documented in phase plans.
 | 11 | Wizard UX Enhancements | [phase11-wizard-enhancements.md](phases/phase11-wizard-enhancements.md) |
 | 12 | Wizard Navigation Improvements | [phase12-wizard-navigation.md](phases/phase12-wizard-navigation.md) |
 
-### Docker & Deployment
+### Release & Deployment
 
 | Document | Description |
 |----------|-------------|
+| [Release Process](reference/release.md) | How to publish a new certz release using `scripts/release.ps1` |
+| [Verifying Downloads](reference/verify-download.md) | SHA-256 verification for end-users |
 | [Docker Testing](docker-testing.md) | Quick reference for Docker-based testing |
 | [Docker Files Explained](docker-files-explained.md) | How Docker files are structured |
 
