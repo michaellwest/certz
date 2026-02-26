@@ -1873,7 +1873,74 @@ internal static partial class CertificateWizard
         return new FileInfo(path);
     }
 
-    private static void WriteEquivalentCommand(string command)
+    internal static string BuildDevCommandLine(DevCertificateOptions options)
+    {
+        var sb = new StringBuilder("certz create dev");
+        sb.Append($" \"{options.Domain}\"");
+
+        foreach (var san in options.AdditionalSANs)
+            sb.Append($" --san \"{san}\"");
+
+        sb.Append($" --days {options.Days}");
+        sb.Append($" --key-type {options.KeyType}");
+
+        if (options.KeyType.StartsWith("RSA", StringComparison.OrdinalIgnoreCase))
+            sb.Append($" --key-size {options.KeySize}");
+
+        if (options.PfxFile != null)
+            sb.Append($" --file \"{options.PfxFile.Name}\"");
+        if (options.CertFile != null)
+            sb.Append($" --cert \"{options.CertFile.Name}\"");
+        if (options.KeyFile != null)
+            sb.Append($" --key \"{options.KeyFile.Name}\"");
+
+        if (options.Trust)
+        {
+            sb.Append(" --trust");
+            if (options.TrustLocation != StoreLocation.CurrentUser)
+                sb.Append($" --trust-location {options.TrustLocation}");
+        }
+
+        if (options.PasswordFile != null)
+            sb.Append($" --password-file \"{options.PasswordFile.Name}\"");
+
+        return sb.ToString();
+    }
+
+    internal static string BuildCaCommandLine(CACertificateOptions options)
+    {
+        var sb = new StringBuilder("certz create ca");
+        sb.Append($" --name \"{options.Name}\"");
+        sb.Append($" --days {options.Days}");
+        sb.Append($" --key-type {options.KeyType}");
+
+        if (options.KeyType.StartsWith("RSA", StringComparison.OrdinalIgnoreCase))
+            sb.Append($" --key-size {options.KeySize}");
+
+        if (options.PathLength >= 0)
+            sb.Append($" --path-length {options.PathLength}");
+
+        if (options.PfxFile != null)
+            sb.Append($" --file \"{options.PfxFile.Name}\"");
+        if (options.CertFile != null)
+            sb.Append($" --cert \"{options.CertFile.Name}\"");
+        if (options.KeyFile != null)
+            sb.Append($" --key \"{options.KeyFile.Name}\"");
+
+        if (options.Trust)
+        {
+            sb.Append(" --trust");
+            if (options.TrustLocation != StoreLocation.CurrentUser)
+                sb.Append($" --trust-location {options.TrustLocation}");
+        }
+
+        if (options.PasswordFile != null)
+            sb.Append($" --password-file \"{options.PasswordFile.Name}\"");
+
+        return sb.ToString();
+    }
+
+    internal static void WriteEquivalentCommand(string command)
     {
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule("[dim]Equivalent command[/]")
