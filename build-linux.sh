@@ -19,6 +19,17 @@ dotnet publish src/certz/certz.csproj \
 chmod +x "$OUTPUT_DIR/certz"
 
 HASH=$(sha256sum "$OUTPUT_DIR/certz" | awk '{print $1}')
+
+# Write checksums.txt (sha256sum-compatible format)
+VERSION=$(grep -oP '(?<=<Version>)[^<]+' src/certz/certz.csproj 2>/dev/null || echo "")
+if [ -n "$VERSION" ]; then
+    BINARY_NAME="certz-${VERSION}-linux-x64"
+else
+    BINARY_NAME="certz"
+fi
+echo "$HASH  $BINARY_NAME" >> "$OUTPUT_DIR/checksums.txt"
+
 echo ""
 echo "Build complete: $OUTPUT_DIR/certz"
 echo "SHA256: $HASH"
+echo "Checksums: $OUTPUT_DIR/checksums.txt"
