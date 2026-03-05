@@ -352,21 +352,26 @@ Invoke-Test -TestId "cnv-2.2" -TestName "Convert PFX to PEM (cert+key)" -FilePre
         # ASSERTION 2: Combined PEM file exists
         Assert-FileExists "cnv-topem-both.pem"
 
-        # ASSERTION 3: PEM file contains cert and key
+        # ASSERTION 3: PEM file contains certificate
         $content = Get-Content "cnv-topem-both.pem" -Raw
         if ($content -notmatch "-----BEGIN CERTIFICATE-----") {
             throw "PEM file should contain PEM-encoded certificate"
         }
-        if ($content -notmatch "-----BEGIN.*PRIVATE KEY-----") {
-            throw "PEM file should contain PEM-encoded private key (--include-key is true by default)"
+
+        # ASSERTION 4: Separate .key file contains private key (--include-key is true by default)
+        Assert-FileExists "cnv-topem-both.key"
+        $keyContent = Get-Content "cnv-topem-both.key" -Raw
+        if ($keyContent -notmatch "-----BEGIN.*PRIVATE KEY-----") {
+            throw "Key file should contain PEM-encoded private key"
         }
 
-        [PSCustomObject]@{ Success = $true; Details = "PFX to PEM (cert+key combined) successful" }
+        [PSCustomObject]@{ Success = $true; Details = "PFX to PEM (cert + separate key file) successful" }
     }
     finally {
         # CLEANUP: PowerShell only
         Remove-Item "cnv-topem-both.pfx" -Force -ErrorAction SilentlyContinue
         Remove-Item "cnv-topem-both.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-topem-both.key" -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -1279,8 +1284,8 @@ Invoke-Test -TestId "rp-1.1" -TestName "Repassword PFX with explicit new passwor
         Assert-ExitCode -Expected 0
 
         # ASSERTION 2: PFX can be loaded with new password
-        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
-            "$(Get-Location)\rp-explicit.pfx", "newpass123",
+        $loaded = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "rp-explicit.pfx").Path, "newpass123",
             [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
         if ($loaded.Thumbprint -ne $originalThumb) {
             throw "Certificate thumbprint changed after repassword"
@@ -1290,9 +1295,8 @@ Invoke-Test -TestId "rp-1.1" -TestName "Repassword PFX with explicit new passwor
         # ASSERTION 3: Old password no longer works
         $failed = $false
         try {
-            $old = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
-                "$(Get-Location)\rp-explicit.pfx", "oldpass",
-                [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::DefaultKeySet)
+            $old = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+                (Resolve-Path "rp-explicit.pfx").Path, "oldpass")
             $old.Dispose()
         } catch {
             $failed = $true
@@ -1339,8 +1343,8 @@ Invoke-Test -TestId "rp-1.2" -TestName "Repassword PFX with auto-generated passw
         }
 
         # ASSERTION 3: PFX loads with generated password
-        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
-            "$(Get-Location)\rp-auto.pfx", $json.generatedPassword,
+        $loaded = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "rp-auto.pfx").Path, $json.generatedPassword,
             [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
         $loaded.Dispose()
 
@@ -1382,8 +1386,8 @@ Invoke-Test -TestId "rp-1.3" -TestName "Repassword PFX with --output creates new
         }
 
         # ASSERTION 4: New file loads with new password
-        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
-            "$(Get-Location)\rp-out-new.pfx", "newpass",
+        $loaded = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "rp-out-new.pfx").Path, "newpass",
             [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
         $loaded.Dispose()
 
@@ -1424,8 +1428,8 @@ Invoke-Test -TestId "rp-1.4" -TestName "Repassword PFX with --password-file save
             throw "Password file should not be empty"
         }
 
-        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
-            "$(Get-Location)\rp-pf.pfx", $savedPassword,
+        $loaded = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "rp-pf.pfx").Path, $savedPassword,
             [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
         $loaded.Dispose()
 
@@ -1546,8 +1550,8 @@ Invoke-Test -TestId "rp-2.4" -TestName "Repassword PFX in-place overwrites file"
         }
 
         # ASSERTION 3: New password works
-        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
-            "$(Get-Location)\rp-inplace.pfx", "inplacepass",
+        $loaded = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            (Resolve-Path "rp-inplace.pfx").Path, "inplacepass",
             [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
         $loaded.Dispose()
 
