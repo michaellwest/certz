@@ -9,5 +9,6 @@ if($SkipBuild) {
     dotnet publish src/certz/certz.csproj -c Debug -o debug
 }
 
-docker network rm certz_default --force
-docker compose -f docker-compose.test.yml up $dockerArgs certz-test
+#docker network rm certz_default --force
+docker compose -f docker-compose.test.yml up $dockerArgs certz-win-test
+docker compose -f docker-compose.test.yml down
