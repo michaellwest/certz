@@ -52,6 +52,8 @@ internal static class ConvertCommand
         var pfxEncryptionOption = OptionBuilders.CreatePfxEncryptionOption();
         var formatOption = OptionBuilders.CreateFormatOption();
         var dryRunOption = OptionBuilders.CreateDryRunOption();
+        var repasswordOption = OptionBuilders.CreateRepasswordOption();
+        var newPasswordOption = OptionBuilders.CreateNewPasswordOption();
 
         var convertCommand = new Command("convert", "Convert between certificate formats (PEM, DER, PFX)");
 
@@ -65,6 +67,8 @@ internal static class ConvertCommand
         convertCommand.Options.Add(pfxEncryptionOption);
         convertCommand.Options.Add(formatOption);
         convertCommand.Options.Add(dryRunOption);
+        convertCommand.Options.Add(repasswordOption);
+        convertCommand.Options.Add(newPasswordOption);
 
         convertCommand.SetAction(async (parseResult) =>
         {
@@ -78,7 +82,56 @@ internal static class ConvertCommand
             var includeKey = parseResult.GetValue(includeKeyOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
             var dryRun = parseResult.GetValue(dryRunOption);
+            var repassword = parseResult.GetValue(repasswordOption);
+            var newPassword = parseResult.GetValue(newPasswordOption);
             var formatter = FormatterFactory.Create(format);
+
+            if (repassword)
+            {
+                // Validate --repassword constraints
+                if (to != null)
+                    throw new ArgumentException("--repassword and --to are mutually exclusive. --repassword re-encrypts a PFX in-place.");
+
+                if (input == null)
+                    throw new ArgumentException("Input PFX file is required for --repassword.");
+
+                if (string.IsNullOrEmpty(password))
+                    throw new ArgumentException("--password is required for --repassword to decrypt the existing PFX.");
+
+                if (!input.Exists)
+                    throw new FileNotFoundException($"Input file not found: {input.FullName}");
+
+                // Auto-detect and validate PFX format
+                var detectedFormat = await FormatDetectionService.DetectFormat(input);
+                if (detectedFormat != FormatType.Pfx)
+                    throw new ArgumentException($"--repassword only works with PFX files. Detected format: {detectedFormat}");
+
+                // Dry-run path
+                if (dryRun)
+                {
+                    var outputName = output?.Name ?? input.Name;
+                    var details = new List<DryRunDetail>
+                    {
+                        new("Input File",     input.Name),
+                        new("Operation",      "Re-encrypt PFX with new password"),
+                        new("Output File",    outputName),
+                        new("PFX Encryption", "modern (AES-256-CBC)"),
+                        new("New Password",   string.IsNullOrEmpty(newPassword) ? "auto-generated" : "provided")
+                    };
+
+                    formatter.WriteDryRunResult(new DryRunResult
+                    {
+                        Command = "convert",
+                        Action = $"Re-encrypt {input.Name} with new password",
+                        Details = details.ToArray()
+                    });
+                    return;
+                }
+
+                var result = await ConvertService.RepasswordPfx(input, password, newPassword, passwordFile, output);
+                formatter.WriteConversionResult(result);
+                return;
+            }
 
             if (input == null || to == null)
             {

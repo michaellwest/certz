@@ -625,6 +625,25 @@ internal static class OptionBuilders
         };
     }
 
+    internal static Option<string?> CreateNewPasswordOption()
+    {
+        var newPasswordOption = new Option<string?>("--new-password", "--np")
+        {
+            Description = "New password for PFX re-encryption. Auto-generated if omitted.",
+            Required = false
+        };
+        return newPasswordOption;
+    }
+
+    internal static Option<bool> CreateRepasswordOption()
+    {
+        return new Option<bool>("--repassword")
+        {
+            Description = "Re-encrypt a PFX file with a new password (always uses modern AES-256-CBC encryption).",
+            DefaultValueFactory = _ => false
+        };
+    }
+
     /// <summary>
     /// Creates the --eku option for specifying Extended Key Usage values.
     /// </summary>

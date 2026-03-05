@@ -88,6 +88,9 @@ internal static class ExamplesRegistry
             new("PEM to PFX with explicit key file", "certz convert server.pem --to pfx --key private.key"),
             new("Convert to PFX with password saved to file", "certz convert server.pem --to pfx --password-file output.password"),
             new("Custom output path", "certz convert server.pfx --to pem --password secret --output /certs/server.pem"),
+            new("Change PFX password", "certz convert server.pfx --repassword --password oldpass --new-password newpass"),
+            new("Change PFX password (auto-generate)", "certz convert server.pfx --repassword --password oldpass"),
+            new("Change PFX password to new file", "certz convert server.pfx --repassword --password oldpass --new-password newpass --output server-new.pfx"),
         ],
 
         // lint examples

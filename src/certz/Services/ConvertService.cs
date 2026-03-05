@@ -203,6 +203,75 @@ internal static class ConvertService
     }
 
     /// <summary>
+    /// Re-encrypts a PFX file with a new password using modern AES-256-CBC encryption.
+    /// </summary>
+    internal static async Task<ConversionResult> RepasswordPfx(
+        FileInfo inputFile,
+        string oldPassword,
+        string? newPassword,
+        FileInfo? passwordFile,
+        FileInfo? outputFile)
+    {
+        // Load PFX with old password
+        var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            inputFile.FullName,
+            oldPassword,
+            X509KeyStorageFlags.Exportable);
+
+        // Determine new password
+        bool passwordWasGenerated = false;
+        if (string.IsNullOrEmpty(newPassword) && passwordFile?.Exists == true)
+        {
+            newPassword = (await File.ReadAllTextAsync(passwordFile.FullName)).Trim();
+        }
+        if (string.IsNullOrEmpty(newPassword))
+        {
+            newPassword = CertificateUtilities.GenerateSecurePassword();
+            passwordWasGenerated = true;
+        }
+
+        // Determine output path (default: overwrite in-place)
+        var outputPath = outputFile?.FullName ?? inputFile.FullName;
+
+        // Create output directory if needed
+        var outputDir = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrEmpty(outputDir))
+        {
+            Directory.CreateDirectory(outputDir);
+        }
+
+        // Always use modern AES-256-CBC encryption
+        var pbeParams = new PbeParameters(
+            PbeEncryptionAlgorithm.Aes256Cbc,
+            HashAlgorithmName.SHA256,
+            iterationCount: 100000);
+        var pfxData = certificate.ExportPkcs12(pbeParams, newPassword);
+
+        await File.WriteAllBytesAsync(outputPath, pfxData);
+
+        // Write password to file if generated
+        if (passwordWasGenerated && passwordFile != null)
+        {
+            passwordFile.Directory?.Create();
+            await File.WriteAllTextAsync(passwordFile.FullName, newPassword);
+        }
+
+        var subject = certificate.SubjectName.Format(false);
+        certificate.Dispose();
+
+        return new ConversionResult
+        {
+            Success = true,
+            OutputFile = outputPath,
+            InputPfx = inputFile.FullName,
+            GeneratedPassword = passwordWasGenerated ? newPassword : null,
+            PasswordWasGenerated = passwordWasGenerated,
+            Subject = subject,
+            OutputFormat = "PFX"
+        };
+    }
+
+    /// <summary>
     /// Converts a certificate to DER format.
     /// </summary>
     internal static async Task<ConversionResult> ConvertToDer(ConvertOptions options)

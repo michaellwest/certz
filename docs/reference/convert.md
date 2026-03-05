@@ -24,6 +24,8 @@ certz convert <input> --to <format> [options]
 | `--password-file` | Read the PFX password from a file (avoids shell history exposure). |
 | `--pfx-encryption` | PFX encryption mode: `modern` (default, AES-256-CBC) or `legacy` (3DES). |
 | `--include-key` | Whether to extract the private key alongside the certificate (default: `true`). |
+| `--repassword` | Re-encrypt a PFX file with a new password (always uses modern AES-256-CBC encryption). |
+| `--new-password, --np` | New password for PFX re-encryption. Auto-generated if omitted. |
 | `--dry-run, --dr` | Detect the input format and show what output would be produced, without writing any files. |
 | `--format` | Output format: `text` (default) or `json`. |
 
@@ -239,6 +241,33 @@ Field descriptions:
 | `inputPfx` | string or null | Source PFX file path, if applicable |
 | `generatedPassword` | string or null | Auto-generated PFX password, if no password was supplied |
 | `passwordWasGenerated` | bool | `true` if certz generated the password |
+
+---
+
+## PFX Password Change
+
+The `--repassword` flag re-encrypts a PFX file with a new password in a single command. The
+private key never touches disk in unencrypted form. Output always uses modern AES-256-CBC
+encryption, automatically upgrading legacy 3DES-encrypted PFX files.
+
+```bash
+# Change password (explicit new password)
+certz convert server.pfx --repassword --password oldpass --new-password newpass
+
+# Change password (auto-generated, printed to console)
+certz convert server.pfx --repassword --password oldpass
+
+# Write to a new file instead of overwriting
+certz convert server.pfx --repassword --password oldpass --new-password newpass --output server-new.pfx
+
+# Save generated password to file
+certz convert server.pfx --repassword --password oldpass --password-file server.password
+```
+
+**Constraints:**
+- `--repassword` and `--to` are mutually exclusive
+- Input must be a PFX file (auto-detected)
+- `--password` is required to decrypt the existing PFX
 
 ---
 

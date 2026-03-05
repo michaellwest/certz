@@ -115,6 +115,9 @@ certz lint cert.pfx --password MyPassword --severity error
 # Convert between PEM, DER, and PFX formats
 certz convert server.pfx --to pem --password MyPassword
 
+# Change a PFX file's password (in-place, modern AES-256 encryption)
+certz convert server.pfx --repassword --password OldPass --new-password NewPass
+
 # Monitor certificates for expiration
 certz monitor ./certs https://example.com --warn 30 --fail-on-warning
 

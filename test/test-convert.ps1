@@ -61,6 +61,7 @@ $TestCategories = @{
     "simplified-der-pfx" = @("cnv-9.1")
     "simplified-errors" = @("cnv-10.1", "cnv-10.2", "cnv-10.3")
     "dry-run" = @("dry-1.1", "dry-1.2")
+    "repassword" = @("rp-1.1", "rp-1.2", "rp-1.3", "rp-1.4", "rp-2.1", "rp-2.2", "rp-2.3", "rp-2.4")
 }
 
 # Initialize test environment
@@ -1249,6 +1250,312 @@ Invoke-Test -TestId "dry-1.2" -TestName "convert --dry-run --format json: shows 
     }
 
     [PSCustomObject]@{ Success = $true; Details = "convert --dry-run JSON shows format info correctly" }
+}
+
+# ============================================================================
+# REPASSWORD TESTS
+# ============================================================================
+Write-TestHeader "Testing PFX Repassword"
+
+# Test rp-1.1: Repassword with explicit new password
+Invoke-Test -TestId "rp-1.1" -TestName "Repassword PFX with explicit new password" -FilePrefix "rp-explicit" -TestScript {
+    # SETUP: Create a PFX using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-explicit-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $pfxBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "oldpass")
+    [System.IO.File]::WriteAllBytes("$(Get-Location)\rp-explicit.pfx", $pfxBytes)
+    $originalThumb = $cert.Thumbprint
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe convert rp-explicit.pfx --repassword --password oldpass --new-password newpass123 2>&1
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: PFX can be loaded with new password
+        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
+            "$(Get-Location)\rp-explicit.pfx", "newpass123",
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+        if ($loaded.Thumbprint -ne $originalThumb) {
+            throw "Certificate thumbprint changed after repassword"
+        }
+        $loaded.Dispose()
+
+        # ASSERTION 3: Old password no longer works
+        $failed = $false
+        try {
+            $old = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
+                "$(Get-Location)\rp-explicit.pfx", "oldpass",
+                [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::DefaultKeySet)
+            $old.Dispose()
+        } catch {
+            $failed = $true
+        }
+        if (-not $failed) {
+            throw "Old password should no longer work after repassword"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "PFX repassword with explicit password works" }
+    }
+    finally {
+        Remove-Item "rp-explicit.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test rp-1.2: Repassword with auto-generated password
+Invoke-Test -TestId "rp-1.2" -TestName "Repassword PFX with auto-generated password" -FilePrefix "rp-auto" -TestScript {
+    # SETUP: Create a PFX using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-auto-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $pfxBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "oldpass")
+    [System.IO.File]::WriteAllBytes("$(Get-Location)\rp-auto.pfx", $pfxBytes)
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call (no --new-password, should auto-generate)
+        $output = & .\certz.exe convert rp-auto.pfx --repassword --password oldpass --format json 2>&1
+        $outputStr = $output -join ""
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: JSON output contains generated password
+        $json = $outputStr | ConvertFrom-Json
+        if (-not $json.passwordWasGenerated) {
+            throw "passwordWasGenerated should be true"
+        }
+        if ([string]::IsNullOrEmpty($json.generatedPassword)) {
+            throw "generatedPassword should not be empty"
+        }
+
+        # ASSERTION 3: PFX loads with generated password
+        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
+            "$(Get-Location)\rp-auto.pfx", $json.generatedPassword,
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+        $loaded.Dispose()
+
+        [PSCustomObject]@{ Success = $true; Details = "PFX repassword with auto-generated password works" }
+    }
+    finally {
+        Remove-Item "rp-auto.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test rp-1.3: Repassword with --output (new file, original unchanged)
+Invoke-Test -TestId "rp-1.3" -TestName "Repassword PFX with --output creates new file" -FilePrefix "rp-out" -TestScript {
+    # SETUP: Create a PFX using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-out-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $pfxBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "oldpass")
+    [System.IO.File]::WriteAllBytes("$(Get-Location)\rp-out.pfx", $pfxBytes)
+    $originalHash = (Get-FileHash "rp-out.pfx").Hash
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe convert rp-out.pfx --repassword --password oldpass --new-password newpass --output rp-out-new.pfx 2>&1
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: New file exists
+        Assert-FileExists "rp-out-new.pfx"
+
+        # ASSERTION 3: Original file unchanged
+        $currentHash = (Get-FileHash "rp-out.pfx").Hash
+        if ($currentHash -ne $originalHash) {
+            throw "Original file should not be modified when --output is used"
+        }
+
+        # ASSERTION 4: New file loads with new password
+        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
+            "$(Get-Location)\rp-out-new.pfx", "newpass",
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+        $loaded.Dispose()
+
+        [PSCustomObject]@{ Success = $true; Details = "Repassword with --output preserves original and creates new file" }
+    }
+    finally {
+        Remove-Item "rp-out.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "rp-out-new.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test rp-1.4: Repassword with --password-file
+Invoke-Test -TestId "rp-1.4" -TestName "Repassword PFX with --password-file saves generated password" -FilePrefix "rp-pf" -TestScript {
+    # SETUP: Create a PFX using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-pf-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $pfxBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "oldpass")
+    [System.IO.File]::WriteAllBytes("$(Get-Location)\rp-pf.pfx", $pfxBytes)
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call (auto-generate password, write to file)
+        $output = & .\certz.exe convert rp-pf.pfx --repassword --password oldpass --password-file rp-pf.password 2>&1
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Password file exists
+        Assert-FileExists "rp-pf.password"
+
+        # ASSERTION 3: Password from file loads the PFX
+        $savedPassword = (Get-Content "rp-pf.password" -Raw).Trim()
+        if ([string]::IsNullOrEmpty($savedPassword)) {
+            throw "Password file should not be empty"
+        }
+
+        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
+            "$(Get-Location)\rp-pf.pfx", $savedPassword,
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+        $loaded.Dispose()
+
+        [PSCustomObject]@{ Success = $true; Details = "Repassword with --password-file saves generated password" }
+    }
+    finally {
+        Remove-Item "rp-pf.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "rp-pf.password" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test rp-2.1: Error: --repassword without --password
+Invoke-Test -TestId "rp-2.1" -TestName "Error: --repassword without --password" -FilePrefix "rp-err-nopass" -TestScript {
+    # SETUP: Create a PFX using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-err-nopass-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $pfxBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "somepass")
+    [System.IO.File]::WriteAllBytes("$(Get-Location)\rp-err-nopass.pfx", $pfxBytes)
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call (missing --password)
+        $output = & .\certz.exe convert rp-err-nopass.pfx --repassword 2>&1
+
+        # ASSERTION: Exit code 1
+        Assert-ExitCode -Expected 1
+
+        [PSCustomObject]@{ Success = $true; Details = "--repassword without --password returns exit code 1" }
+    }
+    finally {
+        Remove-Item "rp-err-nopass.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test rp-2.2: Error: --repassword on non-PFX file
+Invoke-Test -TestId "rp-2.2" -TestName "Error: --repassword on non-PFX file" -FilePrefix "rp-err-nonpfx" -TestScript {
+    # SETUP: Create a PEM file using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-err-nonpfx-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $certPem = [Convert]::ToBase64String($cert.RawData, [Base64FormattingOptions]::InsertLineBreaks)
+    Set-Content -Path "rp-err-nonpfx.pem" -Value "-----BEGIN CERTIFICATE-----`n$certPem`n-----END CERTIFICATE-----"
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call (PEM file, not PFX)
+        $output = & .\certz.exe convert rp-err-nonpfx.pem --repassword --password somepass 2>&1
+
+        # ASSERTION: Exit code 1
+        Assert-ExitCode -Expected 1
+
+        [PSCustomObject]@{ Success = $true; Details = "--repassword on non-PFX file returns exit code 1" }
+    }
+    finally {
+        Remove-Item "rp-err-nonpfx.pem" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test rp-2.3: Error: --repassword with --to (mutually exclusive)
+Invoke-Test -TestId "rp-2.3" -TestName "Error: --repassword with --to are mutually exclusive" -FilePrefix "rp-err-mutex" -TestScript {
+    # SETUP: Create a PFX using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-err-mutex-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $pfxBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "somepass")
+    [System.IO.File]::WriteAllBytes("$(Get-Location)\rp-err-mutex.pfx", $pfxBytes)
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call (both --repassword and --to)
+        $output = & .\certz.exe convert rp-err-mutex.pfx --repassword --password somepass --to pem 2>&1
+
+        # ASSERTION: Exit code 1
+        Assert-ExitCode -Expected 1
+
+        [PSCustomObject]@{ Success = $true; Details = "--repassword with --to returns exit code 1" }
+    }
+    finally {
+        Remove-Item "rp-err-mutex.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test rp-2.4: Repassword in-place overwrites original
+Invoke-Test -TestId "rp-2.4" -TestName "Repassword PFX in-place overwrites file" -FilePrefix "rp-inplace" -TestScript {
+    # SETUP: Create a PFX using PowerShell
+    $cert = New-SelfSignedCertificate `
+        -Subject "CN=rp-inplace-test" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(30)
+    $pfxBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx, "oldpass")
+    [System.IO.File]::WriteAllBytes("$(Get-Location)\rp-inplace.pfx", $pfxBytes)
+    $originalHash = (Get-FileHash "rp-inplace.pfx").Hash
+    Remove-Item $cert.PSPath -Force
+
+    try {
+        # ACTION: Single certz.exe call (no --output, should overwrite in-place)
+        $output = & .\certz.exe convert rp-inplace.pfx --repassword --password oldpass --new-password inplacepass 2>&1
+
+        # ASSERTION 1: Exit code 0
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: File hash changed (file was overwritten)
+        $currentHash = (Get-FileHash "rp-inplace.pfx").Hash
+        if ($currentHash -eq $originalHash) {
+            throw "File should have been overwritten with new encryption"
+        }
+
+        # ASSERTION 3: New password works
+        $loaded = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile(
+            "$(Get-Location)\rp-inplace.pfx", "inplacepass",
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+        $loaded.Dispose()
+
+        [PSCustomObject]@{ Success = $true; Details = "In-place repassword overwrites file with new password" }
+    }
+    finally {
+        Remove-Item "rp-inplace.pfx" -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ============================================================================
