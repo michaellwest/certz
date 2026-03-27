@@ -26,6 +26,19 @@ Release assets follow the naming pattern `certz-<version>-<runtime>[.exe]`, for 
 
 Find all releases at the [Releases page](https://github.com/michaellwest/certz/releases).
 
+### Windows (Scoop)
+
+```powershell
+scoop bucket add certz https://github.com/michaellwest/scoop-certz
+scoop install certz
+```
+
+To update to the latest version:
+
+```powershell
+scoop update certz
+```
+
 ### Windows (PowerShell)
 
 ```powershell

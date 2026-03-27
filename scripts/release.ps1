@@ -5,8 +5,8 @@
 .DESCRIPTION
     Bumps the version in certz.csproj, builds win-x64 and linux-x64 binaries
     (linux via .NET cross-compilation, no WSL required), merges checksums,
-    commits the version bump, tags the commit, and creates a GitHub release
-    with all assets attached.
+    commits the version bump, tags the commit, creates a GitHub release
+    with all assets attached, and updates the scoop-certz bucket manifest.
 
     If the tag or GitHub release already exists, the script prompts to either
     overwrite (delete and recreate from scratch) or cancel.
@@ -20,6 +20,9 @@
 .PARAMETER SkipLinux
     Skip the linux-x64 cross-compile build. Only the win-x64 binary will be uploaded.
 
+.PARAMETER SkipScoop
+    Skip updating the scoop-certz bucket repository.
+
 .EXAMPLE
     pwsh -File scripts/release.ps1 -Version 0.4.0
     pwsh -File scripts/release.ps1 -Version 0.4.0 -SkipLinux
@@ -30,7 +33,9 @@ param(
 
     [string]$Repo = 'michaellwest/certz',
 
-    [switch]$SkipLinux
+    [switch]$SkipLinux,
+
+    [switch]$SkipScoop
 )
 
 $ErrorActionPreference = 'Stop'
@@ -359,11 +364,89 @@ $releaseArgs = [System.Collections.Generic.List[string]]@(
 )
 if ($LinuxExePath) { $releaseArgs.Add($LinuxExePath) }
 
+# Attach per-binary .sha256 files (used by scoop autoupdate)
+$WinSha256Path = Join-Path $ProjectRoot "release\win-x64\$WinExeName.sha256"
+if (Test-Path $WinSha256Path) { $releaseArgs.Add($WinSha256Path) }
+
+if ($LinuxExePath) {
+    $LinuxSha256Path = Join-Path $ProjectRoot "release\linux-x64\$LinuxExeName.sha256"
+    if (Test-Path $LinuxSha256Path) { $releaseArgs.Add($LinuxSha256Path) }
+}
+
 & $gh @releaseArgs
 if ($LASTEXITCODE -ne 0) { Abort "GitHub release creation failed." }
 
 # ---------------------------------------------------------------------------
-# 14. Summary
+# 14. Update scoop bucket
+
+if (-not $SkipScoop) {
+    Write-Host ""
+    Write-Host "Updating scoop bucket..." -ForegroundColor Cyan
+
+    $BucketRepoPath = Join-Path (Split-Path $ProjectRoot -Parent) 'scoop-certz'
+    if (-not (Test-Path $BucketRepoPath)) {
+        Write-Host "  WARNING: scoop-certz repo not found at $BucketRepoPath. Skipping scoop update." -ForegroundColor Yellow
+        Write-Host "  Clone it with: git clone https://github.com/michaellwest/scoop-certz.git `"$BucketRepoPath`"" -ForegroundColor DarkGray
+    } else {
+        # Read the win-x64 hash
+        $winHash = ''
+        $winSha256File = Join-Path $ProjectRoot "release\win-x64\$WinExeName.sha256"
+        if (Test-Path $winSha256File) {
+            $winHash = (Get-Content $winSha256File -Raw).Split(' ')[0].Trim()
+        }
+
+        $repoUrl = "https://github.com/$Repo"
+        $manifestJson = @"
+{
+    "version": "$Version",
+    "description": "Developer-friendly X.509 certificate toolkit. Single self-contained executable.",
+    "homepage": "$repoUrl",
+    "license": "MIT",
+    "url": "$repoUrl/releases/download/$Tag/$WinExeName#/certz.exe",
+    "hash": "$winHash",
+    "bin": "certz.exe",
+    "checkver": "github",
+    "autoupdate": {
+        "url": "$repoUrl/releases/download/`$version/certz-`$version-win-x64.exe#/certz.exe",
+        "hash": {
+            "url": "$repoUrl/releases/download/`$version/certz-`$version-win-x64.exe.sha256"
+        }
+    }
+}
+"@
+
+        # Write manifest
+        $bucketDir = Join-Path $BucketRepoPath 'bucket'
+        if (-not (Test-Path $bucketDir)) {
+            New-Item -ItemType Directory -Path $bucketDir | Out-Null
+        }
+        $manifestPath = Join-Path $bucketDir 'certz.json'
+        [System.IO.File]::WriteAllText($manifestPath, $manifestJson, [System.Text.UTF8Encoding]::new($false))
+        Write-Host "  Manifest written to: $manifestPath" -ForegroundColor Green
+
+        # Commit and push
+        Push-Location $BucketRepoPath
+        try {
+            git add bucket/certz.json
+            git diff --cached --quiet
+            if ($LASTEXITCODE -ne 0) {
+                git commit -m "Update certz to $Version"
+                git push origin main
+                Write-Host "  Scoop bucket updated and pushed." -ForegroundColor Green
+            } else {
+                Write-Host "  Scoop manifest unchanged, nothing to push." -ForegroundColor DarkGray
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+} else {
+    Write-Host ""
+    Write-Host "Skipping scoop bucket update (--SkipScoop)." -ForegroundColor DarkGray
+}
+
+# ---------------------------------------------------------------------------
+# 15. Summary
 
 Write-Host ""
 Write-Host "Release $Tag published!" -ForegroundColor Green
@@ -372,7 +455,11 @@ Write-Host "  URL : https://github.com/$Repo/releases/tag/$Tag" -ForegroundColor
 Write-Host ""
 Write-Host "Assets uploaded:" -ForegroundColor Yellow
 Write-Host "  - $WinExeName"
-if ($LinuxExePath) { Write-Host "  - $LinuxExeName" }
+Write-Host "  - $WinExeName.sha256"
+if ($LinuxExePath) {
+    Write-Host "  - $LinuxExeName"
+    Write-Host "  - $LinuxExeName.sha256"
+}
 Write-Host "  - checksums.txt"
 Write-Host "  - release notes embedded in release body"
 Write-Host ""
