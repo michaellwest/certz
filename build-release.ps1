@@ -71,8 +71,14 @@ $FileHash = (Get-FileHash -Path $ExePath -Algorithm SHA256).Hash
 
 # Write checksums.txt (sha256sum-compatible format)
 $ChecksumsPath = Join-Path $OutputPath "checksums.txt"
-"$($FileHash.ToLower())  $ExeName" | Out-File -FilePath $ChecksumsPath -Encoding utf8NoBOM -Append
+$hashLine = "$($FileHash.ToLower())  $ExeName"
+$hashLine | Out-File -FilePath $ChecksumsPath -Encoding utf8NoBOM -Append
 Write-Host "Checksums written to: $ChecksumsPath" -ForegroundColor Yellow
+
+# Write per-binary .sha256 file (used by scoop autoupdate)
+$Sha256Path = Join-Path $OutputPath "$ExeName.sha256"
+$hashLine | Out-File -FilePath $Sha256Path -Encoding utf8NoBOM -NoNewline
+Write-Host "SHA256 file written to: $Sha256Path" -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "Release build complete!" -ForegroundColor Green
