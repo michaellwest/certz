@@ -386,6 +386,27 @@ internal static class LintService
             }
         }
 
+        // BR-019: SAN dnsName must not contain whitespace (RFC 5280 preferred-name-syntax)
+        foreach (var san in GetSubjectAlternativeNames(cert))
+        {
+            if (san.Length > 0 && san.Any(char.IsWhiteSpace))
+            {
+                var position = char.IsWhiteSpace(san[0]) ? "leading"
+                    : char.IsWhiteSpace(san[^1]) ? "trailing"
+                    : "embedded";
+                findings.Add(new LintFinding
+                {
+                    RuleId = "BR-019",
+                    RuleName = "SAN Whitespace",
+                    Severity = LintSeverity.Error,
+                    Message = $"SAN dnsName contains {position} whitespace, which is not valid per RFC 5280 preferred-name-syntax",
+                    Policy = "CA/B Forum BR",
+                    ActualValue = $"\"{san}\"",
+                    ExpectedValue = "dnsName without whitespace"
+                });
+            }
+        }
+
         return findings;
     }
 
@@ -695,7 +716,8 @@ internal static class LintService
 
         foreach (var line in formatted.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
         {
-            var trimmed = line.Trim();
+            // TrimStart only, so trailing whitespace in the SAN value is preserved for BR-019 detection.
+            var trimmed = line.TrimStart();
             if (trimmed.StartsWith("DNS Name=", StringComparison.OrdinalIgnoreCase))
             {
                 sans.Add(trimmed.Substring("DNS Name=".Length));
