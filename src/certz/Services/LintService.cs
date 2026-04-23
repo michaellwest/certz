@@ -407,6 +407,128 @@ internal static class LintService
             }
         }
 
+        var dnsSans = GetDnsOnlySans(cert);
+
+        // BR-020: RFC 1035 length limits (253 total, 63 per label)
+        foreach (var san in dnsSans)
+        {
+            // Skip entries BR-019 already flagged to avoid noisy double-reporting.
+            if (san.Any(char.IsWhiteSpace)) continue;
+
+            var cleaned = san.TrimEnd('.');
+            if (cleaned.Length > 253)
+            {
+                findings.Add(new LintFinding
+                {
+                    RuleId = "BR-020",
+                    RuleName = "SAN dnsName Length",
+                    Severity = LintSeverity.Error,
+                    Message = "SAN dnsName exceeds RFC 1035 maximum length of 253 characters",
+                    Policy = "CA/B Forum BR",
+                    ActualValue = $"{cleaned.Length} chars",
+                    ExpectedValue = "<= 253 chars"
+                });
+            }
+
+            var longLabel = cleaned.Split('.').FirstOrDefault(l => l.Length > 63);
+            if (longLabel != null)
+            {
+                findings.Add(new LintFinding
+                {
+                    RuleId = "BR-020",
+                    RuleName = "SAN dnsName Label Length",
+                    Severity = LintSeverity.Error,
+                    Message = "SAN dnsName label exceeds RFC 1035 maximum label length of 63 characters",
+                    Policy = "CA/B Forum BR",
+                    ActualValue = $"{longLabel.Length} chars",
+                    ExpectedValue = "<= 63 chars per label"
+                });
+            }
+        }
+
+        // BR-021: RFC 1035 preferred-name-syntax (LDH, no empty labels, labels can't start/end with hyphen)
+        foreach (var san in dnsSans)
+        {
+            if (san.Any(char.IsWhiteSpace)) continue;
+
+            var cleaned = san.TrimEnd('.');
+            if (cleaned.Length == 0) continue;
+
+            string? violation = null;
+            foreach (var label in cleaned.Split('.'))
+            {
+                if (label.Length == 0)
+                {
+                    violation = "contains an empty label (leading or consecutive dots)";
+                    break;
+                }
+                if (label[0] == '-' || label[^1] == '-')
+                {
+                    violation = $"label \"{label}\" starts or ends with a hyphen";
+                    break;
+                }
+                var badChar = label.FirstOrDefault(c => !(char.IsAsciiLetterOrDigit(c) || c == '-' || c == '*'));
+                if (badChar != default(char))
+                {
+                    violation = $"contains invalid character '{badChar}' (only letters, digits, and hyphens are permitted)";
+                    break;
+                }
+            }
+
+            if (violation != null)
+            {
+                findings.Add(new LintFinding
+                {
+                    RuleId = "BR-021",
+                    RuleName = "SAN dnsName Syntax",
+                    Severity = LintSeverity.Error,
+                    Message = $"SAN dnsName {violation}",
+                    Policy = "CA/B Forum BR",
+                    ActualValue = san,
+                    ExpectedValue = "RFC 1035 preferred-name-syntax"
+                });
+            }
+        }
+
+        // BR-022: IP literal in dnsName SAN should be in iPAddress SAN instead (RFC 6125 §6.4).
+        // Only treat as IP if the value has a dotted-quad or colon structure, to avoid flagging
+        // numeric-looking single labels that IPAddress.TryParse would otherwise accept.
+        foreach (var san in dnsSans)
+        {
+            if ((san.Contains('.') || san.Contains(':')) && IPAddress.TryParse(san, out _))
+            {
+                findings.Add(new LintFinding
+                {
+                    RuleId = "BR-022",
+                    RuleName = "IP Literal in dnsName SAN",
+                    Severity = LintSeverity.Warning,
+                    Message = "IP literal placed in dnsName SAN; should be an iPAddress SAN entry (RFC 6125 §6.4)",
+                    Policy = "CA/B Forum BR",
+                    ActualValue = san,
+                    ExpectedValue = "iPAddress SAN entry"
+                });
+            }
+        }
+
+        // BR-023: Duplicate SAN values (case-insensitive)
+        var allSans = GetSubjectAlternativeNames(cert);
+        var duplicates = allSans
+            .GroupBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key);
+        foreach (var dup in duplicates)
+        {
+            findings.Add(new LintFinding
+            {
+                RuleId = "BR-023",
+                RuleName = "Duplicate SAN",
+                Severity = LintSeverity.Warning,
+                Message = "SAN value appears more than once in the extension",
+                Policy = "CA/B Forum BR",
+                ActualValue = dup
+            });
+        }
+
         return findings;
     }
 
@@ -725,6 +847,28 @@ internal static class LintService
             else if (trimmed.StartsWith("IP Address=", StringComparison.OrdinalIgnoreCase))
             {
                 sans.Add(trimmed.Substring("IP Address=".Length));
+            }
+        }
+
+        return sans;
+    }
+
+    private static List<string> GetDnsOnlySans(X509Certificate2 cert)
+    {
+        var sans = new List<string>();
+        var sanExtension = cert.Extensions["2.5.29.17"];
+
+        if (sanExtension == null) return sans;
+
+        var asnData = new AsnEncodedData(sanExtension.Oid!, sanExtension.RawData);
+        var formatted = asnData.Format(true);
+
+        foreach (var line in formatted.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = line.TrimStart();
+            if (trimmed.StartsWith("DNS Name=", StringComparison.OrdinalIgnoreCase))
+            {
+                sans.Add(trimmed.Substring("DNS Name=".Length));
             }
         }
 
