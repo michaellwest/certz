@@ -20,6 +20,7 @@ internal static class CreateService
         // Build SANs list: domain first, then additional SANs
         var sans = new List<string> { options.Domain };
         sans.AddRange(options.AdditionalSANs);
+        ValidateSanValues(sans);
         VerboseLogger.Log($"SANs: {string.Join(", ", sans)}");
 
         // Handle password
@@ -242,6 +243,7 @@ internal static class CreateService
 
         // CA uses name as the subject
         var sans = new[] { options.Name };
+        ValidateSanValues(sans);
 
         // Handle password
         bool passwordWasGenerated = false;
@@ -418,6 +420,22 @@ internal static class CreateService
             IsEphemeral = false,
             WasPiped = false
         };
+    }
+
+    private static void ValidateSanValues(IEnumerable<string> sans)
+    {
+        foreach (var san in sans)
+        {
+            if (string.IsNullOrWhiteSpace(san))
+            {
+                throw new ArgumentException("SAN values cannot be empty or whitespace.");
+            }
+            if (san.Any(char.IsWhiteSpace))
+            {
+                throw new ArgumentException(
+                    $"SAN value \"{san}\" contains whitespace characters, which are not valid in dnsName values (RFC 5280).");
+            }
+        }
     }
 
     private static async Task<X509Certificate2> GenerateSignedCertificate(
