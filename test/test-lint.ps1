@@ -53,10 +53,63 @@ $ErrorActionPreference = "Stop"
 
 # Test categories
 $TestCategories = @{
-    "cabf" = @("lin-1.1", "lin-1.2", "lin-1.3", "lin-1.4")
+    "cabf" = @("lin-1.1", "lin-1.2", "lin-1.3", "lin-1.4", "lin-1.5", "lin-1.6", "lin-1.7", "lin-1.8", "lin-1.9")
     "mozilla" = @("lin-2.1", "lin-2.2")
     "dev" = @("lin-3.1", "lin-3.2")
     "format" = @("fmt-1.1", "fmt-1.2")
+}
+
+# ============================================================================
+# TEST CERTIFICATE FACTORY (raw ASN.1 SAN extension)
+# ============================================================================
+# Builds the SubjectAlternativeName extension by hand so tests can produce certs
+# that PowerShell's normal cert APIs would reject -- whitespace, oversized
+# labels, non-LDH characters, IP literals, and duplicate dnsName entries.
+# Required so BR-019 through BR-023 actually have something to flag.
+
+function New-TestCertificateWithRawSans {
+    param(
+        [Parameter(Mandatory)][string]$Subject,
+        [Parameter(Mandatory)][string[]]$DnsNames,
+        [Parameter(Mandatory)][string]$OutFile,
+        [string]$Password = "TestPass123",
+        [int]$ValidityDays = 90
+    )
+
+    # SubjectAltName ::= SEQUENCE OF GeneralName; dNSName is [2] IMPLICIT IA5String.
+    $writer = [System.Formats.Asn1.AsnWriter]::new([System.Formats.Asn1.AsnEncodingRules]::DER)
+    [void]$writer.PushSequence()
+    foreach ($name in $DnsNames) {
+        $tag = [System.Formats.Asn1.Asn1Tag]::new([System.Formats.Asn1.TagClass]::ContextSpecific, 2, $false)
+        $writer.WriteCharacterString([System.Formats.Asn1.UniversalTagNumber]::IA5String, $name, $tag)
+    }
+    $writer.PopSequence()
+    $sanExtension = [System.Security.Cryptography.X509Certificates.X509Extension]::new(
+        "2.5.29.17", $writer.Encode(), $false)
+
+    $key = [System.Security.Cryptography.ECDsa]::Create(
+        [System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+    try {
+        $req = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
+            $Subject,
+            $key,
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256)
+        [void]$req.CertificateExtensions.Add($sanExtension)
+
+        $notBefore = [DateTimeOffset]::UtcNow.AddDays(-1)
+        $notAfter = [DateTimeOffset]::UtcNow.AddDays($ValidityDays)
+        $cert = $req.CreateSelfSigned($notBefore, $notAfter)
+        try {
+            $pfxBytes = $cert.Export(
+                [System.Security.Cryptography.X509Certificates.X509ContentType]::Pfx,
+                $Password)
+            [System.IO.File]::WriteAllBytes($OutFile, $pfxBytes)
+        } finally {
+            $cert.Dispose()
+        }
+    } finally {
+        $key.Dispose()
+    }
 }
 
 # Initialize test environment
@@ -232,6 +285,133 @@ Invoke-Test -TestId "lin-1.4" -TestName "Lint with --severity error filter" -Fil
         # CLEANUP: Remove from cert store
         Remove-Item -Path "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
     }
+}
+
+# Test lin-1.5: BR-019 -- whitespace in SAN dnsName (Error)
+Invoke-Test -TestId "lin-1.5" -TestName "BR-019: SAN dnsName with trailing whitespace" -FilePrefix "lint-br019" -TestScript {
+    # SETUP: Build cert with " trailing.local " as a dnsName SAN (raw ASN.1 -- normal APIs reject whitespace)
+    New-TestCertificateWithRawSans -Subject "CN=br019.local" -DnsNames @("br019.local", "trailing.local ") -OutFile "lint-br019.pfx"
+
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe lint lint-br019.pfx --password TestPass123 --format json 2>&1
+    $outputStr = $output -join "`n"
+
+    # ASSERTION 1: Exit code (1 = failed; BR-019 is Error severity)
+    Assert-ExitCode -Expected 1
+
+    # ASSERTION 2: BR-019 finding present with Error severity
+    $json = $outputStr | ConvertFrom-Json
+    $br019 = $json.findings | Where-Object { $_.ruleId -eq "BR-019" }
+    if (-not $br019) {
+        throw "Expected BR-019 finding for SAN with whitespace"
+    }
+    if ($br019.severity -ne "Error") {
+        throw "Expected BR-019 severity=Error, got $($br019.severity)"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "BR-019 detected trailing whitespace in dnsName SAN" }
+}
+
+# Test lin-1.6: BR-020 -- SAN dnsName label exceeding 63 chars (Error)
+Invoke-Test -TestId "lin-1.6" -TestName "BR-020: SAN dnsName label > 63 chars" -FilePrefix "lint-br020" -TestScript {
+    # SETUP: Build cert with a 64-char label (exceeds RFC 1035 label limit of 63)
+    $longLabel = "a" * 64
+    $oversizedDns = "$longLabel.example.com"
+    New-TestCertificateWithRawSans -Subject "CN=br020.local" -DnsNames @("br020.local", $oversizedDns) -OutFile "lint-br020.pfx"
+
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe lint lint-br020.pfx --password TestPass123 --format json 2>&1
+    $outputStr = $output -join "`n"
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 1
+
+    # ASSERTION 2: BR-020 finding present
+    $json = $outputStr | ConvertFrom-Json
+    $br020 = $json.findings | Where-Object { $_.ruleId -eq "BR-020" }
+    if (-not $br020) {
+        throw "Expected BR-020 finding for label > 63 chars"
+    }
+    if ($br020.severity -ne "Error") {
+        throw "Expected BR-020 severity=Error, got $($br020.severity)"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "BR-020 detected 64-char label" }
+}
+
+# Test lin-1.7: BR-021 -- SAN dnsName with non-LDH character (Error)
+Invoke-Test -TestId "lin-1.7" -TestName "BR-021: SAN dnsName with underscore (non-LDH)" -FilePrefix "lint-br021" -TestScript {
+    # SETUP: Underscore is not in the LDH character set (RFC 1035 preferred-name-syntax)
+    New-TestCertificateWithRawSans -Subject "CN=br021.local" -DnsNames @("br021.local", "bad_label.local") -OutFile "lint-br021.pfx"
+
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe lint lint-br021.pfx --password TestPass123 --format json 2>&1
+    $outputStr = $output -join "`n"
+
+    # ASSERTION 1: Exit code
+    Assert-ExitCode -Expected 1
+
+    # ASSERTION 2: BR-021 finding present
+    $json = $outputStr | ConvertFrom-Json
+    $br021 = $json.findings | Where-Object { $_.ruleId -eq "BR-021" }
+    if (-not $br021) {
+        throw "Expected BR-021 finding for non-LDH character"
+    }
+    if ($br021.severity -ne "Error") {
+        throw "Expected BR-021 severity=Error, got $($br021.severity)"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "BR-021 detected underscore in dnsName" }
+}
+
+# Test lin-1.8: BR-022 -- IP literal in dnsName SAN (Warning)
+Invoke-Test -TestId "lin-1.8" -TestName "BR-022: IP literal in dnsName SAN" -FilePrefix "lint-br022" -TestScript {
+    # SETUP: 10.0.0.1 placed as a dnsName SAN; should be an iPAddress SAN per RFC 6125
+    New-TestCertificateWithRawSans -Subject "CN=br022.local" -DnsNames @("br022.local", "10.0.0.1") -OutFile "lint-br022.pfx"
+
+    # ACTION: Single certz.exe call (default --severity info shows warnings)
+    $output = & .\certz.exe lint lint-br022.pfx --password TestPass123 --format json 2>&1
+    $outputStr = $output -join "`n"
+
+    # ASSERTION 1: Exit code (0 -- BR-022 is only a Warning)
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: BR-022 finding present at Warning severity
+    $json = $outputStr | ConvertFrom-Json
+    $br022 = $json.findings | Where-Object { $_.ruleId -eq "BR-022" }
+    if (-not $br022) {
+        throw "Expected BR-022 finding for IP literal in dnsName SAN"
+    }
+    if ($br022.severity -ne "Warning") {
+        throw "Expected BR-022 severity=Warning, got $($br022.severity)"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "BR-022 detected IPv4 literal in dnsName SAN" }
+}
+
+# Test lin-1.9: BR-023 -- duplicate SAN values (Warning)
+Invoke-Test -TestId "lin-1.9" -TestName "BR-023: duplicate SAN values" -FilePrefix "lint-br023" -TestScript {
+    # SETUP: Two identical dnsName entries (case-insensitive duplicates also count, but here they're exact)
+    New-TestCertificateWithRawSans -Subject "CN=br023.local" -DnsNames @("br023.local", "dup.local", "dup.local") -OutFile "lint-br023.pfx"
+
+    # ACTION: Single certz.exe call
+    $output = & .\certz.exe lint lint-br023.pfx --password TestPass123 --format json 2>&1
+    $outputStr = $output -join "`n"
+
+    # ASSERTION 1: Exit code (0 -- BR-023 is only a Warning)
+    Assert-ExitCode -Expected 0
+
+    # ASSERTION 2: BR-023 finding present at Warning severity
+    $json = $outputStr | ConvertFrom-Json
+    $br023 = $json.findings | Where-Object { $_.ruleId -eq "BR-023" }
+    if (-not $br023) {
+        throw "Expected BR-023 finding for duplicate SAN values"
+    }
+    if ($br023.severity -ne "Warning") {
+        throw "Expected BR-023 severity=Warning, got $($br023.severity)"
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "BR-023 detected duplicate dnsName SAN" }
 }
 
 # ============================================================================

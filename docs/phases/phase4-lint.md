@@ -59,6 +59,11 @@ These are mandatory requirements for publicly-trusted TLS certificates:
 | `BR-016` | Subject    | Organization requires Country                     | Error    |
 | `BR-017` | Wildcards  | Wildcard only in leftmost label                   | Error    |
 | `BR-018` | Wildcards  | No wildcards in public suffix                     | Error    |
+| `BR-019` | SAN        | dnsName must not contain whitespace               | Error    |
+| `BR-020` | SAN        | dnsName length <= 253 chars, label <= 63 chars    | Error    |
+| `BR-021` | SAN        | dnsName must follow RFC 1035 preferred-name-syntax | Error    |
+| `BR-022` | SAN        | IP literal belongs in iPAddress SAN, not dnsName  | Warning  |
+| `BR-023` | SAN        | Duplicate SAN values prohibited                   | Warning  |
 
 ### Mozilla NSS Policy (v2.8.x)
 

@@ -97,6 +97,11 @@ Findings are ordered by severity (errors first), then by rule ID.
 | BR-015 | Country Code Length | **Error** | All | Country (C) present but not exactly 2 characters |
 | BR-016 | Organization Requires Country | **Error** | All | Organization (O) present but Country (C) absent |
 | BR-017 | Wildcard Position | **Error** | Leaf certs | Wildcard (`*`) appears outside the leftmost label |
+| BR-019 | SAN Whitespace | **Error** | All | SAN dnsName contains leading, trailing, or embedded whitespace |
+| BR-020 | SAN dnsName Length | **Error** | All | SAN dnsName exceeds 253 characters or any label exceeds 63 characters (RFC 1035) |
+| BR-021 | SAN dnsName Syntax | **Error** | All | SAN dnsName contains an empty label, a hyphen at the start or end of a label, or a non-LDH character (RFC 1035 preferred-name-syntax; wildcard exempt) |
+| BR-022 | IP Literal in dnsName SAN | Warning | All | IP literal placed in dnsName SAN; should be an iPAddress SAN entry (RFC 6125 sec 6.4) |
+| BR-023 | Duplicate SAN | Warning | All | The same SAN value appears more than once (case-insensitive) |
 
 ### Mozilla NSS Policy (`mozilla`)
 
