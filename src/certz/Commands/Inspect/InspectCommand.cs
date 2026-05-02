@@ -21,13 +21,15 @@ internal static class InspectCommand
 
     private static Command BuildInspectCommand()
     {
-        // Source argument - file path, URL, or thumbprint
-        var sourceArgument = new Argument<string>("source")
+        // Source argument - file path, URL, or thumbprint (optional in --guided mode)
+        var sourceArgument = new Argument<string?>("source")
         {
-            Description = "File path, URL (https://...), or certificate thumbprint"
+            Description = "File path, URL (https://...), or certificate thumbprint",
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         // Options
+        var guidedOption = OptionBuilders.CreateGuidedOption();
         var passwordOption = OptionBuilders.CreatePasswordOption();
 
         var chainOption = new Option<bool>("--chain", "-c")
@@ -105,6 +107,7 @@ internal static class InspectCommand
         var command = new Command("inspect", "Inspect certificate from file, URL, or certificate store")
         {
             sourceArgument,
+            guidedOption,
             passwordOption,
             chainOption,
             treeOption,
@@ -120,52 +123,77 @@ internal static class InspectCommand
 
         command.SetAction(async (parseResult) =>
         {
-            var source = parseResult.GetValue(sourceArgument)
-                ?? throw new ArgumentException("Source argument is required.");
-            var password = parseResult.GetValue(passwordOption);
-            var showChain = parseResult.GetValue(chainOption);
-            var showTree = parseResult.GetValue(treeOption);
-            var checkCrl = parseResult.GetValue(crlOption);
-            var warnDays = parseResult.GetValue(warnOption);
-            var savePath = parseResult.GetValue(saveOption);
-            var saveKeyPath = parseResult.GetValue(saveKeyOption);
-            var saveFormat = parseResult.GetValue(saveFormatOption) ?? "pem";
-            var storeName = parseResult.GetValue(storeOption);
-            var storeLocation = parseResult.GetValue(locationOption);
+            var guided = parseResult.GetValue(guidedOption);
             var format = parseResult.GetValue(formatOption) ?? "text";
-
-            // --tree implies --chain
-            if (showTree && !showChain)
-            {
-                showChain = true;
-            }
-
             var formatter = FormatterFactory.Create(format);
 
-            var options = new InspectOptions
-            {
-                Source = source,
-                Password = password,
-                ShowChain = showChain,
-                DetailedTree = showTree,
-                CheckCrl = checkCrl,
-                WarnDays = warnDays,
-                SavePath = savePath,
-                SaveKeyPath = saveKeyPath,
-                SaveFormat = saveFormat,
-                StoreName = storeName,
-                StoreLocation = storeLocation
-            };
+            InspectOptions options;
+            InspectSource sourceType;
 
-            // Detect source type and dispatch to appropriate handler
-            var sourceType = DetectSourceType(source, storeName);
+            if (guided)
+            {
+                try
+                {
+                    var (wizardOptions, wizardSourceType) = CertificateWizard.RunInspectWizard();
+                    options = wizardOptions;
+                    sourceType = wizardSourceType switch
+                    {
+                        CertificateWizard.InspectSourceType.Url => InspectSource.Url,
+                        CertificateWizard.InspectSourceType.Store => InspectSource.Store,
+                        _ => InspectSource.File
+                    };
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine("Operation cancelled.");
+                    return;
+                }
+            }
+            else
+            {
+                var source = parseResult.GetValue(sourceArgument)
+                    ?? throw new ArgumentException("Source argument is required. Use 'certz inspect <source>' or 'certz inspect --guided'.");
+                var password = parseResult.GetValue(passwordOption);
+                var showChain = parseResult.GetValue(chainOption);
+                var showTree = parseResult.GetValue(treeOption);
+                var checkCrl = parseResult.GetValue(crlOption);
+                var warnDays = parseResult.GetValue(warnOption);
+                var savePath = parseResult.GetValue(saveOption);
+                var saveKeyPath = parseResult.GetValue(saveKeyOption);
+                var saveFormat = parseResult.GetValue(saveFormatOption) ?? "pem";
+                var storeName = parseResult.GetValue(storeOption);
+                var storeLocation = parseResult.GetValue(locationOption);
+
+                // --tree implies --chain
+                if (showTree && !showChain)
+                {
+                    showChain = true;
+                }
+
+                options = new InspectOptions
+                {
+                    Source = source,
+                    Password = password,
+                    ShowChain = showChain,
+                    DetailedTree = showTree,
+                    CheckCrl = checkCrl,
+                    WarnDays = warnDays,
+                    SavePath = savePath,
+                    SaveKeyPath = saveKeyPath,
+                    SaveFormat = saveFormat,
+                    StoreName = storeName,
+                    StoreLocation = storeLocation
+                };
+
+                sourceType = DetectSourceType(source, storeName);
+            }
 
             var result = sourceType switch
             {
                 InspectSource.Url => await CertificateInspector.InspectUrlAsync(options),
                 InspectSource.Store => CertificateInspector.InspectFromStore(options),
                 InspectSource.File => CertificateInspector.InspectFile(options),
-                _ => throw new InvalidOperationException($"Unknown source type for: {source}")
+                _ => throw new InvalidOperationException($"Unknown source type for: {options.Source}")
             };
 
             // Output result using formatter

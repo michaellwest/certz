@@ -54,10 +54,12 @@ internal static class ConvertCommand
         var dryRunOption = OptionBuilders.CreateDryRunOption();
         var repasswordOption = OptionBuilders.CreateRepasswordOption();
         var newPasswordOption = OptionBuilders.CreateNewPasswordOption();
+        var guidedOption = OptionBuilders.CreateGuidedOption();
 
         var convertCommand = new Command("convert", "Convert between certificate formats (PEM, DER, PFX)");
 
         convertCommand.Arguments.Add(inputArgument);
+        convertCommand.Options.Add(guidedOption);
         convertCommand.Options.Add(toOption);
         convertCommand.Options.Add(outputOption);
         convertCommand.Options.Add(includeKeyOption);
@@ -72,6 +74,39 @@ internal static class ConvertCommand
 
         convertCommand.SetAction(async (parseResult) =>
         {
+            var guided = parseResult.GetValue(guidedOption);
+            var format = parseResult.GetValue(formatOption) ?? "text";
+            var formatter = FormatterFactory.Create(format);
+
+            if (guided)
+            {
+                try
+                {
+                    var (wizardOptions, wizardOutputFormat) = CertificateWizard.RunConvertWizard();
+                    var toName = wizardOutputFormat switch
+                    {
+                        FormatType.Der => "der",
+                        FormatType.Pfx => "pfx",
+                        _ => "pem"
+                    };
+                    await HandleConversion(
+                        wizardOptions.InputFile,
+                        toName,
+                        wizardOptions.OutputFile,
+                        wizardOptions.KeyFile,
+                        wizardOptions.Password,
+                        wizardOptions.PasswordFile,
+                        wizardOptions.PfxEncryption,
+                        wizardOptions.IncludeKey,
+                        formatter);
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.Error.WriteLine("Operation cancelled.");
+                }
+                return;
+            }
+
             var input = parseResult.GetValue(inputArgument);
             var to = parseResult.GetValue(toOption);
             var output = parseResult.GetValue(outputOption);
@@ -80,11 +115,9 @@ internal static class ConvertCommand
             var passwordFile = parseResult.GetValue(passwordFileOption);
             var pfxEncryption = parseResult.GetValue(pfxEncryptionOption) ?? "modern";
             var includeKey = parseResult.GetValue(includeKeyOption);
-            var format = parseResult.GetValue(formatOption) ?? "text";
             var dryRun = parseResult.GetValue(dryRunOption);
             var repassword = parseResult.GetValue(repasswordOption);
             var newPassword = parseResult.GetValue(newPasswordOption);
-            var formatter = FormatterFactory.Create(format);
 
             if (repassword)
             {
