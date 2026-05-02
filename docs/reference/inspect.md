@@ -167,7 +167,8 @@ certz inspect server.pfx --password Pass --save cert.der --save-format der
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `<source>` | (required) | File path, `https://` URL, or certificate thumbprint |
+| `<source>` | (required, except with `--guided`) | File path, `https://` URL, or certificate thumbprint |
+| `--guided, -g` | `false` | Launch the interactive wizard. Prompts for source, password, and chain options. |
 | `--password, -p` | (none) | Password for PFX files. Also reads from `CERTZ_PASSWORD` env var. |
 | `--chain, -c` | `false` | Include the full certificate chain in output |
 | `--tree, -t` | `false` | Detailed chain tree with key info, SANs, signatures (implies `--chain`) |

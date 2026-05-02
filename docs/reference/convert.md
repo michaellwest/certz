@@ -27,6 +27,7 @@ certz convert <input> --to <format> [options]
 | `--repassword` | Re-encrypt a PFX file with a new password (always uses modern AES-256-CBC encryption). |
 | `--new-password, --np` | New password for PFX re-encryption. Auto-generated if omitted. |
 | `--dry-run, --dr` | Detect the input format and show what output would be produced, without writing any files. |
+| `--guided, -g` | Launch the interactive wizard. Prompts for input file, target format, output path, and password. |
 | `--format` | Output format: `text` (default) or `json`. |
 
 ---

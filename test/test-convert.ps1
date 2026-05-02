@@ -62,6 +62,7 @@ $TestCategories = @{
     "simplified-errors" = @("cnv-10.1", "cnv-10.2", "cnv-10.3")
     "dry-run" = @("dry-1.1", "dry-1.2")
     "repassword" = @("rp-1.1", "rp-1.2", "rp-1.3", "rp-1.4", "rp-2.1", "rp-2.2", "rp-2.3", "rp-2.4")
+    "guided" = @("cnv-gui-1.1")  # Interactive tests (manual only)
 }
 
 # Initialize test environment
@@ -1560,6 +1561,14 @@ Invoke-Test -TestId "rp-2.4" -TestName "Repassword PFX in-place overwrites file"
     finally {
         Remove-Item "rp-inplace.pfx" -Force -ErrorAction SilentlyContinue
     }
+}
+
+# Test cnv-gui-1.1: Interactive wizard (manual test)
+Invoke-Test -TestId "cnv-gui-1.1" -TestName "Interactive wizard (manual test)" -TestScript {
+    Write-Host "  This test requires manual interaction." -ForegroundColor Yellow
+    Write-Host "  Run: .\certz.exe convert --guided" -ForegroundColor Yellow
+    Write-Host "  The wizard should prompt for input file, target format, output path, and password." -ForegroundColor Yellow
+    [PSCustomObject]@{ Success = $true; Details = "Manual test - run interactively" }
 }
 
 # ============================================================================

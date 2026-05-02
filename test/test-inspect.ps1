@@ -56,6 +56,7 @@ $TestCategories = @{
     "chain" = @("chn-1.1", "chn-1.2", "chn-1.3", "chn-1.4")
     "save" = @("sav-1.1", "sav-1.2", "sav-1.3", "sav-1.4", "sav-1.5")
     "format" = @("fmt-2.1", "fmt-2.2")
+    "guided" = @("ins-gui-1.1")  # Interactive tests (manual only)
 }
 
 # Initialize test environment
@@ -971,6 +972,14 @@ Invoke-Test -TestId "fmt-2.2" -TestName "Inspect URL with JSON output" -FilePref
     catch {
         [PSCustomObject]@{ Success = $true; Details = "Skipped (network error)" }
     }
+}
+
+# Test ins-gui-1.1: Interactive wizard (manual test)
+Invoke-Test -TestId "ins-gui-1.1" -TestName "Interactive wizard (manual test)" -TestScript {
+    Write-Host "  This test requires manual interaction." -ForegroundColor Yellow
+    Write-Host "  Run: .\certz.exe inspect --guided" -ForegroundColor Yellow
+    Write-Host "  The wizard should prompt for source (file/URL/store), password, and chain options." -ForegroundColor Yellow
+    [PSCustomObject]@{ Success = $true; Details = "Manual test - run interactively" }
 }
 
 # ============================================================================

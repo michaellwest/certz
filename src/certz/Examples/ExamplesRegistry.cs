@@ -58,6 +58,7 @@ internal static class ExamplesRegistry
             new("Inspect from certificate store", "certz inspect ABC123DEF456 --store Root --location LocalMachine"),
             new("Save certificate to file", "certz inspect https://github.com --save github.cer"),
             new("JSON output for automation", "certz inspect cert.pfx --password Pass --format json"),
+            new("Interactive wizard mode", "certz inspect --guided"),
         ],
 
         // trust add examples
@@ -91,6 +92,7 @@ internal static class ExamplesRegistry
             new("Change PFX password", "certz convert server.pfx --repassword --password oldpass --new-password newpass"),
             new("Change PFX password (auto-generate)", "certz convert server.pfx --repassword --password oldpass"),
             new("Change PFX password to new file", "certz convert server.pfx --repassword --password oldpass --new-password newpass --output server-new.pfx"),
+            new("Interactive wizard mode", "certz convert --guided"),
         ],
 
         // lint examples
