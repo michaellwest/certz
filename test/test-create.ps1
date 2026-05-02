@@ -51,7 +51,7 @@ $ErrorActionPreference = "Stop"
 # Test categories
 $TestCategories = @{
     "create-dev" = @("dev-1.1", "dev-1.2", "dev-1.3", "dev-1.4", "dev-1.5", "dev-1.6", "dev-1.7")
-    "create-ca" = @("ca-1.1", "ca-1.2", "ca-1.3")
+    "create-ca" = @("ca-1.1", "ca-1.2", "ca-1.3", "ca-1.4")
     "format" = @("fmt-1.1", "fmt-1.2")
     "issuer" = @("iss-1.1", "iss-1.2")
     "pem-output" = @("pem-1.1", "pem-1.2", "pem-1.3", "pem-1.4")
@@ -466,6 +466,38 @@ Invoke-Test -TestId "ca-1.3" -TestName "Create CA cert with 10-year validity" -F
     $cert.Dispose()
 
     [PSCustomObject]@{ Success = $true; Details = "CA cert created with 10-year validity" }
+}
+
+# Test ca-1.4: Multi-word CA name produces a CN-only cert with no SAN extension (#68)
+Invoke-Test -TestId "ca-1.4" -TestName "CA cert: multi-word name -> CN only, no SAN extension" -FilePrefix "ca-cn" -TestScript {
+    # ACTION: Multi-word name historically tripped BR-019 because the name was treated
+    # as a SAN value. The fix routes the name to the Subject CN only and omits SAN
+    # for CA certs entirely (BR-007 applies to leaf certs only).
+    & .\certz.exe create ca --name "Dev Root CA" --f ca-cn.pfx --p CaPass123 2>&1 | Out-Null
+    Assert-ExitCode -Expected 0
+    Assert-FileExists "ca-cn.pfx"
+
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "ca-cn.pfx").Path, "CaPass123")
+    try {
+        if ($cert.Subject -ne "CN=Dev Root CA") {
+            throw "Expected Subject 'CN=Dev Root CA', got: $($cert.Subject)"
+        }
+
+        $sanExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" } | Select-Object -First 1
+        if ($sanExt) {
+            throw "CA cert must not contain a SAN extension. Got: $($sanExt.Format($false))"
+        }
+
+        $bcExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.19" } | Select-Object -First 1
+        if (-not $bcExt) {
+            throw "CA cert must contain BasicConstraints extension"
+        }
+    } finally {
+        $cert.Dispose()
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "Multi-word CA name accepted; no SAN extension on CA cert" }
 }
 
 # ============================================================================

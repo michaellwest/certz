@@ -520,20 +520,25 @@ internal static class RenewService
                 X509AuthorityKeyIdentifierExtension.CreateFromSubjectKeyIdentifier(subjectKeyIdentifier));
         }
 
-        // Subject Alternative Names
-        var sanBuilder = new SubjectAlternativeNameBuilder();
-        foreach (var name in dnsNames)
+        // Subject Alternative Names -- only for end-entity certs. CA certs do not need a SAN
+        // extension (BR-007 applies to leaves), and forcing one requires the CA's display name
+        // to satisfy dnsName syntax, which is wrong.
+        if (!isCA)
         {
-            if (System.Net.IPAddress.TryParse(name, out var ip))
+            var sanBuilder = new SubjectAlternativeNameBuilder();
+            foreach (var name in dnsNames)
             {
-                sanBuilder.AddIpAddress(ip);
+                if (System.Net.IPAddress.TryParse(name, out var ip))
+                {
+                    sanBuilder.AddIpAddress(ip);
+                }
+                else
+                {
+                    sanBuilder.AddDnsName(name);
+                }
             }
-            else
-            {
-                sanBuilder.AddDnsName(name);
-            }
+            request.CertificateExtensions.Add(sanBuilder.Build(false));
         }
-        request.CertificateExtensions.Add(sanBuilder.Build(false));
     }
 
     private static X509Certificate2 SignWithIssuer(
