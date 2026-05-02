@@ -44,18 +44,6 @@ internal static class CertificateGeneration
 
         var subject = new X500DistinguishedName(subjectBuilder.ToString());
         var extensions = new List<X509Extension>();
-        var sanBuilder = new SubjectAlternativeNameBuilder();
-        foreach (var dnsName in dnsNames)
-        {
-            if (IPAddress.TryParse(dnsName, out var ipAddress))
-            {
-                sanBuilder.AddIpAddress(ipAddress);
-            }
-            else
-            {
-                sanBuilder.AddDnsName(dnsName);
-            }
-        }
 
         // Determine hash algorithm (auto-select based on key size/type if not specified)
         var hashName = SelectHashAlgorithm(hashAlgorithm, keySize, keyType);
@@ -128,9 +116,6 @@ internal static class CertificateGeneration
             pathLength,
             true);
 
-        // Determine if SAN should be critical: only when subject DN is empty or minimal (RFC 5280 Section 4.2.1.6)
-        bool subjectIsMinimal = string.IsNullOrEmpty(dnsNames[0]) || dnsNames[0].Length < 3;
-
         extensions.Add(basicConstraints);
         extensions.Add(keyUsage);
         if (enhancedKeyUsage != null)
@@ -139,7 +124,28 @@ internal static class CertificateGeneration
         }
         extensions.Add(subjectKeyIdentifier);
         extensions.Add(authorityKeyIdentifier);
-        extensions.Add(sanBuilder.Build(subjectIsMinimal));
+
+        // SAN extension is only added for end-entity (leaf) certs. CA certs do not need SANs
+        // (BR-007 applies to leaves only) and forcing one would require the CA's display name
+        // to satisfy RFC 1035 dnsName syntax, which is wrong -- the name belongs in the CN.
+        if (!isCA)
+        {
+            var sanBuilder = new SubjectAlternativeNameBuilder();
+            foreach (var dnsName in dnsNames)
+            {
+                if (IPAddress.TryParse(dnsName, out var ipAddress))
+                {
+                    sanBuilder.AddIpAddress(ipAddress);
+                }
+                else
+                {
+                    sanBuilder.AddDnsName(dnsName);
+                }
+            }
+            // SAN is critical only when the subject DN is empty or minimal (RFC 5280 Section 4.2.1.6).
+            bool subjectIsMinimal = string.IsNullOrEmpty(dnsNames[0]) || dnsNames[0].Length < 3;
+            extensions.Add(sanBuilder.Build(subjectIsMinimal));
+        }
 
         // CRL Distribution Points - RFC 5280 Section 4.2.1.13
         if (!string.IsNullOrEmpty(crlUrl))
@@ -344,18 +350,6 @@ internal static class CertificateGeneration
 
         var subject = new X500DistinguishedName(subjectBuilder.ToString());
         var extensions = new List<X509Extension>();
-        var sanBuilder = new SubjectAlternativeNameBuilder();
-        foreach (var dnsName in dnsNames)
-        {
-            if (IPAddress.TryParse(dnsName, out var ipAddress))
-            {
-                sanBuilder.AddIpAddress(ipAddress);
-            }
-            else
-            {
-                sanBuilder.AddDnsName(dnsName);
-            }
-        }
 
         // Determine hash algorithm
         var hashName = SelectHashAlgorithm(hashAlgorithm, keySize, keyType);
@@ -442,8 +436,6 @@ internal static class CertificateGeneration
             pathLength,
             true);
 
-        bool subjectIsMinimal = string.IsNullOrEmpty(dnsNames[0]) || dnsNames[0].Length < 3;
-
         extensions.Add(basicConstraints);
         extensions.Add(keyUsage);
         if (enhancedKeyUsage != null)
@@ -452,7 +444,25 @@ internal static class CertificateGeneration
         }
         extensions.Add(subjectKeyIdentifier);
         extensions.Add(authorityKeyIdentifier);
-        extensions.Add(sanBuilder.Build(subjectIsMinimal));
+
+        // SAN extension only for end-entity certs (see GenerateCertificate for rationale).
+        if (!isCA)
+        {
+            var sanBuilder = new SubjectAlternativeNameBuilder();
+            foreach (var dnsName in dnsNames)
+            {
+                if (IPAddress.TryParse(dnsName, out var ipAddress))
+                {
+                    sanBuilder.AddIpAddress(ipAddress);
+                }
+                else
+                {
+                    sanBuilder.AddDnsName(dnsName);
+                }
+            }
+            bool subjectIsMinimal = string.IsNullOrEmpty(dnsNames[0]) || dnsNames[0].Length < 3;
+            extensions.Add(sanBuilder.Build(subjectIsMinimal));
+        }
 
         // CRL Distribution Points
         if (!string.IsNullOrEmpty(crlUrl))

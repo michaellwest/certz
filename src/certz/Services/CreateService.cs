@@ -240,9 +240,11 @@ internal static class CreateService
         VerboseLogger.Log($"Creating CA certificate: {options.Name}");
         VerboseLogger.Log($"Key type: {options.KeyType}, Hash algorithm: {options.HashAlgorithm}, Days: {options.Days}, PathLength: {options.PathLength}");
 
-        // CA uses name as the subject
-        var sans = new[] { options.Name };
-        SanInputValidator.Validate(sans);
+        // The CA's display name becomes the Subject CN. CertificateGeneration uses dnsNames[0]
+        // as the CN, so we still pass the name through that channel, but we don't validate it
+        // as a SAN (CA names like "Dev Root CA" legitimately contain whitespace) and the
+        // resulting cert intentionally has no SAN extension (BR-007 applies to leaf certs only).
+        var subjectInputs = new[] { options.Name };
 
         // Handle password
         bool passwordWasGenerated = false;
@@ -265,7 +267,7 @@ internal static class CreateService
 
         VerboseLogger.Log("Generating CA certificate");
         var certificate = CertificateGeneration.GenerateCertificate(
-            sans,
+            subjectInputs,
             validFrom,
             validTo,
             options.KeySize,
@@ -301,7 +303,7 @@ internal static class CreateService
                 NotBefore = certificate.NotBefore,
                 NotAfter = certificate.NotAfter,
                 KeyType = options.KeyType,
-                SANs = sans,
+                SANs = Array.Empty<string>(),
                 OutputFiles = Array.Empty<string>(),
                 Password = null,
                 PasswordWasGenerated = false,
@@ -324,7 +326,7 @@ internal static class CreateService
                 NotBefore = certificate.NotBefore,
                 NotAfter = certificate.NotAfter,
                 KeyType = options.KeyType,
-                SANs = sans,
+                SANs = Array.Empty<string>(),
                 OutputFiles = Array.Empty<string>(),
                 Password = null,
                 PasswordWasGenerated = false,
@@ -409,7 +411,7 @@ internal static class CreateService
             NotBefore = certificate.NotBefore,
             NotAfter = certificate.NotAfter,
             KeyType = options.KeyType,
-            SANs = sans,
+            SANs = Array.Empty<string>(),
             OutputFiles = outputFiles.ToArray(),
             Password = passwordWasGenerated ? password : null,
             PasswordWasGenerated = passwordWasGenerated,
