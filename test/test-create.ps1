@@ -50,7 +50,7 @@ $ErrorActionPreference = "Stop"
 
 # Test categories
 $TestCategories = @{
-    "create-dev" = @("dev-1.1", "dev-1.2", "dev-1.3", "dev-1.4", "dev-1.5")
+    "create-dev" = @("dev-1.1", "dev-1.2", "dev-1.3", "dev-1.4", "dev-1.5", "dev-1.6")
     "create-ca" = @("ca-1.1", "ca-1.2", "ca-1.3")
     "format" = @("fmt-1.1", "fmt-1.2")
     "issuer" = @("iss-1.1", "iss-1.2")
@@ -223,6 +223,28 @@ Invoke-Test -TestId "dev-1.5" -TestName "Create dev cert with custom validity" -
     $cert.Dispose()
 
     [PSCustomObject]@{ Success = $true; Details = "Dev cert created with 30-day validity" }
+}
+
+# Test dev-1.6: --san value with whitespace is rejected (BR-019 input validation)
+Invoke-Test -TestId "dev-1.6" -TestName "Create dev cert rejects --san with whitespace" -FilePrefix "dev-bad-san" -TestScript {
+    # ACTION: Single certz.exe call -- --san "bad space.local" should be rejected before any cert is generated
+    $output = & .\certz.exe create dev api.local --san "bad space.local" --ephemeral 2>&1
+    $outputStr = $output -join "`n"
+
+    # ASSERTION 1: Exit code should be non-zero (validation error)
+    if ($LASTEXITCODE -eq 0) {
+        throw "Expected non-zero exit code for SAN with whitespace, got 0"
+    }
+
+    # ASSERTION 2: Error message mentions whitespace
+    if ($outputStr -notmatch "whitespace") {
+        throw "Error output should mention 'whitespace', got: $outputStr"
+    }
+
+    # ASSERTION 3: No PFX file written (--ephemeral plus failure means nothing on disk)
+    Assert-FileNotExists "dev-bad-san.pfx"
+
+    [PSCustomObject]@{ Success = $true; Details = "SAN with whitespace rejected with exit code $LASTEXITCODE" }
 }
 
 # ============================================================================
