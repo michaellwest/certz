@@ -61,13 +61,24 @@ Options:
   --issuer-password   Password for issuer PFX
   --store             Source store name for thumbprint lookup
   --location          Store location (CurrentUser, LocalMachine)
+  --add-san           Add a SAN value to the renewed cert (repeatable; validated against BR-019..BR-023)
+  --remove-san        Remove a SAN value from the source SAN list (repeatable; case-insensitive)
   --format            Output format: text (default), json
 
 Exit Codes:
   0 = Success
-  1 = Source certificate not found or invalid
+  1 = Source certificate not found, invalid, or SAN modification rejected by validation
   2 = Cannot renew (missing issuer for CA-signed cert)
 ```
+
+### SAN Modification (added 2026-05-02)
+
+`--add-san` and `--remove-san` allow adjusting the SAN list at renewal time
+without recreating the certificate from scratch. Removes are applied first,
+then adds are appended. The merged result is validated against the same
+BR-019..BR-023 rules that `certz lint` enforces. Source-side duplicates are
+silently collapsed when the user is actively editing SANs. IP literals in
+`--add-san` are auto-routed to the iPAddress SAN entry rather than dnsName.
 
 ## Design Decisions
 

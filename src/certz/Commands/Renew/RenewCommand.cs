@@ -71,6 +71,18 @@ internal static class RenewCommand
         var formatOption = OptionBuilders.CreateFormatOption();
         var dryRunOption = OptionBuilders.CreateDryRunOption();
 
+        var addSanOption = new Option<string[]>("--add-san")
+        {
+            Description = "Add a SAN dnsName/IP to the renewed certificate (repeatable). Validated against BR-019..BR-023.",
+            AllowMultipleArgumentsPerToken = false
+        };
+
+        var removeSanOption = new Option<string[]>("--remove-san")
+        {
+            Description = "Remove a SAN dnsName/IP from the renewed certificate (repeatable, case-insensitive match).",
+            AllowMultipleArgumentsPerToken = false
+        };
+
         var command = new Command("renew", "Renew an existing certificate with extended validity")
         {
             sourceArgument,
@@ -85,6 +97,8 @@ internal static class RenewCommand
             issuerPasswordOption,
             storeOption,
             locationOption,
+            addSanOption,
+            removeSanOption,
             formatOption,
             dryRunOption
         };
@@ -127,7 +141,9 @@ internal static class RenewCommand
                     IssuerKey = parseResult.GetValue(issuerKeyOption),
                     IssuerPassword = parseResult.GetValue(issuerPasswordOption),
                     StoreName = parseResult.GetValue(storeOption),
-                    StoreLocation = parseResult.GetValue(locationOption)
+                    StoreLocation = parseResult.GetValue(locationOption),
+                    AddSans = parseResult.GetValue(addSanOption),
+                    RemoveSans = parseResult.GetValue(removeSanOption)
                 };
             }
 
@@ -160,7 +176,11 @@ internal static class RenewCommand
                         details.Add(new("Current Subject",   sourceCert.Subject));
                         details.Add(new("Current Expiry",    sourceCert.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd") + " UTC"));
                         if (sans.Length > 0)
-                            details.Add(new("Preserved SANs",   string.Join(", ", sans)));
+                            details.Add(new("Current SANs",     string.Join(", ", sans)));
+                        if (options.RemoveSans?.Length > 0)
+                            details.Add(new("Removed SANs",     string.Join(", ", options.RemoveSans)));
+                        if (options.AddSans?.Length > 0)
+                            details.Add(new("Added SANs",       string.Join(", ", options.AddSans)));
                         details.Add(new("Key",               options.KeepKey ? $"{keyType} (preserved)" : $"{keyType} (new)"));
                         details.Add(new("New Days",          newDays.ToString()));
                         details.Add(new("New Expiry",        newNotAfter.ToString("yyyy-MM-dd") + " UTC"));

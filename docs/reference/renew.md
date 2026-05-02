@@ -32,7 +32,7 @@ Self-signed certificates renew without any extra flags. CA-signed certificates r
 | Parameter | Preserved automatically | Override flag |
 |-----------|-------------------------|---------------|
 | Subject (CN, O, OU, C, etc.) | Yes | Not currently overridable |
-| Subject Alternative Names | Yes | Not currently overridable |
+| Subject Alternative Names | Yes -- copied verbatim by default | `--add-san <value>` and `--remove-san <value>` (both repeatable) |
 | Key type (ECDSA P-256, RSA, etc.) | Yes | Not currently overridable |
 | Private key itself | No -- new key generated | `--keep-key` reuses existing key |
 | Validity period | No -- specify new period | `--days` (default: 90, max: 398) |
@@ -147,6 +147,40 @@ certz renew server.pfx --password MyPassword --days 90 --keep-key
 
 ---
 
+## Modifying SANs During Renewal
+
+By default, the SAN list is carried forward verbatim. Use `--add-san` and `--remove-san`
+(both repeatable) to adjust the list as part of the renewal.
+
+```bash
+# Add a new hostname while renewing
+certz renew api.pfx --password Pass --add-san api-v2.local
+
+# Remove a retired hostname and add a replacement
+certz renew api.pfx --password Pass --remove-san old.local --add-san new.local
+
+# Combine multiple values
+certz renew api.pfx --password Pass \
+  --remove-san legacy.local \
+  --add-san api-v2.local --add-san 10.0.0.5
+```
+
+**Validation rules** (applied to the merged result before the new certificate is created):
+
+- **BR-019** -- `--add-san` values must not contain whitespace.
+- **BR-020** -- the merged SAN list must not contain entries longer than 253 chars or labels longer than 63 chars.
+- **BR-021** -- dnsName entries must follow RFC 1035 preferred-name-syntax (LDH characters, no leading/trailing hyphens; wildcard exempt).
+- **BR-023** -- adding a value that already exists in the SAN list (case-insensitive) is rejected.
+
+**IP literals** in `--add-san` (e.g. `10.0.0.5`, `::1`) are auto-routed to the `iPAddress`
+SAN entry rather than `dnsName`, which keeps the result compliant with RFC 6125 sec 6.4.
+
+**Source-side duplicates** (latent duplicates from older certs) are silently collapsed when
+you actively edit SANs, so a renewal with `--add-san`/`--remove-san` produces a clean list
+even if the original cert had duplicate entries.
+
+---
+
 ## Full Options
 
 | Option | Default | Description |
@@ -162,9 +196,11 @@ certz renew server.pfx --password MyPassword --days 90 --keep-key
 | `--out-password` | (auto-generated) | Password for the output PFX. Printed to console when auto-generated. |
 | `--store` | (none) | Certificate store name for thumbprint-based lookup: `My`, `Root`, `CA`. |
 | `--location, -l` | `CurrentUser` | Store location: `CurrentUser` or `LocalMachine`. |
+| `--add-san` | (none) | Add a SAN value (dnsName or IP literal) to the renewed certificate. Repeatable. Validated against BR-019..BR-023. IP literals are routed to iPAddress entries. |
+| `--remove-san` | (none) | Remove a SAN value from the existing list. Repeatable. Match is case-insensitive. |
 | `--dry-run, --dr` | `false` | Load source cert, show what parameters would be preserved and the new expiry, without writing any output. |
 | `--format` | `text` | Output format: `text` or `json`. |
-| `--guided` | `false` | Launch the interactive wizard for renew. Prompts for source, days, key reuse, and issuer. |
+| `--guided` | `false` | Launch the interactive wizard for renew. Prompts for source, days, key reuse, optional SAN edits, and issuer. |
 
 ---
 

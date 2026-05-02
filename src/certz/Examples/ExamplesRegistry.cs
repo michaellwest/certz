@@ -129,6 +129,9 @@ internal static class ExamplesRegistry
             new("Renew with a different output password", "certz renew server.pfx --password OldPass --out-password NewPass"),
             new("Renew certificate from store by thumbprint", "certz renew ABC123DE --store My --days 90"),
             new("Renew with new output file", "certz renew server.pfx --password Pass --output renewed.pfx"),
+            new("Add a SAN during renewal", "certz renew server.pfx --password Pass --add-san api-v2.local"),
+            new("Remove a SAN during renewal", "certz renew server.pfx --password Pass --remove-san legacy.local"),
+            new("Swap a SAN during renewal", "certz renew server.pfx --password Pass --remove-san old.local --add-san new.local"),
         ],
 
         // store list examples

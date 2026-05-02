@@ -59,4 +59,16 @@ internal record RenewOptions
     /// Store location (CurrentUser, LocalMachine).
     /// </summary>
     public string? StoreLocation { get; init; }
+
+    /// <summary>
+    /// Additional SAN dnsName/IP values to add when renewing.
+    /// Combined with the existing SAN list after duplicate removal.
+    /// </summary>
+    public string[]? AddSans { get; init; }
+
+    /// <summary>
+    /// SAN dnsName/IP values to remove from the existing SAN list when renewing.
+    /// Match is case-insensitive.
+    /// </summary>
+    public string[]? RemoveSans { get; init; }
 }
