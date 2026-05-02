@@ -50,7 +50,7 @@ $ErrorActionPreference = "Stop"
 
 # Test categories
 $TestCategories = @{
-    "create-dev" = @("dev-1.1", "dev-1.2", "dev-1.3", "dev-1.4", "dev-1.5", "dev-1.6")
+    "create-dev" = @("dev-1.1", "dev-1.2", "dev-1.3", "dev-1.4", "dev-1.5", "dev-1.6", "dev-1.7")
     "create-ca" = @("ca-1.1", "ca-1.2", "ca-1.3")
     "format" = @("fmt-1.1", "fmt-1.2")
     "issuer" = @("iss-1.1", "iss-1.2")
@@ -245,6 +245,37 @@ Invoke-Test -TestId "dev-1.6" -TestName "Create dev cert rejects --san with whit
     Assert-FileNotExists "dev-bad-san.pfx"
 
     [PSCustomObject]@{ Success = $true; Details = "SAN with whitespace rejected with exit code $LASTEXITCODE" }
+}
+
+# Test dev-1.7: duplicate SAN values are de-duped case-insensitively
+Invoke-Test -TestId "dev-1.7" -TestName "Create dev de-dupes redundant SANs" -FilePrefix "dev-dedup" -TestScript {
+    # ACTION: Domain repeated as --san; another --san repeated case-variant
+    $output = & .\certz.exe create dev api.local `
+        --san api.local `
+        --san backup.local `
+        --san BACKUP.LOCAL `
+        --file dev-dedup.pfx --password DedupPass --days 30 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Expected exit 0, got $LASTEXITCODE. Output: $($output -join "`n")"
+    }
+    Assert-FileExists "dev-dedup.pfx"
+
+    # ASSERT against the certificate's own SAN extension, not console output.
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path "dev-dedup.pfx").Path, "DedupPass")
+    try {
+        $sanExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" } | Select-Object -First 1
+        if (-not $sanExt) { throw "Expected SAN extension on the dev cert" }
+        $names = @($sanExt.EnumerateDnsNames() | ForEach-Object { $_.ToLowerInvariant() } | Sort-Object)
+        $expected = @("api.local","backup.local")
+        if ((Compare-Object $names $expected -SyncWindow 0)) {
+            throw "Expected SANs $($expected -join ','), got $($names -join ',')"
+        }
+    } finally {
+        $cert.Dispose()
+    }
+
+    [PSCustomObject]@{ Success = $true; Details = "SANs collapsed to: api.local, backup.local" }
 }
 
 # ============================================================================

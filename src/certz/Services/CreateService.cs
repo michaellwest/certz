@@ -17,10 +17,9 @@ internal static class CreateService
         VerboseLogger.Log($"Creating dev certificate for domain: {options.Domain}");
         VerboseLogger.Log($"Key type: {options.KeyType}, Hash algorithm: {options.HashAlgorithm}, Days: {options.Days}");
 
-        // Build SANs list: domain first, then additional SANs
-        var sans = new List<string> { options.Domain };
-        sans.AddRange(options.AdditionalSANs);
-        ValidateSanValues(sans);
+        // Build SANs list: domain first, then additional SANs (de-duped case-insensitive, order preserved).
+        var sans = DedupeSans(new[] { options.Domain }.Concat(options.AdditionalSANs));
+        SanInputValidator.Validate(sans);
         VerboseLogger.Log($"SANs: {string.Join(", ", sans)}");
 
         // Handle password
@@ -243,7 +242,7 @@ internal static class CreateService
 
         // CA uses name as the subject
         var sans = new[] { options.Name };
-        ValidateSanValues(sans);
+        SanInputValidator.Validate(sans);
 
         // Handle password
         bool passwordWasGenerated = false;
@@ -422,20 +421,15 @@ internal static class CreateService
         };
     }
 
-    private static void ValidateSanValues(IEnumerable<string> sans)
+    private static string[] DedupeSans(IEnumerable<string> sans)
     {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
         foreach (var san in sans)
         {
-            if (string.IsNullOrWhiteSpace(san))
-            {
-                throw new ArgumentException("SAN values cannot be empty or whitespace.");
-            }
-            if (san.Any(char.IsWhiteSpace))
-            {
-                throw new ArgumentException(
-                    $"SAN value \"{san}\" contains whitespace characters, which are not valid in dnsName values (RFC 5280).");
-            }
+            if (seen.Add(san)) result.Add(san);
         }
+        return result.ToArray();
     }
 
     private static async Task<X509Certificate2> GenerateSignedCertificate(
