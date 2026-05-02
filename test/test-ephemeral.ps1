@@ -58,7 +58,9 @@ Invoke-Test -TestId "eph-1.1" -TestName "Ephemeral dev certificate" -TestScript 
 
 # eph-1.2: Ephemeral with custom options
 Invoke-Test -TestId "eph-1.2" -TestName "Ephemeral with SANs and key type" -TestScript {
-    $output = & .\certz.exe create dev custom.local --ephemeral --san "alt.local,192.168.1.1" --key-type RSA 2>&1
+    # --san is repeatable; supply each value as its own flag rather than a comma-glued string
+    # (a single "alt.local,192.168.1.1" value contains a comma, which BR-021 rejects).
+    $output = & .\certz.exe create dev custom.local --ephemeral --san alt.local --san 192.168.1.1 --key-type RSA 2>&1
 
     Assert-ExitCode -Expected 0
 
