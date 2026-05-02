@@ -54,6 +54,7 @@ $TestCategories = @{
     "errors" = @("ren-5.1", "ren-5.2")
     "format" = @("ren-6.1")
     "dry-run" = @("rdr-1.1", "rdr-1.2")
+    "san-mods" = @("rsa-1.1", "rsa-1.2", "rsa-1.3", "rsa-1.4", "rsa-1.5", "rsa-1.6", "rsa-1.7")
 }
 
 # Initialize test environment
@@ -699,12 +700,196 @@ Invoke-Test -TestId "rdr-1.2" -TestName "renew --dry-run --format json: machine-
 }
 
 # ============================================================================
+# SAN MODIFICATION TESTS (--add-san / --remove-san)
+# ============================================================================
+Write-TestHeader "Testing SAN Modification on Renewal"
+
+# Helper: build a self-signed PFX with the given SANs for SAN-mod tests.
+function New-RsaSourceCert {
+    param(
+        [Parameter(Mandatory)][string]$Subject,
+        [Parameter(Mandatory)][string[]]$DnsNames,
+        [Parameter(Mandatory)][string]$OutFile,
+        [string]$Password = "TestPass123"
+    )
+    $cert = New-SelfSignedCertificate `
+        -Subject $Subject `
+        -DnsName $DnsNames `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -NotAfter (Get-Date).AddDays(180) `
+        -KeyExportPolicy Exportable
+    $pw = ConvertTo-SecureString $Password -AsPlainText -Force
+    Export-PfxCertificate -Cert $cert -FilePath $OutFile -Password $pw | Out-Null
+    Remove-Item $cert.PSPath -Force
+}
+
+# Helper: extract dnsName SANs from a PFX file as a sorted, lowercased array.
+function Get-CertDnsSans {
+    param(
+        [Parameter(Mandatory)][string]$PfxPath,
+        [Parameter(Mandatory)][string]$Password
+    )
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path $PfxPath).Path, $Password)
+    try {
+        $sanExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" } | Select-Object -First 1
+        if (-not $sanExt) { return @() }
+        return @($sanExt.EnumerateDnsNames() | ForEach-Object { $_.ToLowerInvariant() } | Sort-Object)
+    } finally {
+        $cert.Dispose()
+    }
+}
+
+function Get-CertIpSans {
+    param(
+        [Parameter(Mandatory)][string]$PfxPath,
+        [Parameter(Mandatory)][string]$Password
+    )
+    $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+        (Resolve-Path $PfxPath).Path, $Password)
+    try {
+        $sanExt = $cert.Extensions | Where-Object { $_.Oid.Value -eq "2.5.29.17" } | Select-Object -First 1
+        if (-not $sanExt) { return @() }
+        return @($sanExt.EnumerateIPAddresses() | ForEach-Object { $_.ToString() } | Sort-Object)
+    } finally {
+        $cert.Dispose()
+    }
+}
+
+# Test rsa-1.1: Add a single SAN during renewal
+Invoke-Test -TestId "rsa-1.1" -TestName "renew --add-san appends a new dnsName" -FilePrefix "rsa" -TestScript {
+    New-RsaSourceCert -Subject "CN=rsa-add.local" -DnsNames @("rsa-add.local","backup.local") `
+        -OutFile "rsa-add-original.pfx"
+
+    & .\certz.exe renew rsa-add-original.pfx --password TestPass123 `
+        --add-san new.local `
+        --out rsa-add-renewed.pfx --out-password TestPass123 2>&1 | Out-Null
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "Expected exit 0, got $exitCode" }
+
+    Assert-FileExists "rsa-add-renewed.pfx"
+    $sans = Get-CertDnsSans -PfxPath "rsa-add-renewed.pfx" -Password "TestPass123"
+    $expected = @("backup.local","new.local","rsa-add.local")
+    if ((Compare-Object $sans $expected -SyncWindow 0)) {
+        throw "SANs mismatch. Expected: $($expected -join ','). Got: $($sans -join ',')"
+    }
+    [PSCustomObject]@{ Success = $true; Details = "SANs: $($sans -join ', ')" }
+}
+
+# Test rsa-1.2: Remove a SAN during renewal
+Invoke-Test -TestId "rsa-1.2" -TestName "renew --remove-san drops the matched value" -FilePrefix "rsa" -TestScript {
+    New-RsaSourceCert -Subject "CN=rsa-rem.local" -DnsNames @("rsa-rem.local","legacy.local") `
+        -OutFile "rsa-rem-original.pfx"
+
+    & .\certz.exe renew rsa-rem-original.pfx --password TestPass123 `
+        --remove-san legacy.local `
+        --out rsa-rem-renewed.pfx --out-password TestPass123 2>&1 | Out-Null
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "Expected exit 0, got $exitCode" }
+
+    $sans = Get-CertDnsSans -PfxPath "rsa-rem-renewed.pfx" -Password "TestPass123"
+    $expected = @("rsa-rem.local")
+    if ((Compare-Object $sans $expected -SyncWindow 0)) {
+        throw "SANs mismatch. Expected: $($expected -join ','). Got: $($sans -join ',')"
+    }
+    [PSCustomObject]@{ Success = $true; Details = "SANs: $($sans -join ', ')" }
+}
+
+# Test rsa-1.3: Combined add+remove
+Invoke-Test -TestId "rsa-1.3" -TestName "renew --add-san + --remove-san swap a hostname" -FilePrefix "rsa" -TestScript {
+    New-RsaSourceCert -Subject "CN=rsa-swap.local" -DnsNames @("rsa-swap.local","old.local") `
+        -OutFile "rsa-swap-original.pfx"
+
+    & .\certz.exe renew rsa-swap-original.pfx --password TestPass123 `
+        --remove-san old.local --add-san new.local `
+        --out rsa-swap-renewed.pfx --out-password TestPass123 2>&1 | Out-Null
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "Expected exit 0, got $exitCode" }
+
+    $sans = Get-CertDnsSans -PfxPath "rsa-swap-renewed.pfx" -Password "TestPass123"
+    $expected = @("new.local","rsa-swap.local")
+    if ((Compare-Object $sans $expected -SyncWindow 0)) {
+        throw "SANs mismatch. Expected: $($expected -join ','). Got: $($sans -join ',')"
+    }
+    [PSCustomObject]@{ Success = $true; Details = "SANs: $($sans -join ', ')" }
+}
+
+# Test rsa-1.4: IP literal in --add-san routes to iPAddress SAN, not dnsName
+Invoke-Test -TestId "rsa-1.4" -TestName "renew --add-san IP literal routes to iPAddress" -FilePrefix "rsa" -TestScript {
+    New-RsaSourceCert -Subject "CN=rsa-ip.local" -DnsNames @("rsa-ip.local") `
+        -OutFile "rsa-ip-original.pfx"
+
+    & .\certz.exe renew rsa-ip-original.pfx --password TestPass123 `
+        --add-san 10.0.0.5 `
+        --out rsa-ip-renewed.pfx --out-password TestPass123 2>&1 | Out-Null
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "Expected exit 0, got $exitCode" }
+
+    $dns = Get-CertDnsSans -PfxPath "rsa-ip-renewed.pfx" -Password "TestPass123"
+    $ips = Get-CertIpSans  -PfxPath "rsa-ip-renewed.pfx" -Password "TestPass123"
+    if ($dns -contains "10.0.0.5") {
+        throw "IP literal must not appear as dnsName SAN. dns=$($dns -join ',')"
+    }
+    if (-not ($ips -contains "10.0.0.5")) {
+        throw "IP literal must appear as iPAddress SAN. ips=$($ips -join ',')"
+    }
+    [PSCustomObject]@{ Success = $true; Details = "dns=$($dns -join ','); ips=$($ips -join ',')" }
+}
+
+# Test rsa-1.5: BR-019 whitespace rejection
+Invoke-Test -TestId "rsa-1.5" -TestName "renew --add-san rejects whitespace (BR-019)" -FilePrefix "rsa" -TestScript {
+    New-RsaSourceCert -Subject "CN=rsa-ws.local" -DnsNames @("rsa-ws.local") `
+        -OutFile "rsa-ws-original.pfx"
+
+    $output = & .\certz.exe renew rsa-ws-original.pfx --password TestPass123 `
+        --add-san "bad space.local" `
+        --out rsa-ws-renewed.pfx --out-password TestPass123 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) { throw "Expected non-zero exit, got 0" }
+    if (Test-Path "rsa-ws-renewed.pfx") { throw "Output file must not be written on validation failure" }
+    if ($output -notmatch "whitespace") { throw "Error message must mention whitespace. Got: $output" }
+    [PSCustomObject]@{ Success = $true; Details = "Whitespace rejected with exit $exitCode" }
+}
+
+# Test rsa-1.6: BR-021 invalid LDH character rejection
+Invoke-Test -TestId "rsa-1.6" -TestName "renew --add-san rejects invalid LDH (BR-021)" -FilePrefix "rsa" -TestScript {
+    New-RsaSourceCert -Subject "CN=rsa-ldh.local" -DnsNames @("rsa-ldh.local") `
+        -OutFile "rsa-ldh-original.pfx"
+
+    $output = & .\certz.exe renew rsa-ldh-original.pfx --password TestPass123 `
+        --add-san "under_score.local" `
+        --out rsa-ldh-renewed.pfx --out-password TestPass123 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) { throw "Expected non-zero exit, got 0" }
+    if (Test-Path "rsa-ldh-renewed.pfx") { throw "Output file must not be written on validation failure" }
+    if ($output -notmatch "BR-021") { throw "Error message must reference BR-021. Got: $output" }
+    [PSCustomObject]@{ Success = $true; Details = "Invalid LDH rejected with exit $exitCode" }
+}
+
+# Test rsa-1.7: BR-023 duplicate-with-existing rejection
+Invoke-Test -TestId "rsa-1.7" -TestName "renew --add-san rejects value already present" -FilePrefix "rsa" -TestScript {
+    New-RsaSourceCert -Subject "CN=rsa-dup.local" -DnsNames @("rsa-dup.local","keeper.local") `
+        -OutFile "rsa-dup-original.pfx"
+
+    $output = & .\certz.exe renew rsa-dup-original.pfx --password TestPass123 `
+        --add-san keeper.local `
+        --out rsa-dup-renewed.pfx --out-password TestPass123 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) { throw "Expected non-zero exit, got 0" }
+    if (Test-Path "rsa-dup-renewed.pfx") { throw "Output file must not be written on validation failure" }
+    if ($output -notmatch "already exists") { throw "Error message must mention already exists. Got: $output" }
+    [PSCustomObject]@{ Success = $true; Details = "Duplicate add rejected with exit $exitCode" }
+}
+
+# ============================================================================
 # CLEANUP AND SUMMARY
 # ============================================================================
 if (-not $SkipCleanup) {
     Write-TestHeader "Cleaning Up Test Environment"
     Remove-TestFiles "ren-"
     Remove-TestFiles "rdr-"
+    Remove-TestFiles "rsa-"
     Write-Host "Test files removed" -ForegroundColor Gray
 } else {
     Write-Host "`nSkipping cleanup (test files preserved for inspection)" -ForegroundColor Yellow

@@ -1650,6 +1650,8 @@ internal static partial class CertificateWizard
         var days = 90;
         var keepKey = false;
         var outputPath = "";
+        var addSans = new List<string>();
+        var removeSans = new List<string>();
 
         new WizardRunner("Certz", "Renew")
             .AddStep("Source Certificate", () =>
@@ -1680,6 +1682,41 @@ internal static partial class CertificateWizard
                 keepKey = AnsiConsole.Confirm(
                     "[green]?[/] Preserve existing private key (no new key generation)?", defaultValue: false);
             })
+            .AddStep("Modify SANs", () =>
+            {
+                addSans = new List<string>();
+                removeSans = new List<string>();
+
+                if (!AnsiConsole.Confirm(
+                    "[green]?[/] Modify the certificate's SAN list (add/remove hostnames or IPs)?", defaultValue: false))
+                {
+                    return;
+                }
+
+                SetBackNavigation(false);
+
+                while (true)
+                {
+                    var prompt = removeSans.Count == 0
+                        ? "[green]?[/] SAN value to REMOVE (leave blank to skip):"
+                        : "[green]?[/] Another SAN value to REMOVE (leave blank when done):";
+                    var entry = PromptText(
+                        new TextPrompt<string>(prompt).AllowEmpty());
+                    if (string.IsNullOrWhiteSpace(entry)) break;
+                    removeSans.Add(entry.Trim());
+                }
+
+                while (true)
+                {
+                    var prompt = addSans.Count == 0
+                        ? "[green]?[/] SAN value to ADD (leave blank to skip):"
+                        : "[green]?[/] Another SAN value to ADD (leave blank when done):";
+                    var entry = PromptText(
+                        new TextPrompt<string>(prompt).AllowEmpty());
+                    if (string.IsNullOrWhiteSpace(entry)) break;
+                    addSans.Add(entry.Trim());
+                }
+            })
             .AddStep("Output", () =>
             {
                 var defaultOutput = File.Exists(source)
@@ -1692,8 +1729,11 @@ internal static partial class CertificateWizard
                     new TextPrompt<string>("[green]?[/] Output file path:")
                         .DefaultValue(defaultOutput));
 
+                var sanFlags = string.Concat(
+                    string.Concat(removeSans.Select(s => $" --remove-san \"{s}\"")),
+                    string.Concat(addSans.Select(s => $" --add-san \"{s}\"")));
                 WriteEquivalentCommand(
-                    $"certz renew \"{source}\" --days {days}{(keepKey ? " --keep-key" : "")} --output \"{outputPath}\"");
+                    $"certz renew \"{source}\" --days {days}{(keepKey ? " --keep-key" : "")}{sanFlags} --output \"{outputPath}\"");
             })
             .Run();
 
@@ -1703,7 +1743,9 @@ internal static partial class CertificateWizard
             Password = password,
             Days = days,
             KeepKey = keepKey,
-            OutputFile = new FileInfo(outputPath)
+            OutputFile = new FileInfo(outputPath),
+            AddSans = addSans.Count > 0 ? addSans.ToArray() : null,
+            RemoveSans = removeSans.Count > 0 ? removeSans.ToArray() : null
         };
     }
 

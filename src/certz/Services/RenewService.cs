@@ -35,6 +35,15 @@ internal static class RenewService
         // 2. Extract parameters from existing cert
         var detectedParams = ExtractCertificateParameters(sourceCert);
 
+        // 2a. Apply SAN add/remove modifications (validates against BR-019..BR-023)
+        if ((options.AddSans?.Length > 0) || (options.RemoveSans?.Length > 0))
+        {
+            detectedParams = detectedParams with
+            {
+                SANs = ApplySanModifications(detectedParams.SANs, options.AddSans, options.RemoveSans)
+            };
+        }
+
         // 3. Determine if CA-signed
         var isSelfSigned = sourceCert.Subject == sourceCert.Issuer;
         if (!isSelfSigned && options.IssuerCert == null)
@@ -603,5 +612,46 @@ internal static class RenewService
         public required int KeySize { get; init; }
         public required bool IsCA { get; init; }
         public required string HashAlgorithm { get; init; }
+    }
+
+    /// <summary>
+    /// Applies <c>--remove-san</c> and <c>--add-san</c> to the source SAN list and
+    /// validates the resulting set against BR-019..BR-023. Removes are
+    /// case-insensitive; adds are appended after removes. Source-side duplicates
+    /// are silently collapsed so older certs with latent duplicates can still be
+    /// renewed when the user is actively editing SANs. Throws
+    /// <see cref="ArgumentException"/> if the merged set fails any rule.
+    /// </summary>
+    private static string[] ApplySanModifications(string[] sourceSans, string[]? addSans, string[]? removeSans)
+    {
+        var addList = addSans ?? Array.Empty<string>();
+        SanInputValidator.Validate(addList);
+
+        var removeSet = new HashSet<string>(
+            removeSans ?? Array.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase);
+
+        var merged = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var san in sourceSans)
+        {
+            if (removeSet.Contains(san)) continue;
+            if (seen.Add(san)) merged.Add(san);
+        }
+
+        foreach (var add in addList)
+        {
+            if (!seen.Add(add))
+            {
+                throw new ArgumentException(
+                    $"--add-san value \"{add}\" already exists in the certificate's SAN list. Use a different value or omit it.");
+            }
+            merged.Add(add);
+        }
+
+        var mergedArr = merged.ToArray();
+        SanInputValidator.Validate(mergedArr);
+        return mergedArr;
     }
 }
