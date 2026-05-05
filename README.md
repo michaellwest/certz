@@ -164,6 +164,7 @@ Commands:
   trust remove           Remove certificate from trust store
   store list             List certificates in a store
   convert                Convert between PEM, DER, and PFX formats
+  verify-keypair         Verify a private key matches a certificate or CSR
 ```
 
 ## Documentation
@@ -191,6 +192,7 @@ Commands:
 | `monitor` | [docs/reference/monitor.md](docs/reference/monitor.md) |
 | `renew` | [docs/reference/renew.md](docs/reference/renew.md) |
 | `convert` | [docs/reference/convert.md](docs/reference/convert.md) |
+| `verify-keypair` | [docs/reference/verify-keypair.md](docs/reference/verify-keypair.md) |
 | Exit codes | [docs/reference/exit-codes.md](docs/reference/exit-codes.md) |
 | Cryptographic standards | [docs/reference/standards.md](docs/reference/standards.md) |
 
