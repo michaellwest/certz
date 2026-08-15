@@ -162,6 +162,16 @@ internal static class ExamplesRegistry
             new("Fingerprint with no separator", "certz fingerprint cert.pem --no-separator"),
             new("SHA-1 fingerprint for legacy systems", "certz fingerprint cert.pem --algorithm sha1"),
         ],
+
+        // verify-keypair examples
+        ["verify-keypair"] =
+        [
+            new("Confirm a cert and key pair up", "certz verify-keypair --cert server.pem --key server.key"),
+            new("Self-check a PFX (cert and embedded key)", "certz verify-keypair --pfx server.pfx --password MyPass"),
+            new("Confirm a CSR was generated with a key", "certz verify-keypair --csr request.csr --key server.key"),
+            new("JSON output for CI", "certz verify-keypair --cert server.pem --key server.key --format json"),
+            new("Encrypted PEM key", "certz verify-keypair --cert server.pem --key encrypted.key --password KeyPass"),
+        ],
     };
 
     /// <summary>

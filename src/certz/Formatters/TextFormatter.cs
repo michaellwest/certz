@@ -791,6 +791,37 @@ internal class TextFormatter : IOutputFormatter
         AnsiConsole.MarkupLine($"[bold]{result.Algorithm}:[/] {result.Fingerprint}");
     }
 
+    public void WriteVerifyKeypairResult(VerifyKeypairResult result)
+    {
+        var matchColor = result.Match ? "green" : "red";
+        var matchText = result.Match ? "YES" : "NO";
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn(new TableColumn("[bold]Property[/]").NoWrap())
+            .AddColumn(new TableColumn("[bold]Value[/]"));
+
+        table.AddRow("Match", $"[{matchColor}]{matchText}[/]");
+        table.AddRow("Subject", Markup.Escape(result.Subject));
+        table.AddRow("Certificate", Markup.Escape(result.CertSource));
+        table.AddRow("Private key", Markup.Escape(result.KeySource));
+
+        var keySize = result.KeySize is null ? string.Empty : $" ({result.KeySize}-bit)";
+        table.AddRow("Algorithm", $"{Markup.Escape(result.Algorithm)}{keySize}");
+        table.AddRow("Cert public key SHA-256", Markup.Escape(result.CertPublicKeyHash));
+        table.AddRow("Key  public key SHA-256", Markup.Escape(result.KeyPublicKeyHash));
+
+        AnsiConsole.Write(new Panel(table)
+            .Header($"[bold {matchColor}]Keypair {(result.Match ? "matches" : "MISMATCH")}[/]")
+            .Border(BoxBorder.Rounded));
+
+        if (!result.Match)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[red]The cert and key do not pair. Do not deploy this combination.[/]");
+        }
+    }
+
     public void WriteError(string message)
     {
         AnsiConsole.MarkupLine($"[red]Error:[/] {Markup.Escape(message)}");

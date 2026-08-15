@@ -240,6 +240,19 @@ internal record FingerprintOutput(
     string Subject
 );
 
+// Verify-keypair result DTO
+internal record VerifyKeypairOutput(
+    bool Success,
+    bool Match,
+    string CertSource,
+    string KeySource,
+    string Subject,
+    string Algorithm,
+    int? KeySize,
+    string CertPublicKeyHash,
+    string KeyPublicKeyHash
+);
+
 // Diff result DTOs
 internal record CertDiffFieldDto(
     string Name,
@@ -291,6 +304,7 @@ internal record AllExamplesOutput(
 [JsonSerializable(typeof(WarningOutput))]
 [JsonSerializable(typeof(SuccessOutput))]
 [JsonSerializable(typeof(FingerprintOutput))]
+[JsonSerializable(typeof(VerifyKeypairOutput))]
 [JsonSerializable(typeof(ExamplesOutput))]
 [JsonSerializable(typeof(AllExamplesOutput))]
 [JsonSerializable(typeof(DryRunOutput))]
@@ -625,6 +639,22 @@ internal class JsonFormatter : IOutputFormatter
             Subject: result.Subject
         );
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.FingerprintOutput));
+    }
+
+    public void WriteVerifyKeypairResult(VerifyKeypairResult result)
+    {
+        var output = new VerifyKeypairOutput(
+            Success: true,
+            Match: result.Match,
+            CertSource: result.CertSource,
+            KeySource: result.KeySource,
+            Subject: result.Subject,
+            Algorithm: result.Algorithm,
+            KeySize: result.KeySize,
+            CertPublicKeyHash: result.CertPublicKeyHash,
+            KeyPublicKeyHash: result.KeyPublicKeyHash
+        );
+        Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.VerifyKeypairOutput));
     }
 
     public void WriteError(string message)

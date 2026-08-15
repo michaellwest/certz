@@ -8,6 +8,7 @@ using certz.Commands.Monitor;
 using certz.Commands.Renew;
 using certz.Commands.Store;
 using certz.Commands.Trust;
+using certz.Commands.VerifyKeypair;
 using certz.Formatters;
 using certz.Help;
 using certz.Options;
@@ -74,6 +75,7 @@ rootCommand.AddMonitorCommand();
 rootCommand.AddRenewCommand();
 rootCommand.AddStoreCommand();
 rootCommand.AddTrustCommand();
+rootCommand.AddVerifyKeypairCommand();
 rootCommand.AddExamplesCommand();
 rootCommand.AddCompletionCommand();
 
@@ -123,6 +125,11 @@ catch (LintFailedException)
 catch (DiffHasDifferencesException)
 {
     // Diff results were already displayed, return exit code 1 to signal differences found
+    return 1;
+}
+catch (KeypairMismatchException)
+{
+    // Verify-keypair already printed the result block; signal mismatch via exit code only
     return 1;
 }
 catch (Exception exception)
