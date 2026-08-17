@@ -122,6 +122,9 @@ certz create dev localhost --trust
 # Inspect any certificate (file, URL, or store thumbprint)
 certz inspect https://github.com --chain
 
+# Save the full chain, one file per certificate
+certz inspect https://github.com --save-dir ./chain
+
 # Validate against CA/Browser Forum standards
 certz lint cert.pfx --password MyPassword --severity error
 

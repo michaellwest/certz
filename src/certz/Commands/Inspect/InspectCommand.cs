@@ -80,6 +80,36 @@ internal static class InspectCommand
             }
         });
 
+        var saveDirOption = new Option<string?>("--save-dir")
+        {
+            Description = "Save every certificate in the chain to its own file in this directory (implies --chain)"
+        };
+
+        var namingOption = new Option<string>("--naming")
+        {
+            Description = "Filename scheme for --save-dir: index-cn-thumbprint (default), cn-thumbprint, thumbprint, cn",
+            DefaultValueFactory = _ => "index-cn-thumbprint"
+        };
+        namingOption.CompletionSources.Add(ChainExportService.NamingSchemes);
+        namingOption.Validators.Add(result =>
+        {
+            var naming = result.GetValueOrDefault<string>();
+            if (!string.IsNullOrEmpty(naming) &&
+                !ChainExportService.NamingSchemes.Contains(naming, StringComparer.OrdinalIgnoreCase))
+            {
+                result.AddError($"Naming scheme must be one of: {string.Join(", ", ChainExportService.NamingSchemes)}.");
+            }
+        });
+
+        var forceOption = OptionBuilders.CreateForceOption(
+            "Overwrite existing files when using --save-dir");
+
+        // Shared builder keeps the --dr alias consistent with the other commands; the
+        // description is narrowed because here it suppresses writes rather than execution.
+        var dryRunOption = OptionBuilders.CreateDryRunOption();
+        dryRunOption.Description =
+            "With --save-dir, report the files that would be written without writing them";
+
         var storeOption = new Option<string?>("--store", "-s")
         {
             Description = "Certificate store name (My, Root, CA) - forces thumbprint lookup even if file exists"
@@ -116,6 +146,10 @@ internal static class InspectCommand
             saveOption,
             saveKeyOption,
             saveFormatOption,
+            saveDirOption,
+            namingOption,
+            forceOption,
+            dryRunOption,
             storeOption,
             locationOption,
             formatOption
@@ -161,8 +195,20 @@ internal static class InspectCommand
                 var savePath = parseResult.GetValue(saveOption);
                 var saveKeyPath = parseResult.GetValue(saveKeyOption);
                 var saveFormat = parseResult.GetValue(saveFormatOption) ?? "pem";
+                var saveDir = parseResult.GetValue(saveDirOption);
+                var naming = parseResult.GetValue(namingOption);
+                var force = parseResult.GetValue(forceOption);
+                var dryRun = parseResult.GetValue(dryRunOption);
                 var storeName = parseResult.GetValue(storeOption);
                 var storeLocation = parseResult.GetValue(locationOption);
+
+                // --save writes the inspected certificate, --save-dir writes the whole
+                // chain. Combining them is ambiguous rather than additive.
+                if (!string.IsNullOrEmpty(saveDir) && !string.IsNullOrEmpty(savePath))
+                {
+                    throw new ArgumentException(
+                        "--save-dir and --save are mutually exclusive. Use --save-dir for the full chain, or --save for a single certificate.");
+                }
 
                 // --tree implies --chain
                 if (showTree && !showChain)
@@ -170,6 +216,8 @@ internal static class InspectCommand
                     showChain = true;
                 }
 
+                // --save-dir does not need to force showChain: InspectOptions.NeedsChain
+                // derives that, so the two layers cannot fall out of agreement.
                 options = new InspectOptions
                 {
                     Source = source,
@@ -181,6 +229,10 @@ internal static class InspectCommand
                     SavePath = savePath,
                     SaveKeyPath = saveKeyPath,
                     SaveFormat = saveFormat,
+                    SaveDir = saveDir,
+                    Naming = naming ?? "index-cn-thumbprint",
+                    Force = force,
+                    DryRun = dryRun,
                     StoreName = storeName,
                     StoreLocation = storeLocation
                 };

@@ -602,6 +602,18 @@ internal static class OptionBuilders
     }
 
     /// <summary>
+    /// Creates the --force option with a command-specific description.
+    /// </summary>
+    internal static Option<bool> CreateForceOption(string description)
+    {
+        return new Option<bool>("--force", "-f")
+        {
+            Description = description,
+            DefaultValueFactory = _ => false
+        };
+    }
+
+    /// <summary>
     /// Creates the --dry-run option for previewing what a command would do.
     /// </summary>
     internal static Option<bool> CreateDryRunOption()

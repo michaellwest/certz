@@ -1,6 +1,7 @@
 using System.Formats.Asn1;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.RegularExpressions;
 
 namespace certz.Services;
 
@@ -9,6 +10,47 @@ namespace certz.Services;
 /// </summary>
 internal static class CertificateUtilities
 {
+    /// <summary>
+    /// Extracts a component (such as CN) from a distinguished name.
+    /// </summary>
+    /// <remarks>
+    /// Anchored on the start of the DN or a comma separator so a component name
+    /// appearing inside another value - "O=Foo, OU=CN=Bar" - is not mistaken for the
+    /// component itself.
+    /// </remarks>
+    /// <param name="distinguishedName">The full DN, e.g. "CN=example.com, O=Example".</param>
+    /// <param name="component">The component to extract, e.g. "CN".</param>
+    /// <returns>The component value, or an empty string when it is absent.</returns>
+    internal static string ExtractDnComponent(string distinguishedName, string component = "CN")
+    {
+        if (string.IsNullOrEmpty(distinguishedName))
+        {
+            return string.Empty;
+        }
+
+        var match = Regex.Match(distinguishedName, $@"(?:^|,\s*){Regex.Escape(component)}=(?<value>[^,]+)");
+        return match.Success ? match.Groups["value"].Value.Trim() : string.Empty;
+    }
+
+    /// <summary>
+    /// Writes DER-encoded certificate bytes to a file in the requested encoding.
+    /// </summary>
+    /// <param name="derBytes">The raw DER encoding of the certificate.</param>
+    /// <param name="path">Destination file path.</param>
+    /// <param name="format">Output encoding: pem or der.</param>
+    internal static void WriteCertificateBytes(byte[] derBytes, string path, string format)
+    {
+        if (format.Equals("pem", StringComparison.OrdinalIgnoreCase))
+        {
+            var pem = PemEncoding.Write("CERTIFICATE", derBytes);
+            File.WriteAllText(path, new string(pem));
+        }
+        else
+        {
+            File.WriteAllBytes(path, derBytes);
+        }
+    }
+
     /// <summary>
     /// Generates a cryptographically secure random password.
     /// </summary>

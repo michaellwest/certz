@@ -43,7 +43,9 @@ internal record CertificateInspectedOutput(
     CertificateInspectDto Certificate,
     ChainElementDto[]? Chain,
     bool ChainIsValid,
-    string[]? Warnings
+    string[]? Warnings,
+    string[]? SavedFiles,
+    bool SavedFilesWereDryRun
 );
 
 internal record CertificateInspectDto(
@@ -148,7 +150,9 @@ internal record ConversionOutput(
     string[]? AdditionalOutputFiles,
     string? Subject,
     string? GeneratedPassword,
-    bool PasswordWasGenerated
+    bool PasswordWasGenerated,
+    int CertificateCount,
+    string[]? Warnings
 );
 
 // Lint result DTOs
@@ -427,7 +431,9 @@ internal class JsonFormatter : IOutputFormatter
             Certificate: certificate,
             Chain: chain,
             ChainIsValid: result.ChainIsValid,
-            Warnings: result.Warnings.Count > 0 ? result.Warnings.ToArray() : null
+            Warnings: result.Warnings.Count > 0 ? result.Warnings.ToArray() : null,
+            SavedFiles: result.SavedFiles is { Count: > 0 } ? result.SavedFiles.ToArray() : null,
+            SavedFilesWereDryRun: result.SavedFilesWereDryRun
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.CertificateInspectedOutput));
@@ -511,7 +517,9 @@ internal class JsonFormatter : IOutputFormatter
             AdditionalOutputFiles: result.AdditionalOutputFiles.Length > 0 ? result.AdditionalOutputFiles : null,
             Subject: result.Subject,
             GeneratedPassword: result.PasswordWasGenerated ? result.GeneratedPassword : null,
-            PasswordWasGenerated: result.PasswordWasGenerated
+            PasswordWasGenerated: result.PasswordWasGenerated,
+            CertificateCount: result.CertificateCount,
+            Warnings: result.Warnings.Length > 0 ? result.Warnings : null
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.ConversionOutput));

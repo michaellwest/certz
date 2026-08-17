@@ -56,6 +56,7 @@ $TestCategories = @{
     "chain" = @("chn-1.1", "chn-1.2", "chn-1.3", "chn-1.4")
     "save" = @("sav-1.1", "sav-1.2", "sav-1.3", "sav-1.4", "sav-1.5")
     "format" = @("fmt-2.1", "fmt-2.2")
+    "save-dir" = @("svd-1.1", "svd-1.2", "svd-1.3", "svd-1.4", "svd-1.5", "svd-1.6", "svd-1.7", "svd-1.8")
     "guided" = @("ins-gui-1.1")  # Interactive tests (manual only)
 }
 
@@ -971,6 +972,365 @@ Invoke-Test -TestId "fmt-2.2" -TestName "Inspect URL with JSON output" -FilePref
     }
     catch {
         [PSCustomObject]@{ Success = $true; Details = "Skipped (network error)" }
+    }
+}
+
+# ============================================================================
+# SAVE-DIR / CHAIN EXPORT TESTS (issue #73)
+# ============================================================================
+Write-TestHeader "Testing Chain Export to Directory"
+
+# Shared setup: build a chain PFX and return its path plus the fixture certs.
+function New-SaveDirFixture {
+    param([string]$Name)
+
+    $chain = New-TestCertificateChain -Subject $Name
+    $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+    $collection.Add($chain.Leaf) | Out-Null
+    $collection.Add($chain.Ca) | Out-Null
+    [System.IO.File]::WriteAllBytes(
+        (Join-Path (Get-Location) "$Name.pfx"),
+        $collection.Export('Pkcs12', 'TestPass123'))
+
+    return $chain
+}
+
+# Test svd-1.1: Each chain element is written to its own file
+Invoke-Test -TestId "svd-1.1" -TestName "Save-dir writes each chain element to its own file" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $name = "svd-basic-$guid"
+    $outDir = "svd-out-$guid"
+    $chain = New-SaveDirFixture -Name $name
+
+    try {
+        # ACTION: Single certz.exe call
+        & .\certz.exe inspect "$name.pfx" --password TestPass123 --save-dir $outDir 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: One file per chain element
+        $files = @(Get-ChildItem -Path $outDir -Filter "*.pem" -ErrorAction SilentlyContinue)
+        if ($files.Count -ne 2) {
+            throw "Expected 2 chain files, found $($files.Count)"
+        }
+
+        # ASSERTION 3: Leaf is index 00 and is the end-entity certificate
+        $leafFile = $files | Where-Object { $_.Name -like "00-*" } | Select-Object -First 1
+        if (-not $leafFile) {
+            throw "Expected a leaf file prefixed '00-', found: $($files.Name -join ', ')"
+        }
+        $leafCert = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadCertificateFromFile($leafFile.FullName)
+        if ($leafCert.Subject -ne $chain.Leaf.Subject) {
+            throw "Expected leaf subject '$($chain.Leaf.Subject)', found '$($leafCert.Subject)'"
+        }
+
+        # ASSERTION 4: Each file holds exactly one certificate
+        foreach ($f in $files) {
+            $count = Get-CertificateCount -Path $f.FullName
+            if ($count -ne 1) {
+                throw "Expected 1 certificate in $($f.Name), found $count"
+            }
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Wrote $($files.Count) chain files" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "$name.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item $outDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test svd-1.2: The output directory is created when it does not exist
+Invoke-Test -TestId "svd-1.2" -TestName "Save-dir creates a missing nested directory" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $name = "svd-mkdir-$guid"
+    $rootDir = "svd-mkdir-root-$guid"
+    $outDir = Join-Path $rootDir "nested/chain"
+    $chain = New-SaveDirFixture -Name $name
+
+    try {
+        if (Test-Path $rootDir) {
+            throw "Precondition failed: $rootDir already exists"
+        }
+
+        # ACTION: Single certz.exe call
+        & .\certz.exe inspect "$name.pfx" --password TestPass123 --save-dir $outDir 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Nested directory was created and populated
+        if (-not (Test-Path $outDir -PathType Container)) {
+            throw "Expected certz to create $outDir"
+        }
+        $files = @(Get-ChildItem -Path $outDir -Filter "*.pem" -ErrorAction SilentlyContinue)
+        if ($files.Count -lt 1) {
+            throw "Expected chain files in the created directory, found none"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Created $outDir with $($files.Count) files" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "$name.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item $rootDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test svd-1.3: --save-dir and --save are mutually exclusive
+Invoke-Test -TestId "svd-1.3" -TestName "Save-dir combined with --save is rejected" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $name = "svd-excl-$guid"
+    $outDir = "svd-excl-out-$guid"
+    $chain = New-SaveDirFixture -Name $name
+
+    try {
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe inspect "$name.pfx" --password TestPass123 --save-dir $outDir --save "svd-excl-$guid.pem" 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Validation error
+        Assert-ExitCode -Expected 1
+
+        # ASSERTION 2: Rejected for the right reason, not merely an unknown option
+        Assert-Match -Actual $outputStr -Pattern "mutually exclusive" `
+            -Message "Error should identify --save-dir and --save as mutually exclusive"
+
+        # ASSERTION 3: Nothing was written
+        Assert-FileNotExists "svd-excl-$guid.pem"
+
+        [PSCustomObject]@{ Success = $true; Details = "Mutually exclusive options rejected" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "$name.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "svd-excl-$guid.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item $outDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test svd-1.4: Existing files are not overwritten without --force
+Invoke-Test -TestId "svd-1.4" -TestName "Save-dir refuses to overwrite without --force" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $name = "svd-force-$guid"
+    $outDir = "svd-force-out-$guid"
+    $chain = New-SaveDirFixture -Name $name
+
+    try {
+        # SETUP: Pre-populate the directory with a colliding filename.
+        # The leaf file is deterministic: 00-<sanitized CN>-<first 8 of thumbprint>.pem
+        New-Item -ItemType Directory -Path $outDir | Out-Null
+        $collision = Join-Path $outDir "00-$name-$($chain.Leaf.Thumbprint.Substring(0,8)).pem"
+        Set-Content -Path $collision -Value "SENTINEL"
+
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe inspect "$name.pfx" --password TestPass123 --save-dir $outDir 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Refused
+        Assert-ExitCode -Expected 1
+
+        # ASSERTION 2: Refused for the collision, not merely an unknown option
+        Assert-Match -Actual $outputStr -Pattern "--force" `
+            -Message "Error should point at --force as the way to overwrite"
+
+        # ASSERTION 3: Existing file untouched
+        $content = Get-Content -Path $collision -Raw
+        if ($content -notmatch "SENTINEL") {
+            throw "Existing file was overwritten without --force"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Overwrite refused without --force" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "$name.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item $outDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test svd-1.5: --dry-run suppresses every write, not only the chain export
+Invoke-Test -TestId "svd-1.5" -TestName "Save-dir dry-run writes nothing" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $name = "svd-dry-$guid"
+    $outDir = "svd-dry-out-$guid"
+    $keyPath = "svd-dry-$guid.key"
+    $chain = New-SaveDirFixture -Name $name
+
+    try {
+        # ACTION: Single certz.exe call. --save-key is included deliberately: dry-run
+        # must suppress it too, not just the --save-dir export.
+        $output = & .\certz.exe inspect "$name.pfx" --password TestPass123 --save-dir $outDir --save-key $keyPath --dry-run --format json 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: No chain files written
+        $files = @(Get-ChildItem -Path $outDir -Filter "*.pem" -ErrorAction SilentlyContinue)
+        if ($files.Count -ne 0) {
+            throw "Dry run wrote $($files.Count) chain files"
+        }
+
+        # ASSERTION 3: No private key written
+        Assert-FileNotExists $keyPath -Message "Dry run must not write the private key"
+
+        # ASSERTION 4: The plan WAS reported. Without this the test would also pass if
+        # the export were removed entirely rather than merely suppressed.
+        $json = $outputStr | ConvertFrom-Json
+        if (-not $json.savedFilesWereDryRun) {
+            throw "Expected savedFilesWereDryRun to be true"
+        }
+
+        # 3 paths: the suppressed --save-key file plus the 2 chain certificates. A dry
+        # run must account for every write it suppressed, not only the chain export.
+        $planned = @($json.savedFiles)
+        if ($planned.Count -ne 3) {
+            throw "Expected 3 planned paths (key + 2 chain certs), found $($planned.Count)"
+        }
+        if (-not ($planned | Where-Object { $_ -like "*$keyPath" })) {
+            throw "Expected the suppressed --save-key path to be reported, got: $($planned -join ', ')"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Dry run wrote nothing" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "$name.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item $keyPath -Force -ErrorAction SilentlyContinue
+        Remove-Item $outDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test svd-1.6: --naming thumbprint produces thumbprint filenames
+Invoke-Test -TestId "svd-1.6" -TestName "Save-dir honors --naming thumbprint" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $name = "svd-naming-$guid"
+    $outDir = "svd-naming-out-$guid"
+    $chain = New-SaveDirFixture -Name $name
+
+    try {
+        # ACTION: Single certz.exe call
+        & .\certz.exe inspect "$name.pfx" --password TestPass123 --save-dir $outDir --naming thumbprint 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Leaf file is named for its thumbprint alone
+        $expected = Join-Path $outDir "$($chain.Leaf.Thumbprint).pem"
+        Assert-FileExists $expected -Message "Expected thumbprint-named file"
+
+        [PSCustomObject]@{ Success = $true; Details = "Thumbprint naming applied" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "$name.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item $outDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test svd-1.7: A hostile subject cannot escape the output directory
+Invoke-Test -TestId "svd-1.7" -TestName "Save-dir sanitizes a traversal attempt in the subject" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $root = "svd-trav-$guid"
+    $outDir = Join-Path $root "target"
+
+    # SETUP: subject content is attacker-controlled, so build a certificate whose CN is
+    # a relative path. Uses .NET directly - New-SelfSignedCertificate rejects this DN.
+    $curve = [System.Security.Cryptography.ECCurve+NamedCurves]::nistP256
+    $sha = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+    $now = [DateTimeOffset]::UtcNow
+    $key = [System.Security.Cryptography.ECDsa]::Create($curve)
+    $req = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new('CN=..\..\evil', $key, $sha)
+    $req.CertificateExtensions.Add(
+        [System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($false,$false,0,$true))
+    $cert = $req.CreateSelfSigned($now.AddDays(-1), $now.AddDays(30))
+
+    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+    [System.IO.File]::WriteAllBytes((Join-Path (Get-Location) "$root\evil.pfx"), $cert.Export('Pkcs12','p'))
+
+    try {
+        # ACTION: Single certz.exe call
+        & .\certz.exe inspect "$root\evil.pfx" --password p --save-dir $outDir 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Exactly one file, and it is INSIDE the target directory
+        $inside = @(Get-ChildItem -Path $outDir -File -Recurse -ErrorAction SilentlyContinue)
+        if ($inside.Count -ne 1) {
+            throw "Expected 1 file inside the target directory, found $($inside.Count)"
+        }
+
+        # ASSERTION 3: The separators were neutralized, not preserved as path structure
+        if ($inside[0].Name -match '[\\/]') {
+            throw "Filename retained a path separator: $($inside[0].Name)"
+        }
+
+        # ASSERTION 4: Nothing was written above the target directory
+        $escaped = @(Get-ChildItem -Path $root -File -ErrorAction SilentlyContinue |
+                     Where-Object { $_.Extension -in '.pem', '.cer' })
+        if ($escaped.Count -ne 0) {
+            throw "Traversal escaped the target directory: $($escaped.Name -join ', ')"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Sanitized to $($inside[0].Name)" }
+    }
+    finally {
+        $cert.Dispose()
+        Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test svd-1.8: A reserved Windows device name in the subject is not used as a filename
+Invoke-Test -TestId "svd-1.8" -TestName "Save-dir avoids reserved device names" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $root = "svd-dev-$guid"
+    $outDir = Join-Path $root "target"
+
+    # SETUP: CN=NUL would resolve to the null device rather than a file, so the write
+    # would vanish while the command reported success.
+    $curve = [System.Security.Cryptography.ECCurve+NamedCurves]::nistP256
+    $sha = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+    $now = [DateTimeOffset]::UtcNow
+    $key = [System.Security.Cryptography.ECDsa]::Create($curve)
+    $req = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new('CN=NUL', $key, $sha)
+    $req.CertificateExtensions.Add(
+        [System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($false,$false,0,$true))
+    $cert = $req.CreateSelfSigned($now.AddDays(-1), $now.AddDays(30))
+
+    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+    [System.IO.File]::WriteAllBytes((Join-Path (Get-Location) "$root\dev.pfx"), $cert.Export('Pkcs12','p'))
+
+    try {
+        # ACTION: Single certz.exe call, --naming cn to force the CN into the filename
+        & .\certz.exe inspect "$root\dev.pfx" --password p --save-dir $outDir --naming cn 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: A real file exists and is not named for the device
+        $files = @(Get-ChildItem -Path $outDir -File -ErrorAction SilentlyContinue)
+        if ($files.Count -ne 1) {
+            throw "Expected 1 written file, found $($files.Count)"
+        }
+        if ([System.IO.Path]::GetFileNameWithoutExtension($files[0].Name) -eq 'NUL') {
+            throw "Filename used the reserved device name NUL"
+        }
+
+        # ASSERTION 3: The file holds a real certificate, i.e. the bytes went to disk
+        $count = Get-CertificateCount -Path $files[0].FullName
+        if ($count -ne 1) {
+            throw "Expected 1 certificate in the written file, found $count"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Device name avoided: $($files[0].Name)" }
+    }
+    finally {
+        $cert.Dispose()
+        Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 

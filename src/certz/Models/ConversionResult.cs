@@ -54,4 +54,16 @@ internal record ConversionResult
     /// The output format (PEM, DER, PFX).
     /// </summary>
     public string? OutputFormat { get; init; }
+
+    /// <summary>
+    /// Number of certificates written to the output file. Greater than one when the
+    /// source carried a chain and the output format can represent it.
+    /// </summary>
+    public int CertificateCount { get; init; } = 1;
+
+    /// <summary>
+    /// Non-fatal warnings raised during conversion (e.g., chain certificates dropped
+    /// because the target format cannot represent them).
+    /// </summary>
+    public string[] Warnings { get; init; } = Array.Empty<string>();
 }

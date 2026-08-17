@@ -94,7 +94,7 @@ src/certz/
 ├── Models/
 │   ├── DevCertificateOptions.cs   # Options for dev certificate creation
 │   ├── CaCertificateOptions.cs    # Options for CA certificate creation
-│   ├── ConvertToPfxOptions.cs     # Options for PFX conversion
+│   ├── ConvertOptions.cs          # Options for format conversion
 │   ├── CertificateCreationResult.cs
 │   ├── ConversionResult.cs
 │   └── ...

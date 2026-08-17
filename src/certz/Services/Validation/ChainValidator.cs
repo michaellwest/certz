@@ -63,6 +63,9 @@ internal class ChainValidator : IChainValidator
         {
             chainElements.Add(new ChainElement
             {
+                // Element certificates outlive the chain: X509Chain.Dispose does not
+                // release them, so callers can read Subject, Thumbprint, and RawData
+                // after this method returns.
                 Certificate = element.Certificate,
                 Status = element.ChainElementStatus.ToList()
             });

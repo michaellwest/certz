@@ -71,6 +71,47 @@ file next to the certificate file.
 
 ---
 
+## Chain Preservation
+
+Conversion is lossless. When the input carries a chain -- a PFX holding leaf plus
+intermediates, or a multi-certificate PEM bundle -- every certificate is carried across
+to the output, ordered leaf first.
+
+```bash
+# A PFX with leaf + intermediate produces a PEM bundle with both
+certz convert server.pfx --to pem --password secret --output fullchain.pem
+
+# And the reverse: a PEM bundle produces a PFX carrying the chain
+certz convert fullchain.pem --to pfx --key server.key --output server.pfx
+```
+
+Ordering does not depend on the input. A PKCS#12 bag has no defined certificate order,
+and a hand-assembled PEM bundle may be in any sequence, so certz identifies the
+end-entity certificate and follows issuer links toward the root. Certificates that are
+not part of the leaf's chain are still written, at the end.
+
+`--repassword` preserves the chain as well, so re-encrypting a PFX does not quietly
+shrink it.
+
+**Only the end-entity private key is carried over.** Chain certificates are written as
+public certificates even when the source bundle held their private keys. A PFX holding
+both an internal CA key and a server key converts to an output containing the server
+key and the CA certificate -- not the CA key. That artifact is safe to hand to a web
+server or a vendor without also handing over the ability to issue certificates.
+
+**DER is the exception.** The format encodes exactly one certificate, so a multi-
+certificate source cannot survive it. certz writes the leaf and warns:
+
+```
+Warning: DER holds a single certificate - 1 chain certificate(s) were not written.
+Use --to pem or --to pfx to keep the chain.
+```
+
+To split a chain into one file per certificate instead of a single bundle, use
+[`certz inspect --save-dir`](inspect.md#saving-the-whole-chain).
+
+---
+
 ## Conversion Examples
 
 ### PFX to PEM
@@ -224,7 +265,9 @@ Example output:
   "inputKey": "/path/to/server.key",
   "inputPfx": null,
   "generatedPassword": "Xk9!mP2rLq",
-  "passwordWasGenerated": true
+  "passwordWasGenerated": true,
+  "certificateCount": 2,
+  "warnings": null
 }
 ```
 
@@ -242,6 +285,8 @@ Field descriptions:
 | `inputPfx` | string or null | Source PFX file path, if applicable |
 | `generatedPassword` | string or null | Auto-generated PFX password, if no password was supplied |
 | `passwordWasGenerated` | bool | `true` if certz generated the password |
+| `certificateCount` | int | Certificates written to the output file; greater than 1 when a chain was preserved |
+| `warnings` | string[] or null | Non-fatal warnings, such as chain certificates dropped by DER output |
 
 ---
 
