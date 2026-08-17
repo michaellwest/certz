@@ -148,7 +148,9 @@ internal record ConversionOutput(
     string[]? AdditionalOutputFiles,
     string? Subject,
     string? GeneratedPassword,
-    bool PasswordWasGenerated
+    bool PasswordWasGenerated,
+    int CertificateCount,
+    string[]? Warnings
 );
 
 // Lint result DTOs
@@ -511,7 +513,9 @@ internal class JsonFormatter : IOutputFormatter
             AdditionalOutputFiles: result.AdditionalOutputFiles.Length > 0 ? result.AdditionalOutputFiles : null,
             Subject: result.Subject,
             GeneratedPassword: result.PasswordWasGenerated ? result.GeneratedPassword : null,
-            PasswordWasGenerated: result.PasswordWasGenerated
+            PasswordWasGenerated: result.PasswordWasGenerated,
+            CertificateCount: result.CertificateCount,
+            Warnings: result.Warnings.Length > 0 ? result.Warnings : null
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.ConversionOutput));

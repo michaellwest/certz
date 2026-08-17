@@ -472,6 +472,99 @@ function Exit-ToolsDirectory {
 }
 
 # ============================================================================
+# CHAIN FIXTURES
+# ============================================================================
+
+function New-TestCertificateChain {
+    <#
+    .SYNOPSIS
+        Creates a CA certificate and a leaf signed by it, for chain tests.
+    .DESCRIPTION
+        Pure PowerShell setup - does NOT invoke certz. Both certificates land in
+        Cert:\CurrentUser\My and must be removed by the caller via
+        Remove-TestCertificateChain.
+
+        Returns a hashtable with Ca and Leaf (X509Certificate2), so tests can
+        export whatever chain artifact they need.
+    .PARAMETER Subject
+        Base subject name. The CA becomes "<Subject> CA", the leaf "<Subject>".
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Subject
+    )
+
+    $ca = New-SelfSignedCertificate `
+        -Subject "CN=$Subject CA" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -KeyUsage CertSign, CRLSign `
+        -TextExtension @("2.5.29.19={text}CA=true") `
+        -NotAfter (Get-Date).AddDays(365)
+
+    $leaf = New-SelfSignedCertificate `
+        -Subject "CN=$Subject" `
+        -KeyAlgorithm ECDSA_nistP256 `
+        -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" `
+        -Signer $ca `
+        -DnsName "$Subject.local" `
+        -NotAfter (Get-Date).AddDays(90)
+
+    return @{ Ca = $ca; Leaf = $leaf }
+}
+
+function Remove-TestCertificateChain {
+    <#
+    .SYNOPSIS
+        Removes certificates created by New-TestCertificateChain from the store.
+    #>
+    param([hashtable]$Chain)
+
+    if (-not $Chain) { return }
+    foreach ($key in @("Leaf", "Ca")) {
+        if ($Chain[$key]) {
+            Remove-Item $Chain[$key].PSPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Get-CertificateCount {
+    <#
+    .SYNOPSIS
+        Returns the number of certificates a file contains.
+    .DESCRIPTION
+        Assertion support for chain tests - parses the file as a certificate
+        collection rather than counting text markers, so it works for PEM, DER,
+        and PFX alike.
+
+        PEM needs ImportFromPemFile: Import() stops after the first block, so a
+        multi-certificate bundle would silently report 1 and mask a dropped chain.
+    #>
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [string]$Password
+    )
+
+    $resolved = (Resolve-Path $Path).Path
+    $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+
+    $firstBytes = [System.IO.File]::ReadAllBytes($resolved)
+    $head = [System.Text.Encoding]::ASCII.GetString($firstBytes, 0, [Math]::Min(32, $firstBytes.Length))
+
+    if ($head -match '-----BEGIN') {
+        $collection.ImportFromPemFile($resolved)
+    } elseif ($Password) {
+        $collection.Import($resolved, $Password, "Exportable")
+    } else {
+        $collection.Import($resolved)
+    }
+    return $collection.Count
+}
+
+# ============================================================================
 # CERTIFICATE STORE UTILITIES
 # ============================================================================
 

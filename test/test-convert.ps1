@@ -62,6 +62,7 @@ $TestCategories = @{
     "simplified-errors" = @("cnv-10.1", "cnv-10.2", "cnv-10.3")
     "dry-run" = @("dry-1.1", "dry-1.2")
     "repassword" = @("rp-1.1", "rp-1.2", "rp-1.3", "rp-1.4", "rp-2.1", "rp-2.2", "rp-2.3", "rp-2.4")
+    "chain" = @("cnv-11.1", "cnv-11.2", "cnv-11.3", "cnv-11.4", "cnv-11.5", "cnv-11.6")
     "guided" = @("cnv-gui-1.1")  # Interactive tests (manual only)
 }
 
@@ -1560,6 +1561,254 @@ Invoke-Test -TestId "rp-2.4" -TestName "Repassword PFX in-place overwrites file"
     }
     finally {
         Remove-Item "rp-inplace.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ============================================================================
+# CHAIN PRESERVATION TESTS (issue #74)
+# ============================================================================
+Write-TestHeader "Testing Chain Preservation"
+
+# Test cnv-11.1: PFX containing a chain converts to PEM without losing the chain
+Invoke-Test -TestId "cnv-11.1" -TestName "PFX to PEM preserves chain certificates" -FilePrefix "cnv-chain-pem" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $chain = New-TestCertificateChain -Subject "certz-chain-pem-$guid"
+
+    try {
+        # SETUP: PFX carrying leaf + issuing CA
+        $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+        $collection.Add($chain.Leaf) | Out-Null
+        $collection.Add($chain.Ca) | Out-Null
+        [System.IO.File]::WriteAllBytes(
+            (Join-Path (Get-Location) "cnv-chain-pem.pfx"),
+            $collection.Export('Pkcs12', 'TestPass123'))
+
+        # ACTION: Single certz.exe call
+        & .\certz.exe convert cnv-chain-pem.pfx --to pem --password TestPass123 --output cnv-chain-pem.pem 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Output exists
+        Assert-FileExists "cnv-chain-pem.pem"
+
+        # ASSERTION 3: Both certificates survived the conversion
+        $count = Get-CertificateCount -Path "cnv-chain-pem.pem"
+        if ($count -ne 2) {
+            throw "Expected 2 certificates in PEM output, found $count (chain was dropped)"
+        }
+
+        # ASSERTION 4: Leaf is first
+        $parsed = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+        $parsed.Import((Resolve-Path "cnv-chain-pem.pem").Path)
+        if ($parsed[0].Subject -ne $chain.Leaf.Subject) {
+            throw "Expected leaf first, found '$($parsed[0].Subject)'"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Chain preserved: $count certificates" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "cnv-chain-pem.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-pem.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-pem.key" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-11.2: PEM bundle converts to PFX without losing the chain
+Invoke-Test -TestId "cnv-11.2" -TestName "PEM bundle to PFX preserves chain certificates" -FilePrefix "cnv-chain-pfx" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $chain = New-TestCertificateChain -Subject "certz-chain-pfx-$guid"
+
+    try {
+        # SETUP: PEM bundle (leaf + CA) plus the leaf's private key
+        $bundle = $chain.Leaf.ExportCertificatePem() + "`n" + $chain.Ca.ExportCertificatePem()
+        Set-Content -Path "cnv-chain-pfx.pem" -Value $bundle
+
+        $ecdsaKey = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($chain.Leaf)
+        $base64Key = [System.Convert]::ToBase64String($ecdsaKey.ExportPkcs8PrivateKey(), [System.Base64FormattingOptions]::InsertLineBreaks)
+        Set-Content -Path "cnv-chain-pfx.key" -Value "-----BEGIN PRIVATE KEY-----`n$base64Key`n-----END PRIVATE KEY-----"
+
+        # ACTION: Single certz.exe call
+        & .\certz.exe convert cnv-chain-pfx.pem --to pfx --key cnv-chain-pfx.key --password TestPass123 --output cnv-chain-pfx.pfx 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Output exists
+        Assert-FileExists "cnv-chain-pfx.pfx"
+
+        # ASSERTION 3: Both certificates survived
+        $count = Get-CertificateCount -Path "cnv-chain-pfx.pfx" -Password "TestPass123"
+        if ($count -ne 2) {
+            throw "Expected 2 certificates in PFX output, found $count (chain was dropped)"
+        }
+
+        # ASSERTION 4: The private key survived. The leaf instance is replaced when the
+        # key is attached, so a collection-aware export that skips the swap would still
+        # produce 2 certificates but lose the key.
+        $written = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+        $written.Import((Resolve-Path "cnv-chain-pfx.pfx").Path, "TestPass123", "Exportable")
+        $keyed = @($written | Where-Object { $_.HasPrivateKey })
+        if ($keyed.Count -lt 1) {
+            throw "Expected the leaf to retain its private key, found none in the PFX"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Chain preserved: $count certificates, key intact" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "cnv-chain-pfx.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-pfx.key" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-pfx.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-11.3: Re-encrypting a PFX preserves the chain
+Invoke-Test -TestId "cnv-11.3" -TestName "Repassword preserves chain certificates" -FilePrefix "cnv-chain-rp" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $chain = New-TestCertificateChain -Subject "certz-chain-rp-$guid"
+
+    try {
+        # SETUP: PFX carrying leaf + issuing CA
+        $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+        $collection.Add($chain.Leaf) | Out-Null
+        $collection.Add($chain.Ca) | Out-Null
+        [System.IO.File]::WriteAllBytes(
+            (Join-Path (Get-Location) "cnv-chain-rp.pfx"),
+            $collection.Export('Pkcs12', 'OldPass123'))
+
+        # ACTION: Single certz.exe call
+        & .\certz.exe convert cnv-chain-rp.pfx --repassword --password OldPass123 --new-password NewPass456 --output cnv-chain-rp-out.pfx 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Both certificates survived re-encryption
+        $count = Get-CertificateCount -Path "cnv-chain-rp-out.pfx" -Password "NewPass456"
+        if ($count -ne 2) {
+            throw "Expected 2 certificates after repassword, found $count (chain was dropped)"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Chain preserved through repassword: $count certificates" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "cnv-chain-rp.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-rp-out.pfx" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-11.4: DER cannot hold a chain, so a multi-cert source must warn
+Invoke-Test -TestId "cnv-11.4" -TestName "DER output warns when source has a chain" -FilePrefix "cnv-chain-der" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $chain = New-TestCertificateChain -Subject "certz-chain-der-$guid"
+
+    try {
+        # SETUP: PFX carrying leaf + issuing CA
+        $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+        $collection.Add($chain.Leaf) | Out-Null
+        $collection.Add($chain.Ca) | Out-Null
+        [System.IO.File]::WriteAllBytes(
+            (Join-Path (Get-Location) "cnv-chain-der.pfx"),
+            $collection.Export('Pkcs12', 'TestPass123'))
+
+        # ACTION: Single certz.exe call
+        $output = & .\certz.exe convert cnv-chain-der.pfx --to der --password TestPass123 --output cnv-chain-der.der --format json 2>&1
+        $outputStr = $output -join "`n"
+
+        # ASSERTION 1: Exit code (truncation is expected for DER, not an error)
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: DER holds exactly the leaf
+        $count = Get-CertificateCount -Path "cnv-chain-der.der"
+        if ($count -ne 1) {
+            throw "Expected 1 certificate in DER output, found $count"
+        }
+
+        # ASSERTION 3: The dropped certificates are reported in structured output
+        $json = $outputStr | ConvertFrom-Json
+        if (-not $json.warnings -or $json.warnings.Count -eq 0) {
+            throw "Expected a warning that DER output cannot carry the chain"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "DER truncation warned: $($json.warnings -join '; ')" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "cnv-chain-der.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-der.der" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-11.5: Single-certificate conversions are unchanged (regression guard)
+Invoke-Test -TestId "cnv-11.5" -TestName "Single-cert PFX to PEM yields exactly one certificate" -FilePrefix "cnv-chain-single" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+
+    # SETUP: Plain self-signed certificate, no chain
+    $cert = New-SelfSignedCertificate -Subject "CN=certz-chain-single-$guid" `
+        -KeyAlgorithm ECDSA_nistP256 -KeyExportPolicy Exportable `
+        -CertStoreLocation "Cert:\CurrentUser\My" -NotAfter (Get-Date).AddDays(90)
+
+    try {
+        [System.IO.File]::WriteAllBytes(
+            (Join-Path (Get-Location) "cnv-chain-single.pfx"),
+            $cert.Export('Pkcs12', 'TestPass123'))
+
+        # ACTION: Single certz.exe call
+        & .\certz.exe convert cnv-chain-single.pfx --to pem --password TestPass123 --output cnv-chain-single.pem 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: Exactly one certificate - no spurious additions
+        $count = Get-CertificateCount -Path "cnv-chain-single.pem"
+        if ($count -ne 1) {
+            throw "Expected 1 certificate in PEM output, found $count"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Single-cert conversion unchanged" }
+    }
+    finally {
+        Remove-Item $cert.PSPath -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-single.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-single.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-single.key" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-11.6: An out-of-order bundle is reordered leaf-first
+Invoke-Test -TestId "cnv-11.6" -TestName "Out-of-order bundle is reordered leaf first" -FilePrefix "cnv-chain-order" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $chain = New-TestCertificateChain -Subject "certz-chain-order-$guid"
+
+    try {
+        # SETUP: PEM bundle deliberately written CA FIRST. Every other chain test
+        # supplies leaf-first input, so ordering would pass even with no reordering
+        # logic at all - this is the case that actually exercises it.
+        $bundle = $chain.Ca.ExportCertificatePem() + "`n" + $chain.Leaf.ExportCertificatePem()
+        Set-Content -Path "cnv-chain-order.pem" -Value $bundle
+
+        # ACTION: Single certz.exe call
+        & .\certz.exe convert cnv-chain-order.pem --to der --output cnv-chain-order.der 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: DER holds the LEAF, not whichever certificate came first in the
+        # file. DER carries a single certificate, so this pins leaf selection exactly.
+        $written = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadCertificateFromFile(
+            (Resolve-Path "cnv-chain-order.der").Path)
+        if ($written.Subject -ne $chain.Leaf.Subject) {
+            throw "Expected leaf '$($chain.Leaf.Subject)' to be selected, got '$($written.Subject)'"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Leaf selected from CA-first bundle" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "cnv-chain-order.pem" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-order.der" -Force -ErrorAction SilentlyContinue
     }
 }
 

@@ -484,7 +484,22 @@ internal class TextFormatter : IOutputFormatter
             }
         }
 
+        // Only worth a row when the output carries more than the end-entity certificate
+        if (result.CertificateCount > 1)
+        {
+            table.AddRow("Certificates", $"{result.CertificateCount} (chain preserved)");
+        }
+
         AnsiConsole.Write(table);
+
+        if (result.Warnings.Length > 0)
+        {
+            AnsiConsole.WriteLine();
+            foreach (var warning in result.Warnings)
+            {
+                WriteWarning(warning);
+            }
+        }
 
         // Password handling
         if (result.PasswordWasGenerated && result.GeneratedPassword != null)
