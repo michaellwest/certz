@@ -163,6 +163,66 @@ certz inspect server.pfx --password Pass --save cert.der --save-format der
 
 ---
 
+## Saving the Whole Chain
+
+`--save` writes a single certificate -- the one being inspected. To get the
+intermediates and root as well, use `--save-dir`, which writes each certificate in
+the chain to its own file.
+
+```bash
+# Split a served chain into separate files
+certz inspect https://github.com --save-dir ./chain
+
+# Same, from a PFX that carries its chain
+certz inspect server.pfx --password Pass --save-dir ./chain
+
+# DER encoding, named by thumbprint
+certz inspect https://github.com --save-dir ./chain --save-format der --naming thumbprint
+
+# See what would be written, without writing it
+certz inspect https://github.com --save-dir ./chain --dry-run
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--save-dir <dir>` | (none) | Write each chain certificate to its own file in this directory. Implies `--chain`. Created if missing. |
+| `--naming` | `index-cn-thumbprint` | Filename scheme: `index-cn-thumbprint`, `cn-thumbprint`, `thumbprint`, or `cn` |
+| `--force, -f` | `false` | Overwrite existing files instead of failing |
+| `--dry-run, --dr` | `false` | Report the paths that would be written without writing them |
+
+`--save-dir` and `--save` are mutually exclusive -- use `--save-dir` for the chain, or
+`--save` for a single certificate.
+
+### Filename schemes
+
+The default scheme produces `<NN>-<CN>-<thumbprint8>.pem`, where `NN` is the chain
+position (`00` is the leaf, ascending toward the root). The index prefix makes chain
+order visible in a directory listing, which is the point when you are debugging an
+ordering problem.
+
+| Scheme | Example filename |
+|--------|------------------|
+| `index-cn-thumbprint` | `00-www.github.com-3A7B1C2D.pem` |
+| `cn-thumbprint` | `www.github.com-3A7B1C2D.pem` |
+| `thumbprint` | `3A7B1C2D65E5E5C4B2D7D66D40C6DD2FB19C5436.pem` |
+| `cn` | `www.github.com.pem` |
+
+Three cases are handled automatically:
+
+- **No CN.** Some CA certificates carry only `OU=` and `O=`. Those fall back to the
+  full thumbprint as the filename.
+- **Duplicate CNs.** Cross-signed certificates share a CN, which is why the thumbprint
+  suffix is part of every default scheme. Under `--naming cn`, a collision is an error
+  rather than a silent overwrite.
+- **Characters that are illegal in filenames.** Wildcard names such as `*.example.com`
+  are sanitized before use.
+
+If the chain cannot be built completely -- a self-signed leaf, or missing intermediates
+-- certz writes the certificates it does have and warns, rather than failing. A broken
+chain is often exactly what you are trying to inspect.
+
+---
+
 ## Full Options
 
 | Option | Default | Description |
@@ -177,6 +237,10 @@ certz inspect server.pfx --password Pass --save cert.der --save-format der
 | `--save <file>` | (none) | Save certificate to file |
 | `--save-key <file>` | (none) | Save private key to file |
 | `--save-format` | `pem` | Save format: `pem` or `der` |
+| `--save-dir <dir>` | (none) | Save each chain certificate to its own file in this directory (implies `--chain`) |
+| `--naming` | `index-cn-thumbprint` | Filename scheme for `--save-dir`: `index-cn-thumbprint`, `cn-thumbprint`, `thumbprint`, `cn` |
+| `--force, -f` | `false` | Overwrite existing files when using `--save-dir` |
+| `--dry-run, --dr` | `false` | With `--save-dir`, report planned paths without writing |
 | `--store, -s` | (none) | Certificate store for thumbprint lookup: `My`, `Root`, `CA` |
 | `--location, -l` | `CurrentUser` | Store location: `CurrentUser` or `LocalMachine` |
 | `--format` | `text` | Output format: `text` or `json` |
@@ -268,8 +332,10 @@ Top-level fields:
 | `source` | string | `"File"`, `"Url"`, or `"Store"` |
 | `sourcePath` | string or null | File path, URL, or store reference |
 | `chainIsValid` | bool | `true` when chain is present and valid |
-| `chain` | array or null | Chain elements (only when `--chain` was used) |
+| `chain` | array or null | Chain elements (present when `--chain`, `--tree`, or `--save-dir` was used) |
 | `warnings` | string[] | Any warnings raised during inspection |
+| `savedFiles` | string[] or null | Files written by `--save-dir`, in chain order |
+| `savedFilesWereDryRun` | bool | `true` when `savedFiles` lists planned paths rather than written files |
 
 Each `chain[]` element:
 

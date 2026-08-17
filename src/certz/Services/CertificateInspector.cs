@@ -20,12 +20,10 @@ internal static class CertificateInspector
 
         try
         {
-            var result = BuildInspectResult(cert, additionalCerts, InspectSource.File, options.Source, options);
+            var chainResult = BuildChain(cert, additionalCerts, options);
+            var result = BuildInspectResult(cert, additionalCerts, chainResult, InspectSource.File, options.Source, options);
 
-            // Handle save operations
-            HandleSaveOperations(cert, options);
-
-            return result;
+            return ApplyExports(result, cert, chainResult, options);
         }
         finally
         {
@@ -55,9 +53,12 @@ internal static class CertificateInspector
                     // Clone the certificate using its raw data to avoid disposal issues
                     certificate = X509CertificateLoader.LoadCertificate(cert.GetRawCertData());
 
-                    // Capture chain certificates if requested
+                    // Capture chain certificates if requested. Gated on NeedsChain, not
+                    // ShowChain: --save-dir exports the chain without asking to display it,
+                    // and without these the server-sent intermediates never reach
+                    // ChainPolicy.ExtraStore, leaving a private-CA chain unbuildable.
                     // We need to clone them as well since the chain will be disposed after callback
-                    if (options.ShowChain && certChain != null)
+                    if (options.NeedsChain && certChain != null)
                     {
                         foreach (var element in certChain.ChainElements)
                         {
@@ -99,15 +100,11 @@ internal static class CertificateInspector
 
         try
         {
-            var result = BuildInspectResult(certificate, chain, InspectSource.Url, options.Source, options);
+            var chainResult = BuildChain(certificate, chain, options);
+            var result = BuildInspectResult(certificate, chain, chainResult, InspectSource.Url, options.Source, options);
 
-            // Handle save operations (no private key from URL)
-            if (!string.IsNullOrEmpty(options.SavePath))
-            {
-                SaveCertificate(certificate, options.SavePath, options.SaveFormat);
-            }
-
-            return result;
+            // No private key is ever available from a URL
+            return ApplyExports(result, certificate, chainResult, options, allowKeySave: false);
         }
         finally
         {
@@ -146,12 +143,11 @@ internal static class CertificateInspector
         }
 
         var sourcePath = $"{location}\\{name}\\{thumbprint}";
-        var result = BuildInspectResult(cert, new X509Certificate2Collection(), InspectSource.Store, sourcePath, options);
+        var additionalCerts = new X509Certificate2Collection();
+        var chainResult = BuildChain(cert, additionalCerts, options);
+        var result = BuildInspectResult(cert, additionalCerts, chainResult, InspectSource.Store, sourcePath, options);
 
-        // Handle save operations
-        HandleSaveOperations(cert, options);
-
-        return result;
+        return ApplyExports(result, cert, chainResult, options);
     }
 
     private static (X509Certificate2 Certificate, X509Certificate2Collection AdditionalCerts) LoadCertificateFromFile(string path, string? password)
@@ -289,9 +285,101 @@ internal static class CertificateInspector
         }
     }
 
+    /// <summary>
+    /// Builds the certificate chain when the options call for it.
+    /// </summary>
+    /// <remarks>
+    /// Built once per inspection and shared by the display and the --save-dir export,
+    /// so the two can never disagree about what the chain contains.
+    /// </remarks>
+    private static ChainValidationResult? BuildChain(
+        X509Certificate2 cert,
+        X509Certificate2Collection additionalCerts,
+        InspectOptions options)
+    {
+        if (!options.NeedsChain)
+        {
+            return null;
+        }
+
+        var validator = new ChainValidator();
+        return validator.ValidateChain(cert, additionalCerts, options.CheckCrl);
+    }
+
+    /// <summary>
+    /// Performs every write the options ask for and records the paths on the result.
+    /// </summary>
+    /// <remarks>
+    /// All write paths run through here so --dry-run can suppress them uniformly and
+    /// still report what it suppressed. Reporting only the --save-dir plan would leave
+    /// --save and --save-key silently doing nothing.
+    /// </remarks>
+    /// <param name="allowKeySave">
+    /// False for URL sources, which never carry a private key.
+    /// </param>
+    private static CertificateInspectResult ApplyExports(
+        CertificateInspectResult result,
+        X509Certificate2 cert,
+        ChainValidationResult? chainResult,
+        InspectOptions options,
+        bool allowKeySave = true)
+    {
+        var paths = new List<string>();
+
+        if (!string.IsNullOrEmpty(options.SavePath))
+        {
+            if (!options.DryRun)
+            {
+                SaveCertificate(cert, options.SavePath, options.SaveFormat);
+            }
+            paths.Add(options.SavePath);
+        }
+
+        if (allowKeySave && !string.IsNullOrEmpty(options.SaveKeyPath))
+        {
+            if (!options.DryRun)
+            {
+                SavePrivateKey(cert, options.SaveKeyPath, options.SaveFormat);
+            }
+            paths.Add(options.SaveKeyPath);
+        }
+
+        if (!string.IsNullOrEmpty(options.SaveDir))
+        {
+            // A chain that will not build is often exactly what the user is
+            // investigating, so export whatever is available rather than failing. When
+            // the chain produced nothing at all, the inspected certificate is still a
+            // real result and is exported on its own.
+            var elements = chainResult?.ChainElements ?? [];
+            var certificates = elements.Count > 0
+                ? elements.Select(e => e.Certificate).ToList()
+                : [cert];
+
+            paths.AddRange(ChainExportService.ExportCertificates(
+                certificates,
+                options.SaveDir,
+                options.SaveFormat,
+                options.Naming,
+                options.Force,
+                options.DryRun));
+        }
+
+        if (paths.Count == 0)
+        {
+            return result;
+        }
+
+        return result with
+        {
+            SavedFiles = paths,
+            SavedFilesWereDryRun = options.DryRun
+        };
+    }
+
     private static CertificateInspectResult BuildInspectResult(
         X509Certificate2 cert,
         X509Certificate2Collection additionalCerts,
+        ChainValidationResult? chainResult,
         InspectSource source,
         string sourcePath,
         InspectOptions options)
@@ -333,10 +421,8 @@ internal static class CertificateInspector
         List<ChainElementInfo>? chainInfo = null;
         bool chainIsValid = true;
 
-        if (options.ShowChain)
+        if (chainResult != null)
         {
-            var validator = new ChainValidator();
-            var chainResult = validator.ValidateChain(cert, additionalCerts, options.CheckCrl);
             chainIsValid = chainResult.IsValid;
 
             chainInfo = chainResult.ChainElements.Select((e, index) =>
@@ -600,33 +686,10 @@ internal static class CertificateInspector
         return "OK";
     }
 
-    private static void HandleSaveOperations(X509Certificate2 cert, InspectOptions options)
-    {
-        if (!string.IsNullOrEmpty(options.SavePath))
-        {
-            SaveCertificate(cert, options.SavePath, options.SaveFormat);
-        }
-
-        if (!string.IsNullOrEmpty(options.SaveKeyPath))
-        {
-            SavePrivateKey(cert, options.SaveKeyPath, options.SaveFormat);
-        }
-    }
-
     private static void SaveCertificate(X509Certificate2 certificate, string outputPath, string format)
     {
-        var isPem = format.Equals("pem", StringComparison.OrdinalIgnoreCase);
-
-        if (isPem)
-        {
-            var pem = certificate.ExportCertificatePem();
-            File.WriteAllText(outputPath, pem);
-        }
-        else
-        {
-            var der = certificate.RawData;
-            File.WriteAllBytes(outputPath, der);
-        }
+        // Shared with --save-dir so both routes encode PEM and DER identically.
+        CertificateUtilities.WriteCertificateBytes(certificate.RawData, outputPath, format);
     }
 
     private static void SavePrivateKey(X509Certificate2 certificate, string outputPath, string format)

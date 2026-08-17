@@ -51,6 +51,32 @@ internal record InspectOptions
     public string SaveFormat { get; init; } = "pem";
 
     /// <summary>
+    /// Directory to write each chain certificate to, one file per certificate.
+    /// </summary>
+    public string? SaveDir { get; init; }
+
+    /// <summary>
+    /// Whether a chain must be built. Exporting needs one even when the caller only
+    /// asked for files, so this is kept separate from ShowChain, which governs display.
+    /// </summary>
+    public bool NeedsChain => ShowChain || !string.IsNullOrEmpty(SaveDir);
+
+    /// <summary>
+    /// Filename scheme used by SaveDir.
+    /// </summary>
+    public string Naming { get; init; } = "index-cn-thumbprint";
+
+    /// <summary>
+    /// Whether SaveDir may overwrite existing files.
+    /// </summary>
+    public bool Force { get; init; }
+
+    /// <summary>
+    /// Whether SaveDir should report planned paths without writing.
+    /// </summary>
+    public bool DryRun { get; init; }
+
+    /// <summary>
     /// Certificate store name for thumbprint lookup (My, Root, CA).
     /// </summary>
     public string? StoreName { get; init; }

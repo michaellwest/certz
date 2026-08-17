@@ -43,7 +43,9 @@ internal record CertificateInspectedOutput(
     CertificateInspectDto Certificate,
     ChainElementDto[]? Chain,
     bool ChainIsValid,
-    string[]? Warnings
+    string[]? Warnings,
+    string[]? SavedFiles,
+    bool SavedFilesWereDryRun
 );
 
 internal record CertificateInspectDto(
@@ -429,7 +431,9 @@ internal class JsonFormatter : IOutputFormatter
             Certificate: certificate,
             Chain: chain,
             ChainIsValid: result.ChainIsValid,
-            Warnings: result.Warnings.Count > 0 ? result.Warnings.ToArray() : null
+            Warnings: result.Warnings.Count > 0 ? result.Warnings.ToArray() : null,
+            SavedFiles: result.SavedFiles is { Count: > 0 } ? result.SavedFiles.ToArray() : null,
+            SavedFilesWereDryRun: result.SavedFilesWereDryRun
         );
 
         Console.WriteLine(JsonSerializer.Serialize(output, JsonFormatterContext.Default.CertificateInspectedOutput));

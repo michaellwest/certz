@@ -114,4 +114,15 @@ internal record CertificateInspectResult
     /// Any warnings or issues found during inspection.
     /// </summary>
     public List<string> Warnings { get; init; } = [];
+
+    /// <summary>
+    /// Files written by --save-dir, in chain order. Populated with the paths that
+    /// would be written when --dry-run is set.
+    /// </summary>
+    public List<string>? SavedFiles { get; init; }
+
+    /// <summary>
+    /// Whether SavedFiles describes a dry run rather than files actually written.
+    /// </summary>
+    public bool SavedFilesWereDryRun { get; init; }
 }

@@ -246,6 +246,22 @@ internal class TextFormatter : IOutputFormatter
                 RenderChainFromInfo(result.Chain, result.ChainIsValid);
             }
         }
+
+        // Show files written by --save-dir
+        if (result.SavedFiles is { Count: > 0 })
+        {
+            AnsiConsole.WriteLine();
+            // "file" rather than "certificate": the list can include a private key
+            // written by --save-key.
+            var heading = result.SavedFilesWereDryRun
+                ? $"[bold yellow]Dry run - would write {result.SavedFiles.Count} file(s):[/]"
+                : $"[bold green]Saved {result.SavedFiles.Count} file(s):[/]";
+            AnsiConsole.MarkupLine(heading);
+            foreach (var file in result.SavedFiles)
+            {
+                AnsiConsole.MarkupLine($"  [blue]{Markup.Escape(file)}[/]");
+            }
+        }
     }
 
     /// <summary>

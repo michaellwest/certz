@@ -6,19 +6,19 @@
 |Root: c:\Projects\github\michaellwest\certz
 
 === COMMANDS (CLI Entry) ===
-|src/certz/Commands/| Create/{CreateDev, CreateCa}, Inspect, Trust, Lint, Monitor, Renew, Convert, Store/StoreList, {Install, Export, Info, List, Remove, Verify}
+|src/certz/Commands/| Create/{CreateDev, CreateCa}, Inspect, Trust, Lint, Monitor, Renew, Convert, Store/StoreList, Diff, Fingerprint, VerifyKeypair, Examples, Completion
 
 === SERVICES (Logic) ===
-|src/certz/Services/| Create, CertificateGeneration (CORE), CertificateUtilities, CertificateInspector, CertificateDisplay, Inspect, Trust, Lint, Monitor, Renew, Convert, Export, FormatDetection, PipeOutput, CertificateWizard, Validation/{ChainValidator, ChainVisualizer}
+|src/certz/Services/| CertificateGeneration (CORE), CertificateUtilities, CertificateInspector, CertificateDisplay, CertificateWizard, ChainExport, Convert, Create, Diff, Fingerprint, FormatDetection, Lint, Monitor, PipeOutput, Renew, SanInputValidator, StoreListHandler, TrustHandler, VerboseLogger, VerifyKeypair, Validation/{ChainValidator, ChainVisualizer}
 
 === MODELS (Options & Results) ===
-|src/certz/Models/| {DevCertificate, CACertificate, Inspect, Lint, Monitor, Renew, Convert, AddToTrustStore, Export, Verify, List, Remove}Options; {CertificateCreation, CertificateInspect, Lint, Monitor, Renew, Conversion}Result; {CertificateFileType, FormatType, InspectSource, ChainElementInfo}
+|src/certz/Models/| {DevCertificate, CACertificate, Inspect, Lint, Monitor, Renew, Convert, Diff, StoreList}Options; {CertificateCreation, CertificateInspect, Lint, Monitor, Renew, Conversion, Diff, DryRun, Fingerprint, StoreList, TrustOperation, VerifyKeypair}Result; {CertificateFileType, FormatType, InspectSource, ChainElementInfo}
 
 === INFRASTRUCTURE & FORMATTERS ===
 |src/certz/| Program.cs, GlobalUsings.cs, certz.csproj (.NET 10, single-file)
-|src/certz/Options/| OptionBuilders.cs (528 lines: all CLI option factories/validators)
+|src/certz/Options/| OptionBuilders.cs (684 lines: all CLI option factories/validators)
 |src/certz/Formatters/| {IOutputFormatter, FormatterFactory}, {TextFormatter, JsonFormatter}
-|src/certz/Exceptions/| {CertificateException, LintFailedException}
+|src/certz/Exceptions/| {CertificateException, DiffHasDifferencesException, KeypairMismatchException, LintFailedException}
 
 === DOCUMENTATION & TESTING ===
 |./| README.md (28KB CLI Ref), CLAUDE.md (This file)
