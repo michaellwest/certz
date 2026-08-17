@@ -62,7 +62,7 @@ $TestCategories = @{
     "simplified-errors" = @("cnv-10.1", "cnv-10.2", "cnv-10.3")
     "dry-run" = @("dry-1.1", "dry-1.2")
     "repassword" = @("rp-1.1", "rp-1.2", "rp-1.3", "rp-1.4", "rp-2.1", "rp-2.2", "rp-2.3", "rp-2.4")
-    "chain" = @("cnv-11.1", "cnv-11.2", "cnv-11.3", "cnv-11.4", "cnv-11.5", "cnv-11.6")
+    "chain" = @("cnv-11.1", "cnv-11.2", "cnv-11.3", "cnv-11.4", "cnv-11.5", "cnv-11.6", "cnv-11.7")
     "guided" = @("cnv-gui-1.1")  # Interactive tests (manual only)
 }
 
@@ -1809,6 +1809,52 @@ Invoke-Test -TestId "cnv-11.6" -TestName "Out-of-order bundle is reordered leaf 
         Remove-TestCertificateChain -Chain $chain
         Remove-Item "cnv-chain-order.pem" -Force -ErrorAction SilentlyContinue
         Remove-Item "cnv-chain-order.der" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Test cnv-11.7: Chain private keys are not carried into the output
+Invoke-Test -TestId "cnv-11.7" -TestName "Only the leaf private key survives conversion" -FilePrefix "cnv-chain-key" -TestScript {
+    $guid = [guid]::NewGuid().ToString().Substring(0,8)
+    $chain = New-TestCertificateChain -Subject "certz-chain-key-$guid"
+
+    try {
+        # SETUP: A bundle holding BOTH keys - the shape a PKI operator keeps locally.
+        # Preserving the chain must not also preserve the CA's ability to issue.
+        $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+        $collection.Add($chain.Leaf) | Out-Null
+        $collection.Add($chain.Ca) | Out-Null
+        [System.IO.File]::WriteAllBytes(
+            (Join-Path (Get-Location) "cnv-chain-key.pfx"),
+            $collection.Export('Pkcs12', 'OldPass123'))
+
+        # ACTION: Single certz.exe call
+        & .\certz.exe convert cnv-chain-key.pfx --repassword --password OldPass123 --new-password NewPass456 --output cnv-chain-key-out.pfx 2>&1 | Out-Null
+
+        # ASSERTION 1: Exit code
+        Assert-ExitCode -Expected 0
+
+        # ASSERTION 2: The chain is still intact
+        $written = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+        $written.Import((Resolve-Path "cnv-chain-key-out.pfx").Path, "NewPass456", "Exportable")
+        if ($written.Count -ne 2) {
+            throw "Expected 2 certificates, found $($written.Count)"
+        }
+
+        # ASSERTION 3: Exactly one private key, and it belongs to the leaf
+        $keyed = @($written | Where-Object { $_.HasPrivateKey })
+        if ($keyed.Count -ne 1) {
+            throw "Expected exactly 1 private key in output, found $($keyed.Count) - a CA key may have leaked"
+        }
+        if ($keyed[0].Subject -ne $chain.Leaf.Subject) {
+            throw "The surviving private key belongs to '$($keyed[0].Subject)', expected the leaf"
+        }
+
+        [PSCustomObject]@{ Success = $true; Details = "Chain preserved, CA key stripped" }
+    }
+    finally {
+        Remove-TestCertificateChain -Chain $chain
+        Remove-Item "cnv-chain-key.pfx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "cnv-chain-key-out.pfx" -Force -ErrorAction SilentlyContinue
     }
 }
 

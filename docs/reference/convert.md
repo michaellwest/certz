@@ -93,6 +93,12 @@ not part of the leaf's chain are still written, at the end.
 `--repassword` preserves the chain as well, so re-encrypting a PFX does not quietly
 shrink it.
 
+**Only the end-entity private key is carried over.** Chain certificates are written as
+public certificates even when the source bundle held their private keys. A PFX holding
+both an internal CA key and a server key converts to an output containing the server
+key and the CA certificate -- not the CA key. That artifact is safe to hand to a web
+server or a vendor without also handing over the ability to issue certificates.
+
 **DER is the exception.** The format encodes exactly one certificate, so a multi-
 certificate source cannot survive it. certz writes the leaf and warns:
 

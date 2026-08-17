@@ -309,19 +309,54 @@ internal static class ConvertService
         string password,
         string pfxEncryption)
     {
-        if (pfxEncryption.Equals("modern", StringComparison.OrdinalIgnoreCase))
+        // Only the end-entity certificate's private key belongs in the output. Chain
+        // certificates travel as public certificates, which is what a server or a
+        // vendor needs. Carrying a CA's private key into an artifact built for
+        // distribution would hand over the ability to issue - and because the source
+        // bag is loaded Exportable, every key in it would otherwise be serialized.
+        var exportable = new X509Certificate2Collection { certificates[0] };
+        var strippedCopies = new List<X509Certificate2>();
+
+        for (var index = 1; index < certificates.Count; index++)
         {
-            // Modern encryption: AES-256-CBC with SHA-256 and high iteration count
-            var pbeParams = new PbeParameters(
-                PbeEncryptionAlgorithm.Aes256Cbc,
-                HashAlgorithmName.SHA256,
-                iterationCount: 100000);
-            return certificates.ExportPkcs12(pbeParams, password);
+            var chainCert = certificates[index];
+
+            if (chainCert.HasPrivateKey)
+            {
+                // Reloading from RawData yields the same certificate without its key
+                var publicOnly = X509CertificateLoader.LoadCertificate(chainCert.RawData);
+                strippedCopies.Add(publicOnly);
+                exportable.Add(publicOnly);
+            }
+            else
+            {
+                exportable.Add(chainCert);
+            }
         }
 
-        // Legacy encryption: 3DES for compatibility with older systems
-        return certificates.Export(X509ContentType.Pfx, password)
-            ?? throw new CertificateException("Failed to export certificates as PFX.");
+        try
+        {
+            if (pfxEncryption.Equals("modern", StringComparison.OrdinalIgnoreCase))
+            {
+                // Modern encryption: AES-256-CBC with SHA-256 and high iteration count
+                var pbeParams = new PbeParameters(
+                    PbeEncryptionAlgorithm.Aes256Cbc,
+                    HashAlgorithmName.SHA256,
+                    iterationCount: 100000);
+                return exportable.ExportPkcs12(pbeParams, password);
+            }
+
+            // Legacy encryption: 3DES for compatibility with older systems
+            return exportable.Export(X509ContentType.Pfx, password)
+                ?? throw new CertificateException("Failed to export certificates as PFX.");
+        }
+        finally
+        {
+            foreach (var copy in strippedCopies)
+            {
+                copy.Dispose();
+            }
+        }
     }
 
     /// <summary>
