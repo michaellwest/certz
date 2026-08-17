@@ -36,6 +36,7 @@
 - Use `OptionBuilders` for standard options; `FormatterFactory` for output [P1]
 - Tests: Invoke certz.exe exactly ONCE; PowerShell only for setup/cleanup [T]
 - Assert against system state in tests, not console output [T]
+- Debug against `debug/certz.exe` (the `Build-Certz` target the suites run); `debug/win-x64/` and `src/certz/bin/` copies go stale and give false results [T]
 - Generate secure random passwords if omitted; use UTC for dates [R]
 - Use modern PFX encryption (AES-256-CBC) by default [R]
 - Ref GitHub Issue (`closes #N`) in every commit [C]
